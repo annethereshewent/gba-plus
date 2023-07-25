@@ -4,6 +4,7 @@
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
+
 pub struct CPU {
   r: [u32; 15],
   pc: u32,

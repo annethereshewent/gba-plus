@@ -1,4 +1,4 @@
-use super::{CPU, PSRRegister};
+use super::{CPU, PSRRegister, PC_REGISTER};
 
 impl CPU {
   pub fn decode_instruction(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) {
@@ -94,7 +94,7 @@ impl CPU {
     let offset = instr & 0b11111111;
 
     match op_code {
-      0 => self.mov(rd, offset),
+      0 => self.mov(rd, offset as u32, true),
       1 => self.cmp(self.r[rd as usize], offset as u32),
       2 => self.r[rd as usize] = self.add(self.r[rd as usize], offset as u32),
       3 => self.r[rd as usize] = self.subtract(self.r[rd as usize], offset as u32),
@@ -129,15 +129,80 @@ impl CPU {
   }
 
   fn hi_register_ops(&mut self, instr: u16) {
+    let op_code = (instr >> 8) & 0b11;
+    let h1 = (instr >> 7) & 0b1;
+    let h2 = (instr >> 6) & 0b1;
+
+    let mut source = (instr >> 3) & 0b111;
+    let mut destination = instr & 0b111;
+
+    if h1 == 1 {
+      destination += 8;
+    }
+    if h2 == 1 {
+      source += 8;
+    }
+
+    match op_code {
+      0 => {
+        let result = self.r[destination as usize].wrapping_add(self.r[source as usize]);
+        if destination == PC_REGISTER as u16 {
+          self.pc = result & !(0b1);
+        } else {
+          self.r[destination as usize] = result;
+        }
+      }
+      1 => { self.subtract(self.r[destination as usize], self.r[source as usize]); }
+      2 => self.mov(destination, self.r[source as usize], false),
+      3 => self.bx(self.r[source as usize]),
+      _ => unreachable!("can't be")
+    }
+
+    if destination == PC_REGISTER as u16 {
+      // reload the pipeline
+
+    }
 
   }
 
   fn pc_relative_load(&mut self, instr: u16) {
+    let rd = (instr >> 8) & 0b111;
+    let immediate = instr & 0b11111111;
 
+    let address = (self.pc & !(0b11)) + immediate as u32;
+
+    self.r[rd as usize] = self.mem_read_32(address)
   }
 
   fn load_store_reg_offset(&mut self, instr: u16) {
+    let b = (instr >> 10) & 0b1;
+    let l = (instr >> 11) & 0b1;
 
+    let ro = (instr >> 6) & 0b111;
+    let rb = (instr >> 3) & 0b111;
+    let rd = instr & 0b111;
+
+    let address = self.r[rb as usize].wrapping_add(self.r[ro as usize]);
+
+    match (l, b) {
+      (0, 0) => {
+        self.mem_write_32(address, self.r[rd as usize]);
+      }
+      (0, 1) => {
+        self.mem_write_8(address, self.r[rd as usize] as u8);
+      }
+      (1, 0) => {
+        let value = self.mem_read_32(address);
+
+        self.r[rd as usize] = value;
+      }
+      (1, 1) => {
+        let value = self.mem_read_8(address) as u32;
+
+        self.r[rd as usize] = value;
+      }
+      _ => unreachable!("can't be")
+    }
   }
 
   fn load_store_signed_byte_halfword(&mut self, instr: u16) {
@@ -188,8 +253,16 @@ impl CPU {
 
   }
 
-  fn mov(&mut self, rd: u16, val: u16) {
+  fn mov(&mut self, rd: u16, val: u32, set_flags: bool) {
+    if rd == 15 {
+      self.pc = val & !(0b1);
+    } else {
+      self.r[rd as usize] = val;
+    }
 
+    if set_flags {
+      self.set_carry_zero_and_negative_flags(val, self.cpsr.contains(PSRRegister::CARRY));
+    }
   }
 
   fn cmp(&mut self, operand1: u32, operand2: u32) {
@@ -357,5 +430,26 @@ impl CPU {
     self.r[rd as usize] = val;
 
     self.set_carry_zero_and_negative_flags(val, carry)
+  }
+
+  fn bx(&mut self, source: u32) {
+    // if thumb mode
+    if source & 0b1 == 1 {
+      let address = source & !(0b1);
+
+      self.cpsr.set(PSRRegister::STATE_BIT, true);
+
+      self.pc = address;
+
+      // reload the pipeline here
+    } else {
+      // if ARM mode
+      let address = source & !(0b11);
+      self.cpsr.set(PSRRegister::STATE_BIT, false);
+
+      self.pc = address;
+
+      // reload pipeline
+    }
   }
 }

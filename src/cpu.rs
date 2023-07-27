@@ -5,6 +5,8 @@
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
 
+pub const PC_REGISTER: u8 = 15;
+
 pub struct CPU {
   r: [u32; 15],
   pc: u32,
@@ -81,5 +83,21 @@ impl CPU {
       spsr_banks: [0; 5],
       thumb_lut: Vec::new()
     }
+  }
+
+  pub fn mem_read_32(&mut self, address: u32) -> u32 {
+    0
+  }
+
+  pub fn mem_read_8(&mut self, address: u32) -> u8 {
+    0
+  }
+
+  pub fn mem_write_32(&mut self, address: u32, val: u32) {
+
+  }
+
+  pub fn mem_write_8(&mut self, address: u32, val: u8) {
+
   }
 }

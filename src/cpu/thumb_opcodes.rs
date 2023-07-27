@@ -295,7 +295,7 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let word8 = (instr & 0xff) << 2;
 
-    let address = self.r[SP_REGISTER as usize].wrapping_add(word8 as u32);
+    let address = self.r[SP_REGISTER].wrapping_add(word8 as u32);
 
     if l == 0 {
       self.mem_write_32(address, self.r[rd as usize]);
@@ -312,7 +312,7 @@ impl CPU {
     let word8 = (instr & 0xff) << 2;
 
     self.r[rd as usize] = if sp == 1 {
-      self.r[SP_REGISTER as usize].wrapping_add(word8 as u32)
+      self.r[SP_REGISTER].wrapping_add(word8 as u32)
     } else {
       let pc_value = (self.pc.wrapping_sub(4) & !(0b1 << 1)) + 4;
       pc_value.wrapping_add(word8 as u32)
@@ -323,29 +323,138 @@ impl CPU {
     let s = (instr >> 7) & 0b1;
     let sword7 = ((instr & 0b1111111) << 2) as i32;
 
-    self.r[SP_REGISTER as usize] = if s == 0 {
+    self.r[SP_REGISTER] = if s == 0 {
       // add immediate to sp
-      (self.r[SP_REGISTER as usize] as i32).wrapping_add(sword7) as u32
+      (self.r[SP_REGISTER] as i32).wrapping_add(sword7) as u32
     } else {
       // subtract immediate from sp
-      (self.r[SP_REGISTER as usize] as i32).wrapping_sub(sword7) as u32
+      (self.r[SP_REGISTER] as i32).wrapping_sub(sword7) as u32
     }
   }
 
   fn push_pop_registers(&mut self, instr: u16) {
+    let l = (instr >> 11) & 0b1;
+    let r = (instr >> 8) & 0b1;
+    let register_list = instr & 0xff;
 
+    // push
+    if l == 0 {
+      for i in 0..8 {
+        if (register_list >> i) & 0b1 == 1 {
+          self.push(self.r[i]);
+        }
+      }
+      if r == 1 {
+        // push LR to the stack
+        self.push(self.r[14]);
+      }
+    } else {
+      // pop
+      for i in 0..8 {
+        if (register_list >> i) & 0b1 == 1 {
+          self.r[i] = self.pop();
+        }
+      }
+      if r == 1 {
+        // pop PC off the stack
+        self.pc = self.pop();
+        self.pc &= !(1);
+
+        // reload the pipeline
+      }
+    }
   }
 
   fn multiple_load_store(&mut self, instr: u16) {
+    let l = (instr >> 11) & 0b1;
+    let rb = (instr >> 8) & 0b111;
+    let rlist = instr & 0xff;
+
+    let mut address = self.r[rb as usize] & !(0b11);
+    let align_preserve = self.r[rb as usize] & (0b11);
+
+    if rlist != 0 {
+      if l == 0 {
+        // store
+        let mut first = false;
+
+        for r in 0..8 {
+          let val = if r != rb {
+            self.r[r as usize]
+          } else if first {
+            first = false;
+            address
+          } else {
+            address + (rlist.count_ones() - 1) * 4
+          };
+
+          self.mem_write_32(address, val);
+
+          address += 4;
+        }
+        self.r[rb as usize] = address + align_preserve;
+      } else {
+        // load
+        for r in 0..8 {
+          if (rlist >> r) & 0b1 == 1 {
+            let val = self.mem_read_32(address);
+
+            self.r[r] = val;
+            address += 4;
+          }
+        }
+
+        if (rlist >> rb) & 0b1 == 0 {
+          self.r[rb as usize] = address + align_preserve;
+        }
+      }
+    } else {
+      // from gbatek: Empty Rlist: R15 loaded/stored (ARMv4 only), and Rb=Rb+40h (ARMv4-v5).
+      if l == 0 {
+        // store PC
+        self.mem_write_32(address, self.pc + 2);
+      } else {
+        // load PC
+        let val = self.mem_read_32(address);
+
+        self.pc = val & !(0b1);
+
+        // reload the pipeline
+      }
+
+      address += 0x40;
+
+      self.r[rb as usize] = address + align_preserve;
+    }
 
   }
 
   fn conditional_branch(&mut self, instr: u16) {
+    let cond = (instr >> 8) & 0b1111;
 
+    let signed_offset = (instr & 0xff) as i8;
+
+    match cond {
+      0 => self.branch_if(self.cpsr.contains(PSRRegister::ZERO), signed_offset),
+      1 => self.branch_if(!self.cpsr.contains(PSRRegister::ZERO), signed_offset),
+      2 => self.branch_if(self.cpsr.contains(PSRRegister::CARRY), signed_offset),
+      3 => self.branch_if(!self.cpsr.contains(PSRRegister::CARRY), signed_offset),
+      4 => self.branch_if(self.cpsr.contains(PSRRegister::NEGATIVE), signed_offset),
+      5 => self.branch_if(!self.cpsr.contains(PSRRegister::NEGATIVE), signed_offset),
+      6 => self.branch_if(self.cpsr.contains(PSRRegister::OVERFLOW), signed_offset),
+      7 => self.branch_if(!self.cpsr.contains(PSRRegister::OVERFLOW), signed_offset),
+      8 => self.branch_if(self.cpsr.contains(PSRRegister::CARRY) && !self.cpsr.contains(PSRRegister::ZERO), signed_offset),
+      9 => self.branch_if(!self.cpsr.contains(PSRRegister::CARRY) || self.cpsr.contains(PSRRegister::ZERO), signed_offset),
+      10 => self.branch_if(self.bge(), signed_offset),
+      11 => self.branch_if(self.blt(), signed_offset),
+      12 => self.branch_if(self.bgt(), signed_offset),
+      13 => self.branch_if(self.ble(), signed_offset),
+      _ => panic!("shouldn't happen")
+    }
   }
 
   fn software_interrupt(&mut self, instr: u16) {
-
+    let value8 = instr & 0xff;
   }
 
   fn unconditional_branch(&mut self, instr: u16) {
@@ -354,6 +463,22 @@ impl CPU {
 
   fn long_branch_link(&mut self, instr: u16) {
 
+  }
+
+  fn bge(&self) -> bool {
+    (self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW))
+  }
+
+  fn blt(&self) -> bool {
+    (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
+  }
+
+  fn bgt(&self) -> bool {
+    !self.cpsr.contains(PSRRegister::ZERO) && ((self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)))
+  }
+
+  fn ble(&self) -> bool {
+    self.cpsr.contains(PSRRegister::ZERO) || (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
   }
 
   fn mov(&mut self, rd: u16, val: u32, set_flags: bool) {
@@ -554,5 +679,9 @@ impl CPU {
 
       // reload pipeline
     }
+  }
+
+  fn branch_if(&mut self, cond: bool, offset: i8) {
+
   }
 }

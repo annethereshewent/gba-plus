@@ -2,11 +2,14 @@
 // thumb state SP maps onto ARM r13
 // thumb state LR maps onto ARM r14
 
+// in THUMB mode, bit 0 of PC is 0
+// in ARM mode, bits 0-1 of PC are 0
+
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
 
-pub const PC_REGISTER: u8 = 15;
-pub const SP_REGISTER: u8 = 13;
+pub const PC_REGISTER: usize = 15;
+pub const SP_REGISTER: usize = 13;
 
 pub struct CPU {
   r: [u32; 15],
@@ -114,5 +117,19 @@ impl CPU {
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
 
+  }
+
+  pub fn push(&mut self, val: u32) {
+    self.r[SP_REGISTER] -= 4;
+
+    self.mem_write_32(self.r[SP_REGISTER], val);
+  }
+
+  pub fn pop(&mut self) -> u32 {
+    let val = self.mem_read_32(self.r[SP_REGISTER]);
+
+    self.r[SP_REGISTER] += 4;
+
+    val
   }
 }

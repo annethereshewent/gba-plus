@@ -1,4 +1,4 @@
-use super::{CPU, PSRRegister, PC_REGISTER};
+use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER};
 
 impl CPU {
   pub fn decode_instruction(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) {
@@ -206,27 +206,130 @@ impl CPU {
   }
 
   fn load_store_signed_byte_halfword(&mut self, instr: u16) {
+    let h = (instr >> 11) & 0b1;
+    let s = (instr >> 10) & 0b1;
+
+    let ro = (instr >> 6) & 0b111;
+    let rb = (instr >> 3) & 0b111;
+    let rd = instr & 0b111;
+
+    let address = self.r[ro as usize].wrapping_add(self.r[rb as usize]);
+
+    match (s, h) {
+      (0, 0) => {
+        let value = (self.r[rd as usize] & 0xffff) as u16;
+        self.mem_write_16(address, value);
+      }
+      (0, 1) => {
+        let value = self.mem_read_16(address);
+
+        self.r[rd as usize] = value as u32;
+      }
+      (1, 0) => {
+        let value = self.mem_read_8(address) as i32;
+
+        self.r[rd as usize] = value as u32;
+      }
+      (1,1) => {
+        let value = self.mem_read_16(address) as i32;
+
+        self.r[rd as usize] = value as u32;
+      }
+      _ => unreachable!("can't be")
+    }
+
 
   }
 
   fn load_store_immediate_offset(&mut self, instr: u16) {
+    let b = (instr >> 12) & 0b1;
+    let l = (instr >> 11) & 0b1;
+    let offset = (instr >> 6) & 0b11111;
+    let rb = (instr >> 3) & 0b111;
+    let rd = instr & 0b111;
 
+    let address = self.r[rb as usize].wrapping_add(offset as u32);
+
+    match (l, b) {
+      (0, 0) => {
+        self.mem_write_32(address, self.r[rd as usize]);
+      }
+      (1, 0) => {
+        let value = self.mem_read_32(address);
+
+        self.r[rd as usize] = value;
+      }
+      (0, 1) => {
+        let byte  = (self.r[rd as usize] & 0xff) as u8;
+        self.mem_write_8(address, byte);
+      }
+      (1, 1) => {
+        let val = self.mem_read_8(address) as u32;
+
+        self.r[rd as usize] = val;
+      }
+      _ => unreachable!("cannot be")
+    }
   }
 
   fn load_store_halfword(&mut self, instr: u16) {
+    let l = (instr >> 11) & 0b1;
+    let offset = (instr >> 6) & 0b11111;
+    let rb = (instr >> 3) & 0b111;
+    let rd = instr & 0b111;
 
+    let address = self.r[rb as usize].wrapping_add(offset as u32);
+
+    if l == 0 {
+      let value = (self.r[rd as usize] & 0xffff) as u16;
+      self.mem_write_16(address, value);
+    } else {
+      let value = self.mem_read_16(address) as u32;
+
+      self.r[rd as usize] = value;
+    }
   }
 
   fn sp_relative_load_store(&mut self, instr: u16) {
+    let l = (instr >> 11) & 0b1;
+    let rd = (instr >> 8) & 0b111;
+    let word8 = (instr & 0xff) << 2;
 
+    let address = self.r[SP_REGISTER as usize].wrapping_add(word8 as u32);
+
+    if l == 0 {
+      self.mem_write_32(address, self.r[rd as usize]);
+    } else {
+      let value = self.mem_read_32(address);
+
+      self.r[rd as usize] = value;
+    }
   }
 
   fn load_address(&mut self, instr: u16) {
+    let sp = (instr >> 11) & 0b1;
+    let rd = (instr >> 8) & 0b111;
+    let word8 = (instr & 0xff) << 2;
 
+    self.r[rd as usize] = if sp == 1 {
+      self.r[SP_REGISTER as usize].wrapping_add(word8 as u32)
+    } else {
+      let pc_value = (self.pc.wrapping_sub(4) & !(0b10)) + 4;
+      pc_value.wrapping_add(word8 as u32)
+    };
   }
 
   fn add_offset_to_sp(&mut self, instr: u16) {
+    let s = (instr >> 7) & 0b1;
+    let sword7 = ((instr & 0b1111111) << 2) as i32;
 
+    self.r[SP_REGISTER as usize] = if s == 0 {
+      // add immediate to sp
+      (self.r[SP_REGISTER as usize] as i32).wrapping_add(sword7) as u32
+    } else {
+      // subtract immediate from sp
+      (self.r[SP_REGISTER as usize] as i32).wrapping_sub(sword7) as u32
+    }
   }
 
   fn push_pop_registers(&mut self, instr: u16) {

@@ -314,7 +314,7 @@ impl CPU {
     self.r[rd as usize] = if sp == 1 {
       self.r[SP_REGISTER as usize].wrapping_add(word8 as u32)
     } else {
-      let pc_value = (self.pc.wrapping_sub(4) & !(0b10)) + 4;
+      let pc_value = (self.pc.wrapping_sub(4) & !(0b1 << 1)) + 4;
       pc_value.wrapping_add(word8 as u32)
     };
   }

@@ -86,6 +86,12 @@ impl CPU {
     }
   }
 
+  pub fn execute(&mut self, instr: u16) {
+    let handler_fn = self.thumb_lut[(instr >> 8) as usize];
+
+    handler_fn(self, instr);
+  }
+
   pub fn mem_read_32(&mut self, address: u32) -> u32 {
     0
   }

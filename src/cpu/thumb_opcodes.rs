@@ -1,4 +1,4 @@
-use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER};
+use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, SOFTWARE_INTERRUPT_VECTOR, OperatingMode, LR_REGISTER};
 
 impl CPU {
   pub fn decode_instruction(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) {
@@ -123,7 +123,7 @@ impl CPU {
       12 => self.r[rd as usize] = self.or(self.r[rd as usize], self.r[rs as usize]),
       13 => self.r[rd as usize] = self.mul(self.r[rd as usize], self.r[rs as usize]),
       14 => self.r[rd as usize] = self.bic(self.r[rd as usize] ,self.r[rs as usize]),
-      15 => self.r[rd as usize] = self.mvn(self.r[rd as usize], self.r[rs as usize]),
+      15 => self.r[rd as usize] = self.mvn(self.r[rs as usize]),
       _ => unreachable!("impossible")
     }
   }
@@ -160,6 +160,7 @@ impl CPU {
 
     if destination == PC_REGISTER as u16 {
       // reload the pipeline
+      self.reload_pipeline16();
 
     }
 
@@ -361,6 +362,7 @@ impl CPU {
         self.pc &= !(1);
 
         // reload the pipeline
+        self.reload_pipeline16();
       }
     }
   }
@@ -420,6 +422,7 @@ impl CPU {
         self.pc = val & !(0b1);
 
         // reload the pipeline
+        self.reload_pipeline16();
       }
 
       address += 0x40;
@@ -432,7 +435,7 @@ impl CPU {
   fn conditional_branch(&mut self, instr: u16) {
     let cond = (instr >> 8) & 0b1111;
 
-    let signed_offset = (instr & 0xff) as i8;
+    let signed_offset = ((((instr & 0xff) as u32) << 24) as i32) >> 23;
 
     match cond {
       0 => self.branch_if(self.cpsr.contains(PSRRegister::ZERO), signed_offset),
@@ -453,32 +456,71 @@ impl CPU {
     }
   }
 
-  fn software_interrupt(&mut self, instr: u16) {
-    let value8 = instr & 0xff;
+  fn software_interrupt(&mut self, _instr: u16) {
+    let supervisor_bank = OperatingMode::Supervisor.bank_index();
+
+    self.r14_banks[supervisor_bank] = self.pc - 2;
+    self.spsr_banks[supervisor_bank] = self.cpsr;
+
+    // change to ARM state
+    self.cpsr.remove(PSRRegister::STATE_BIT);
+
+    self.set_mode( OperatingMode::Supervisor);
+
+    self.cpsr.insert(PSRRegister::IRQ_DISABLE);
+
+    self.pc = SOFTWARE_INTERRUPT_VECTOR;
+
+    // reload pipeline
+    self.reload_pipeline16();
   }
 
   fn unconditional_branch(&mut self, instr: u16) {
+    let address = (((instr & 0b11111111111) << 21) as i32) >> 20;
 
+    self.pc = (self.pc as i32).wrapping_add(address) as u32;
+
+    self.reload_pipeline16();
   }
 
   fn long_branch_link(&mut self, instr: u16) {
+    let h = (instr >> 11) & 0b1;
+    let offset = instr & 0b11111111111;
 
+    if h == 0 {
+      let address = ((offset << 21) as i32) >> 9;
+
+      self.r[LR_REGISTER] = (self.pc as i32).wrapping_add(address) as u32;
+    } else {
+      let address = ((offset << 21) as i32) >> 20;
+      let lr_result = (self.pc - 2) | 0b1;
+
+      self.pc = ((self.r[LR_REGISTER] & !1) as i32).wrapping_add(address) as u32;
+
+      self.r[LR_REGISTER] = lr_result;
+
+      self.reload_pipeline16();
+    }
   }
 
   fn bge(&self) -> bool {
-    (self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW))
+    // (self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW))
+    self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn blt(&self) -> bool {
-    (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
+    // (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
+    self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn bgt(&self) -> bool {
-    !self.cpsr.contains(PSRRegister::ZERO) && ((self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)))
+    // !self.cpsr.contains(PSRRegister::ZERO) && ((self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)))
+    self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn ble(&self) -> bool {
-    self.cpsr.contains(PSRRegister::ZERO) || (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
+    //self.cpsr.contains(PSRRegister::ZERO) || (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
+    self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn mov(&mut self, rd: u16, val: u32, set_flags: bool) {
@@ -643,7 +685,7 @@ impl CPU {
     result
   }
 
-  fn mvn(&mut self, operand1: u32, operand2: u32) -> u32 {
+  fn mvn(&mut self, operand2: u32) -> u32 {
     let result = !operand2;
 
     self.set_carry_zero_and_negative_flags(result, self.cpsr.contains(PSRRegister::CARRY));
@@ -670,6 +712,7 @@ impl CPU {
       self.pc = address;
 
       // reload the pipeline here
+      self.reload_pipeline16();
     } else {
       // if ARM mode
       let address = source & !(0b11);
@@ -678,10 +721,16 @@ impl CPU {
       self.pc = address;
 
       // reload pipeline
+      self.reload_pipeline16();
     }
   }
 
-  fn branch_if(&mut self, cond: bool, offset: i8) {
+  fn branch_if(&mut self, cond: bool, offset: i32) {
+    if cond {
+      self.pc = (self.pc as i32).wrapping_add(offset) as u32;
 
+      // reload pipeline
+      self.reload_pipeline16();
+    }
   }
 }

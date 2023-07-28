@@ -28,7 +28,9 @@ pub struct CPU {
   cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
   thumb_lut: Vec<fn(&mut CPU, instruction: u16)>,
-  pipeline: [u32; 2]
+  pipeline: [u32; 2],
+  rom: Vec<u8>,
+  is_init: bool
 }
 
 
@@ -90,7 +92,7 @@ impl PSRRegister {
 
 impl CPU {
   pub fn new() -> Self {
-    Self {
+    let mut cpu = Self {
       r: [0; 15],
       pc: 0,
       r8_banks: [0; 2],
@@ -104,8 +106,14 @@ impl CPU {
       cpsr: PSRRegister::new(),
       spsr_banks: [PSRRegister::new(); 6],
       thumb_lut: Vec::new(),
-      pipeline: [0; 2]
-    }
+      pipeline: [0; 2],
+      rom: Vec::new(),
+      is_init: true
+    };
+
+    cpu.populate_thumb_lut();
+
+    cpu
   }
 
   pub fn set_mode(&mut self, new_mode: OperatingMode) {
@@ -158,22 +166,68 @@ impl CPU {
     self.cpsr = PSRRegister::from_bits_truncate(new_cpsr);
   }
 
+  pub fn skip_bios(&mut self) {
+    self.r13_banks[0] = 0x0300_7f00; // USR/SYS
+    self.r13_banks[1] = 0x0300_7f00; // FIQ
+    self.r13_banks[2] = 0x0300_7fa0; // IRQ
+    self.r13_banks[3] = 0x0300_7fe0; // SVC
+    self.r13_banks[4] = 0x0300_7f00; // ABT
+    self.r13_banks[5] = 0x0300_7f00; // UND
+    self.r[13] = 0x0300_7f00;
+    self.pc = 0x0800_0000;
+    self.cpsr = PSRRegister::from_bits_truncate(0x5f);
+  }
+
+  pub fn load_game(&mut self, rom: Vec<u8>) {
+    self.rom = rom;
+  }
+
   pub fn execute(&mut self, instr: u16) {
     let handler_fn = self.thumb_lut[(instr >> 8) as usize];
+
+    println!("executing an instruction!");
 
     handler_fn(self, instr);
   }
 
+  pub fn step_thumb(&mut self) {
+    let pc = self.pc & !(0b1);
+
+    let next_instruction = if self.is_init {
+      self.pipeline[0] = self.mem_read_16(pc) as u32;
+      self.pipeline[1] = self.mem_read_16(pc + 2) as u32;
+      self.is_init = false;
+
+      None
+    } else {
+      Some(self.mem_read_16(self.pc) as u32)
+    };
+
+    let instruction = self.pipeline[0];
+    self.pipeline[0] = self.pipeline[1];
+
+    if let Some(instr) = next_instruction {
+      self.pipeline[1] = instr
+    }
+
+    self.execute(instruction as u16);
+
+    self.pc = self.pc.wrapping_add(2);
+  }
+
   pub fn mem_read_32(&mut self, address: u32) -> u32 {
-    0
+    self.mem_read_16(address) as u32 | ((self.mem_read_16(address + 2) as u32) << 16)
   }
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
-    0
+    self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
   }
 
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
-    0
+    match address {
+      0x8_000_000..=0xD_FFF_FFF => self.rom[(address - 0x8_000_000) as usize],
+      _ => 0
+    }
   }
 
   pub fn mem_write_32(&mut self, address: u32, val: u32) {

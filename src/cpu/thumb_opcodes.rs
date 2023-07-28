@@ -85,7 +85,7 @@ impl CPU {
   }
 
   fn panic(&mut self, instr: u16) {
-    panic!("unsupported instruction: {:X}", instr);
+    panic!("unsupported instruction: {:b}", instr);
   }
 
   fn move_compare_add_sub_imm(&mut self, instr: u16) {
@@ -476,7 +476,7 @@ impl CPU {
   }
 
   fn unconditional_branch(&mut self, instr: u16) {
-    let address = (((instr & 0b11111111111) << 21) as i32) >> 20;
+    let address = ((instr & 0b11111111111) << 1) as i32;
 
     self.pc = (self.pc as i32).wrapping_add(address) as u32;
 
@@ -488,11 +488,11 @@ impl CPU {
     let offset = instr & 0b11111111111;
 
     if h == 0 {
-      let address = ((offset << 21) as i32) >> 9;
+      let address = (offset << 12) as i32;
 
       self.r[LR_REGISTER] = (self.pc as i32).wrapping_add(address) as u32;
     } else {
-      let address = ((offset << 21) as i32) >> 20;
+      let address = (offset << 1) as i32;
       let lr_result = (self.pc - 2) | 0b1;
 
       self.pc = ((self.r[LR_REGISTER] & !1) as i32).wrapping_add(address) as u32;

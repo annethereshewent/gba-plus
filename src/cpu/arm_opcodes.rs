@@ -106,28 +106,28 @@ impl CPU {
   fn halfword_data_transfer_register(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer register");
 
-    self.pc.wrapping_add(4);
+    self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
   fn halfword_data_transfer_immediate(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer immediate");
 
-    self.pc.wrapping_add(4);
+    self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
   fn single_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside single data transfer");
 
-    self.pc.wrapping_add(4);
+    self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
   fn block_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside block data transfer");
 
-    self.pc.wrapping_add(4);
+    self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 

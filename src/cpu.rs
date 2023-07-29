@@ -28,6 +28,7 @@ pub struct CPU {
   cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
   thumb_lut: Vec<fn(&mut CPU, instruction: u16)>,
+  arm_lut: Vec<fn(&mut CPU, instruction: u32)>,
   pipeline: [u32; 2],
   rom: Vec<u8>,
   is_init: bool
@@ -106,12 +107,14 @@ impl CPU {
       cpsr: PSRRegister::new(),
       spsr_banks: [PSRRegister::new(); 6],
       thumb_lut: Vec::new(),
+      arm_lut: Vec::new(),
       pipeline: [0; 2],
       rom: Vec::new(),
       is_init: true
     };
 
     cpu.populate_thumb_lut();
+    cpu.populate_arm_lut();
 
     cpu
   }

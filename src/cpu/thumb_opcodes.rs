@@ -1,7 +1,7 @@
 use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, SOFTWARE_INTERRUPT_VECTOR, OperatingMode, LR_REGISTER};
 
 impl CPU {
-  pub fn decode_instruction(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) {
+  fn decode_thumb(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) {
     if format & 0b11100000 == 0 {
       CPU::move_shifted_register
     } else if format & 0b11111000 == 0b00011000 {
@@ -35,7 +35,7 @@ impl CPU {
     } else if format & 0b11110000 == 0b11010000 {
       CPU::conditional_branch
     } else if format == 0b11011111 {
-      CPU::software_interrupt
+      CPU::thumb_software_interrupt
     } else if format & 0b11111000 == 0b11100000 {
       CPU::unconditional_branch
     } else if format & 0b11110000 == 0b11110000 {
@@ -45,7 +45,19 @@ impl CPU {
     }
   }
 
+  pub fn populate_thumb_lut(&mut self) {
+    for i in 0..256 {
+      let instr_fn = self.decode_thumb(i);
+      self.thumb_lut.push(instr_fn);
+    }
+  }
+
+  pub fn panic(&mut self, instr: u16) {
+    panic!("unsupported instruction: {:b}", instr);
+  }
+
   fn move_shifted_register(&mut self, instr: u16) {
+    println!("inside move shifted register");
     let op_code = ((instr >> 11) & 0b11) as u8;
     let offset5 = ((instr >> 6) & 0b11111) as u8;
     let rs = ((instr >> 3) & 0b111) as u8;
@@ -59,14 +71,8 @@ impl CPU {
     }
   }
 
-  pub fn populate_thumb_lut(&mut self) {
-    for i in 0..256 {
-      let instr_fn = self.decode_instruction(i);
-      self.thumb_lut.push(instr_fn);
-    }
-  }
-
   fn add_subtract(&mut self, instr: u16) {
+    println!("inside add subtract");
     let op_code = (instr >> 9) & 0b1;
     let rn_offset = (instr >> 6) & 0b111;
     let is_immediate = (instr >> 10) & 0b1 == 1;
@@ -84,11 +90,8 @@ impl CPU {
     };
   }
 
-  fn panic(&mut self, instr: u16) {
-    panic!("unsupported instruction: {:b}", instr);
-  }
-
   fn move_compare_add_sub_imm(&mut self, instr: u16) {
+    println!("inside move compare add sub imm");
     let op_code = (instr >> 11) & 0b11;
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
@@ -103,6 +106,7 @@ impl CPU {
   }
 
   fn alu_operations(&mut self, instr: u16) {
+    println!("inside alu ops");
     let op_code = (instr >> 6) & 0b1111;
     let rs = (instr >> 3) & 0b111;
     let rd = instr & 0b111;
@@ -129,6 +133,7 @@ impl CPU {
   }
 
   fn hi_register_ops(&mut self, instr: u16) {
+    println!("inside hi register ops");
     let op_code = (instr >> 8) & 0b11;
     let h1 = (instr >> 7) & 0b1;
     let h2 = (instr >> 6) & 0b1;
@@ -167,6 +172,7 @@ impl CPU {
   }
 
   fn pc_relative_load(&mut self, instr: u16) {
+    println!("inside pc relative load");
     let rd = (instr >> 8) & 0b111;
     let immediate = instr & 0b11111111;
 
@@ -207,6 +213,7 @@ impl CPU {
   }
 
   fn load_store_signed_byte_halfword(&mut self, instr: u16) {
+    println!("inside load store signed byte halfword");
     let h = (instr >> 11) & 0b1;
     let s = (instr >> 10) & 0b1;
 
@@ -243,6 +250,7 @@ impl CPU {
   }
 
   fn load_store_immediate_offset(&mut self, instr: u16) {
+    println!("inside load store immediate offset");
     let b = (instr >> 12) & 0b1;
     let l = (instr >> 11) & 0b1;
     let offset = (instr >> 6) & 0b11111;
@@ -274,6 +282,7 @@ impl CPU {
   }
 
   fn load_store_halfword(&mut self, instr: u16) {
+    println!("inside load store halfword");
     let l = (instr >> 11) & 0b1;
     let offset = (instr >> 6) & 0b11111;
     let rb = (instr >> 3) & 0b111;
@@ -292,6 +301,7 @@ impl CPU {
   }
 
   fn sp_relative_load_store(&mut self, instr: u16) {
+    println!("inside sp relative load store");
     let l = (instr >> 11) & 0b1;
     let rd = (instr >> 8) & 0b111;
     let word8 = (instr & 0xff) << 2;
@@ -308,6 +318,7 @@ impl CPU {
   }
 
   fn load_address(&mut self, instr: u16) {
+    println!("inside load address");
     let sp = (instr >> 11) & 0b1;
     let rd = (instr >> 8) & 0b111;
     let word8 = (instr & 0xff) << 2;
@@ -321,6 +332,7 @@ impl CPU {
   }
 
   fn add_offset_to_sp(&mut self, instr: u16) {
+    println!("inside add offset to sp");
     let s = (instr >> 7) & 0b1;
     let sword7 = ((instr & 0b1111111) << 2) as i32;
 
@@ -334,6 +346,7 @@ impl CPU {
   }
 
   fn push_pop_registers(&mut self, instr: u16) {
+    println!("inside push pop registers");
     let l = (instr >> 11) & 0b1;
     let r = (instr >> 8) & 0b1;
     let register_list = instr & 0xff;
@@ -368,6 +381,7 @@ impl CPU {
   }
 
   fn multiple_load_store(&mut self, instr: u16) {
+    println!("inside multiple load store");
     let l = (instr >> 11) & 0b1;
     let rb = (instr >> 8) & 0b111;
     let rlist = instr & 0xff;
@@ -433,6 +447,7 @@ impl CPU {
   }
 
   fn conditional_branch(&mut self, instr: u16) {
+    println!("inside conditional branch");
     let cond = (instr >> 8) & 0b1111;
 
     let signed_offset = ((((instr & 0xff) as u32) << 24) as i32) >> 23;
@@ -456,7 +471,8 @@ impl CPU {
     }
   }
 
-  fn software_interrupt(&mut self, _instr: u16) {
+  fn thumb_software_interrupt(&mut self, _instr: u16) {
+    println!("inside software interrupt");
     let supervisor_bank = OperatingMode::Supervisor.bank_index();
 
     self.r14_banks[supervisor_bank] = self.pc - 2;
@@ -476,6 +492,7 @@ impl CPU {
   }
 
   fn unconditional_branch(&mut self, instr: u16) {
+    println!("inside unconditional branch");
     let address = ((instr & 0b11111111111) << 1) as i32;
 
     self.pc = (self.pc as i32).wrapping_add(address) as u32;
@@ -484,6 +501,7 @@ impl CPU {
   }
 
   fn long_branch_link(&mut self, instr: u16) {
+    println!("inside long branch link");
     let h = (instr >> 11) & 0b1;
     let offset = instr & 0b11111111111;
 

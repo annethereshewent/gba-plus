@@ -218,11 +218,34 @@ impl CPU {
       self.pipeline[1] = instr;
     }
 
-    println!("executing instruction {:b}", instruction);
+    let condition = (instruction >> 28) as u8;
 
-    self.execute_arm(instruction);
+    if self.arm_condition_met(condition) {
+      self.execute_arm(instruction);
+    }
 
     self.pc = self.pc.wrapping_add(4);
+  }
+
+  fn arm_condition_met(&self, condition: u8) -> bool {
+    match condition {
+      0 => self.cpsr.contains(PSRRegister::ZERO),
+      1 => !self.cpsr.contains(PSRRegister::ZERO),
+      2 => self.cpsr.contains(PSRRegister::CARRY),
+      3 => !self.cpsr.contains(PSRRegister::CARRY),
+      4 => self.cpsr.contains(PSRRegister::NEGATIVE),
+      5 => !self.cpsr.contains(PSRRegister::NEGATIVE),
+      6 => self.cpsr.contains(PSRRegister::OVERFLOW),
+      7 => !self.cpsr.contains(PSRRegister::OVERFLOW),
+      8 => self.cpsr.contains(PSRRegister::CARRY) && !self.cpsr.contains(PSRRegister::ZERO),
+      9 => !self.cpsr.contains(PSRRegister::CARRY) || self.cpsr.contains(PSRRegister::ZERO),
+      10 => self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW),
+      11 => self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW),
+      12 => !self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW),
+      13 => self.cpsr.contains(PSRRegister::ZERO) || self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW),
+      14 => true,
+      _ => panic!("shouldn't happen")
+    }
   }
 
   pub fn step_thumb(&mut self) {

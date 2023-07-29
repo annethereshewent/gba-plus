@@ -1,7 +1,7 @@
-use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, SOFTWARE_INTERRUPT_VECTOR, OperatingMode, LR_REGISTER};
+use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, SOFTWARE_INTERRUPT_VECTOR, OperatingMode, LR_REGISTER, MemoryAccess};
 
 impl CPU {
-  fn decode_thumb(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) {
+  fn decode_thumb(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) -> Option<MemoryAccess> {
     if format & 0b11100000 == 0 {
       CPU::move_shifted_register
     } else if format & 0b11111000 == 0b00011000 {
@@ -52,11 +52,11 @@ impl CPU {
     }
   }
 
-  pub fn panic(&mut self, instr: u16) {
+  pub fn panic(&mut self, instr: u16) -> Option<MemoryAccess> {
     panic!("unsupported instruction: {:b}", instr);
   }
 
-  fn move_shifted_register(&mut self, instr: u16) {
+  fn move_shifted_register(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside move shifted register");
     let op_code = ((instr >> 11) & 0b11) as u8;
     let offset5 = ((instr >> 6) & 0b11111) as u8;
@@ -69,9 +69,13 @@ impl CPU {
       2 => self.asr_offset(offset5, rs, rd),
       _ => panic!("invalid op")
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn add_subtract(&mut self, instr: u16) {
+  fn add_subtract(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside add subtract");
     let op_code = (instr >> 9) & 0b1;
     let rn_offset = (instr >> 6) & 0b111;
@@ -88,9 +92,13 @@ impl CPU {
     } else {
       self.subtract(operand1, operand2)
     };
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn move_compare_add_sub_imm(&mut self, instr: u16) {
+  fn move_compare_add_sub_imm(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside move compare add sub imm");
     let op_code = (instr >> 11) & 0b11;
     let rd = (instr >> 8) & 0b111;
@@ -103,9 +111,13 @@ impl CPU {
       3 => self.r[rd as usize] = self.subtract(self.r[rd as usize], offset as u32),
       _ => unreachable!("impossible")
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn alu_operations(&mut self, instr: u16) {
+  fn alu_operations(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside alu ops");
     let op_code = (instr >> 6) & 0b1111;
     let rs = (instr >> 3) & 0b111;
@@ -130,9 +142,13 @@ impl CPU {
       15 => self.r[rd as usize] = self.mvn(self.r[rs as usize]),
       _ => unreachable!("impossible")
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn hi_register_ops(&mut self, instr: u16) {
+  fn hi_register_ops(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside hi register ops");
     let op_code = (instr >> 8) & 0b11;
     let h1 = (instr >> 7) & 0b1;
@@ -167,21 +183,29 @@ impl CPU {
       // reload the pipeline
       self.reload_pipeline16();
 
+      return None;
     }
 
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn pc_relative_load(&mut self, instr: u16) {
+  fn pc_relative_load(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside pc relative load");
     let rd = (instr >> 8) & 0b111;
     let immediate = instr & 0b11111111;
 
     let address = (self.pc & !(0b11)) + immediate as u32;
 
-    self.r[rd as usize] = self.mem_read_32(address)
+    self.r[rd as usize] = self.mem_read_32(address);
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn load_store_reg_offset(&mut self, instr: u16) {
+  fn load_store_reg_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     let b = (instr >> 10) & 0b1;
     let l = (instr >> 11) & 0b1;
 
@@ -210,9 +234,13 @@ impl CPU {
       }
       _ => unreachable!("can't be")
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn load_store_signed_byte_halfword(&mut self, instr: u16) {
+  fn load_store_signed_byte_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store signed byte halfword");
     let h = (instr >> 11) & 0b1;
     let s = (instr >> 10) & 0b1;
@@ -246,10 +274,12 @@ impl CPU {
       _ => unreachable!("can't be")
     }
 
+    self.pc = self.pc.wrapping_add(2);
 
+    Some(MemoryAccess::Sequential)
   }
 
-  fn load_store_immediate_offset(&mut self, instr: u16) {
+  fn load_store_immediate_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store immediate offset");
     let b = (instr >> 12) & 0b1;
     let l = (instr >> 11) & 0b1;
@@ -279,9 +309,13 @@ impl CPU {
       }
       _ => unreachable!("cannot be")
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn load_store_halfword(&mut self, instr: u16) {
+  fn load_store_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store halfword");
     let l = (instr >> 11) & 0b1;
     let offset = (instr >> 6) & 0b11111;
@@ -298,9 +332,13 @@ impl CPU {
 
       self.r[rd as usize] = value;
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn sp_relative_load_store(&mut self, instr: u16) {
+  fn sp_relative_load_store(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside sp relative load store");
     let l = (instr >> 11) & 0b1;
     let rd = (instr >> 8) & 0b111;
@@ -315,9 +353,13 @@ impl CPU {
 
       self.r[rd as usize] = value;
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn load_address(&mut self, instr: u16) {
+  fn load_address(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load address");
     let sp = (instr >> 11) & 0b1;
     let rd = (instr >> 8) & 0b111;
@@ -329,9 +371,13 @@ impl CPU {
       let pc_value = (self.pc.wrapping_sub(4) & !(0b1 << 1)) + 4;
       pc_value.wrapping_add(word8 as u32)
     };
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn add_offset_to_sp(&mut self, instr: u16) {
+  fn add_offset_to_sp(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside add offset to sp");
     let s = (instr >> 7) & 0b1;
     let sword7 = ((instr & 0b1111111) << 2) as i32;
@@ -342,10 +388,14 @@ impl CPU {
     } else {
       // subtract immediate from sp
       (self.r[SP_REGISTER] as i32).wrapping_sub(sword7) as u32
-    }
+    };
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn push_pop_registers(&mut self, instr: u16) {
+  fn push_pop_registers(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside push pop registers");
     let l = (instr >> 11) & 0b1;
     let r = (instr >> 8) & 0b1;
@@ -378,9 +428,13 @@ impl CPU {
         self.reload_pipeline16();
       }
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn multiple_load_store(&mut self, instr: u16) {
+  fn multiple_load_store(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside multiple load store");
     let l = (instr >> 11) & 0b1;
     let rb = (instr >> 8) & 0b111;
@@ -444,9 +498,12 @@ impl CPU {
       self.r[rb as usize] = address + align_preserve;
     }
 
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 
-  fn conditional_branch(&mut self, instr: u16) {
+  fn conditional_branch(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside conditional branch");
     let cond = (instr >> 8) & 0b1111;
 
@@ -471,7 +528,7 @@ impl CPU {
     }
   }
 
-  fn thumb_software_interrupt(&mut self, _instr: u16) {
+  fn thumb_software_interrupt(&mut self, _instr: u16) -> Option<MemoryAccess> {
     println!("inside software interrupt");
     let supervisor_bank = OperatingMode::Supervisor.bank_index();
 
@@ -489,18 +546,22 @@ impl CPU {
 
     // reload pipeline
     self.reload_pipeline16();
+
+    None
   }
 
-  fn unconditional_branch(&mut self, instr: u16) {
+  fn unconditional_branch(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside unconditional branch");
     let address = ((instr & 0b11111111111) << 1) as i32;
 
     self.pc = (self.pc as i32).wrapping_add(address) as u32;
 
     self.reload_pipeline16();
+
+    None
   }
 
-  fn long_branch_link(&mut self, instr: u16) {
+  fn long_branch_link(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside long branch link");
     let h = (instr >> 11) & 0b1;
     let offset = instr & 0b11111111111;
@@ -509,6 +570,10 @@ impl CPU {
       let address = (offset << 12) as i32;
 
       self.r[LR_REGISTER] = (self.pc as i32).wrapping_add(address) as u32;
+
+      self.pc = self.pc.wrapping_add(2);
+
+      Some(MemoryAccess::Sequential)
     } else {
       let address = (offset << 1) as i32;
       let lr_result = (self.pc - 2) | 0b1;
@@ -518,6 +583,8 @@ impl CPU {
       self.r[LR_REGISTER] = lr_result;
 
       self.reload_pipeline16();
+
+      None
     }
   }
 
@@ -743,12 +810,18 @@ impl CPU {
     }
   }
 
-  fn branch_if(&mut self, cond: bool, offset: i32) {
+  fn branch_if(&mut self, cond: bool, offset: i32) -> Option<MemoryAccess> {
     if cond {
       self.pc = (self.pc as i32).wrapping_add(offset) as u32;
 
       // reload pipeline
       self.reload_pipeline16();
+
+      return None
     }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    Some(MemoryAccess::Sequential)
   }
 }

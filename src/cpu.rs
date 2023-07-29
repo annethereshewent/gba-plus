@@ -14,6 +14,11 @@ pub const SP_REGISTER: usize = 13;
 
 pub const SOFTWARE_INTERRUPT_VECTOR: u32 = 0x8;
 
+pub enum MemoryAccess {
+  Sequential,
+  NonSequential
+}
+
 pub struct CPU {
   r: [u32; 15],
   pc: u32,
@@ -27,11 +32,12 @@ pub struct CPU {
   spsr: PSRRegister,
   cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
-  thumb_lut: Vec<fn(&mut CPU, instruction: u16)>,
-  arm_lut: Vec<fn(&mut CPU, instruction: u32)>,
+  thumb_lut: Vec<fn(&mut CPU, instruction: u16) -> Option<MemoryAccess>>,
+  arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
   rom: Vec<u8>,
-  is_init: bool
+  is_init: bool,
+  next_fetch: MemoryAccess
 }
 
 
@@ -110,7 +116,8 @@ impl CPU {
       arm_lut: Vec::new(),
       pipeline: [0; 2],
       rom: Vec::new(),
-      is_init: true
+      is_init: true,
+      next_fetch: MemoryAccess::NonSequential
     };
 
     cpu.populate_thumb_lut();
@@ -185,47 +192,40 @@ impl CPU {
     self.rom = rom;
   }
 
-  pub fn execute_thumb(&mut self, instr: u16) {
+  pub fn execute_thumb(&mut self, instr: u16) -> Option<MemoryAccess> {
     let handler_fn = self.thumb_lut[(instr >> 8) as usize];
 
     println!("executing an instruction!");
 
-    handler_fn(self, instr);
+    handler_fn(self, instr)
   }
 
-  pub fn execute_arm(&mut self, instr: u32) {
+  pub fn execute_arm(&mut self, instr: u32) -> Option<MemoryAccess> {
     let handler_fn = self.arm_lut[(((instr >> 16) & 0xff0) | ((instr >> 4) & 0xf)) as usize];
 
-    handler_fn(self, instr);
+    handler_fn(self, instr)
   }
 
-  pub fn step_arm(&mut self) {
+  fn step_arm(&mut self) {
     let pc = self.pc & !(0b11);
 
-    let next_instruction = if self.is_init {
-      self.pipeline[0] = self.mem_read_32(pc) as u32;
-      self.pipeline[1] = self.mem_read_32(pc + 4);
-
-      None
-    } else {
-      Some(self.mem_read_32(pc))
-    };
+    let next_instruction = self.mem_read_32(pc);
 
     let instruction = self.pipeline[0];
     self.pipeline[0] = self.pipeline[1];
-
-    if let Some(instr) = next_instruction {
-      self.pipeline[1] = instr;
-    }
+    self.pipeline[1] = next_instruction;
 
     let condition = (instruction >> 28) as u8;
 
     if self.arm_condition_met(condition) {
       println!("executing instruction {:b}", instruction);
-      self.execute_arm(instruction);
+      if let Some(access) = self.execute_arm(instruction) {
+        self.next_fetch = access;
+      }
+    } else {
+      self.pc = self.pc.wrapping_add(4);
+      self.next_fetch = MemoryAccess::NonSequential;
     }
-
-    self.pc = self.pc.wrapping_add(4);
   }
 
   fn arm_condition_met(&self, condition: u8) -> bool {
@@ -249,29 +249,27 @@ impl CPU {
     }
   }
 
-  pub fn step_thumb(&mut self) {
+  pub fn step(&mut self) {
+    if self.cpsr.contains(PSRRegister::STATE_BIT) {
+      self.step_thumb();
+    } else {
+      self.step_arm();
+    }
+  }
+
+  fn step_thumb(&mut self) {
     let pc = self.pc & !(0b1);
 
-    let next_instruction = if self.is_init {
-      self.pipeline[0] = self.mem_read_16(pc) as u32;
-      self.pipeline[1] = self.mem_read_16(pc + 2) as u32;
-      self.is_init = false;
-
-      None
-    } else {
-      Some(self.mem_read_16(pc) as u32)
-    };
+    let next_instruction = self.mem_read_16(pc) as u32;
 
     let instruction = self.pipeline[0];
     self.pipeline[0] = self.pipeline[1];
+    self.pipeline[1] = next_instruction;
 
-    if let Some(instr) = next_instruction {
-      self.pipeline[1] = instr;
+
+    if let Some(fetch) = self.execute_thumb(instruction as u16) {
+      self.next_fetch = fetch;
     }
-
-    self.execute_thumb(instruction as u16);
-
-    self.pc = self.pc.wrapping_add(2);
   }
 
   pub fn mem_read_32(&mut self, address: u32) -> u32 {

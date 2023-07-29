@@ -1,6 +1,6 @@
 use crate::cpu::{PC_REGISTER, PSRRegister, LR_REGISTER};
 
-use super::CPU;
+use super::{CPU, MemoryAccess};
 
 impl CPU {
   pub fn populate_arm_lut(&mut self) {
@@ -10,7 +10,7 @@ impl CPU {
     }
   }
 
-  fn decode_arm(&mut self, upper: u16, lower: u16) -> fn(&mut CPU, instr: u32) {
+  fn decode_arm(&mut self, upper: u16, lower: u16) -> fn(&mut CPU, instr: u32) -> Option<MemoryAccess> {
     if upper & 0b11111100 == 0 && lower == 0b1001 {
       CPU::multiply
     } else if upper & 0b11111000 == 0b00001000 && lower == 0b1001 {
@@ -41,27 +41,37 @@ impl CPU {
     }
   }
 
-  fn arm_panic(&mut self, instr: u32) {
+  fn arm_panic(&mut self, instr: u32) -> Option<MemoryAccess> {
     panic!("unsupported instr: {:b}", instr)
   }
 
-  fn data_processing(&mut self, instr: u32) {
+  fn data_processing(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside data processing");
+
+    self.pc = self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn multiply(&mut self, instr: u32) {
+  fn multiply(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply");
+    Some(MemoryAccess::Sequential)
   }
 
-  fn multiply_long(&mut self, instr: u32) {
+  fn multiply_long(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply long");
+
+    self.pc = self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn single_data_swap(&mut self, instr: u32) {
+  fn single_data_swap(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside single data swap");
+
+    self.pc = self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn branch_and_exchange(&mut self, instr: u32) {
+  fn branch_and_exchange(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside branch and exchange");
 
     let rn = instr & 0b1111;
@@ -76,6 +86,8 @@ impl CPU {
       // stay in arm mode
       self.pc = address & !(0b11);
 
+      self.cpsr.remove(PSRRegister::STATE_BIT);
+
       // reload the pipeline
       self.reload_pipeline32();
     } else {
@@ -88,25 +100,38 @@ impl CPU {
     }
 
     // pipeline is now flushed
+    None
   }
 
-  fn halfword_data_transfer_register(&mut self, instr: u32) {
+  fn halfword_data_transfer_register(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer register");
+
+    self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn halfword_data_transfer_immediate(&mut self, instr: u32) {
+  fn halfword_data_transfer_immediate(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer immediate");
+
+    self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn single_data_transfer(&mut self, instr: u32) {
+  fn single_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside single data transfer");
+
+    self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn block_data_transfer(&mut self, instr: u32) {
+  fn block_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside block data transfer");
+
+    self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 
-  fn branch(&mut self, instr: u32) {
+  fn branch(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside branch");
     let l = (instr >> 24) & 0b1;
     let offset = (((instr & 0xFFFFFF) << 8) as i32) >> 6;
@@ -121,9 +146,13 @@ impl CPU {
     self.reload_pipeline32();
 
     // flush
+    None
   }
 
-  fn arm_software_interrupt(&mut self, instr: u32) {
+  fn arm_software_interrupt(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside arm software interrupt");
+
+    self.pc = self.pc.wrapping_add(4);
+    Some(MemoryAccess::Sequential)
   }
 }

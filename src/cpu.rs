@@ -221,6 +221,7 @@ impl CPU {
     let condition = (instruction >> 28) as u8;
 
     if self.arm_condition_met(condition) {
+      println!("executing instruction {:b}", instruction);
       self.execute_arm(instruction);
     }
 

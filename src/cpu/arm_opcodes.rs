@@ -9,9 +9,7 @@ impl CPU {
   }
 
   fn decode_arm(&mut self, upper: u16, lower: u16) -> fn(&mut CPU, instr: u32) {
-    if upper & 0b11000000 == 0 {
-      CPU::data_processing
-    } else if upper & 0b11111100 == 0 && lower == 0b1001 {
+    if upper & 0b11111100 == 0 && lower == 0b1001 {
       CPU::multiply
     } else if upper & 0b11111000 == 0b00001000 && lower == 0b1001 {
       CPU::multiply_long
@@ -23,6 +21,8 @@ impl CPU {
       CPU::halfword_data_transfer_register
     } else if upper & 0b11100100 == 0b00000100 && lower & 0b1001 == 0b1001 {
       CPU::halfword_data_transfer_immediate
+    } else if upper & 0b11000000 == 0 {
+      CPU::data_processing
     } else if upper & 0b11100000 == 0b01100000 && lower & 0b1 == 1 {
       // undefined instruction, panic
       CPU::arm_panic

@@ -185,12 +185,44 @@ impl CPU {
     self.rom = rom;
   }
 
-  pub fn execute(&mut self, instr: u16) {
+  pub fn execute_thumb(&mut self, instr: u16) {
     let handler_fn = self.thumb_lut[(instr >> 8) as usize];
 
     println!("executing an instruction!");
 
     handler_fn(self, instr);
+  }
+
+  pub fn execute_arm(&mut self, instr: u32) {
+    let handler_fn = self.arm_lut[(((instr >> 16) & 0xff0) | ((instr >> 4) & 0xf)) as usize];
+
+    handler_fn(self, instr);
+  }
+
+  pub fn step_arm(&mut self) {
+    let pc = self.pc & !(0b11);
+
+    let next_instruction = if self.is_init {
+      self.pipeline[0] = self.mem_read_32(pc) as u32;
+      self.pipeline[1] = self.mem_read_32(pc + 4);
+
+      None
+    } else {
+      Some(self.mem_read_32(pc))
+    };
+
+    let instruction = self.pipeline[0];
+    self.pipeline[0] = self.pipeline[1];
+
+    if let Some(instr) = next_instruction {
+      self.pipeline[1] = instr;
+    }
+
+    println!("executing instruction {:b}", instruction);
+
+    self.execute_arm(instruction);
+
+    self.pc = self.pc.wrapping_add(4);
   }
 
   pub fn step_thumb(&mut self) {
@@ -203,17 +235,17 @@ impl CPU {
 
       None
     } else {
-      Some(self.mem_read_16(self.pc) as u32)
+      Some(self.mem_read_16(pc) as u32)
     };
 
     let instruction = self.pipeline[0];
     self.pipeline[0] = self.pipeline[1];
 
     if let Some(instr) = next_instruction {
-      self.pipeline[1] = instr
+      self.pipeline[1] = instr;
     }
 
-    self.execute(instruction as u16);
+    self.execute_thumb(instruction as u16);
 
     self.pc = self.pc.wrapping_add(2);
   }

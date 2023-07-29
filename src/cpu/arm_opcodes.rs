@@ -3,16 +3,13 @@ use super::CPU;
 impl CPU {
   pub fn populate_arm_lut(&mut self) {
     for i in 0..4096 {
-      let instr_fn = self.decode_arm(((i & 0xff) << 16) | (i & 0xf));
+      let instr_fn = self.decode_arm((i & 0xff0) >> 4, i & 0xf);
       self.arm_lut.push(instr_fn);
     }
   }
 
-  fn decode_arm(&mut self, instr: u32) -> fn(&mut CPU, instr: u32) {
-    let upper = (instr >> 16) & 0xff;
-    let lower = instr & 0xf;
-
-    if upper >> 6 == 0 {
+  fn decode_arm(&mut self, upper: u16, lower: u16) -> fn(&mut CPU, instr: u32) {
+    if upper & 0b11000000 == 0 {
       CPU::data_processing
     } else if upper & 0b11111100 == 0 && lower == 0b1001 {
       CPU::multiply
@@ -44,46 +41,46 @@ impl CPU {
   }
 
   fn data_processing(&mut self, instr: u32) {
-
+    println!("inside data processing");
   }
 
   fn multiply(&mut self, instr: u32) {
-
+    println!("inside multiply");
   }
 
   fn multiply_long(&mut self, instr: u32) {
-
+    println!("inside multiply long");
   }
 
   fn single_data_swap(&mut self, instr: u32) {
-
+    println!("inside single data swap");
   }
 
   fn branch_and_exchange(&mut self, instr: u32) {
-
+    println!("inside branch and exchange");
   }
 
   fn halfword_data_transfer_register(&mut self, instr: u32) {
-
+    println!("inside halfword data transfer register");
   }
 
   fn halfword_data_transfer_immediate(&mut self, instr: u32) {
-
+    println!("inside halfword data transfer immediate");
   }
 
   fn single_data_transfer(&mut self, instr: u32) {
-
+    println!("inside single data transfer");
   }
 
   fn block_data_transfer(&mut self, instr: u32) {
-
+    println!("inside block data transfer");
   }
 
   fn branch(&mut self, instr: u32) {
-
+    println!("inside branch");
   }
 
   fn arm_software_interrupt(&mut self, instr: u32) {
-
+    println!("inside arm software interrupt");
   }
 }

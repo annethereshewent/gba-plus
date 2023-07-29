@@ -1,9 +1,9 @@
+// general comments
 
-// thumb state SP maps onto ARM r13
-// thumb state LR maps onto ARM r14
-
-// in THUMB mode, bit 0 of PC is 0
-// in ARM mode, bits 0-1 of PC are 0
+// per the ARM7tdmi manual,
+// in ARM state, bits [1:0] of
+// R15 are zero and bits [31:2] contain the PC. In THUMB state,
+// bit [0] is zero and bits [31:1] contain the PC.
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
@@ -309,6 +309,16 @@ impl CPU {
     self.pipeline[1] = self.mem_read_16(self.pc) as u32;
 
     self.pc += 2;
+  }
+
+  pub fn reload_pipeline32(&mut self) {
+    self.pipeline[0] = self.mem_read_32(self.pc);
+
+    self.pc += 4;
+
+    self.pipeline[1] = self.mem_read_32(self.pc);
+
+    self.pc += 4;
   }
 
   pub fn push(&mut self, val: u32) {

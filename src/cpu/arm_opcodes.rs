@@ -1,3 +1,5 @@
+use crate::cpu::{PC_REGISTER, PSRRegister, LR_REGISTER};
+
 use super::CPU;
 
 impl CPU {
@@ -24,7 +26,7 @@ impl CPU {
     } else if upper & 0b11000000 == 0 {
       CPU::data_processing
     } else if upper & 0b11100000 == 0b01100000 && lower & 0b1 == 1 {
-      // undefined instruction, panic
+      // undefined instruction
       CPU::arm_panic
     } else if upper & 0b11000000 == 0b01000000 {
       CPU::single_data_transfer
@@ -61,6 +63,31 @@ impl CPU {
 
   fn branch_and_exchange(&mut self, instr: u32) {
     println!("inside branch and exchange");
+
+    let rn = instr & 0b1111;
+
+    if rn == PC_REGISTER as u32 {
+      panic!("using pc register for branch and exchange");
+    }
+
+    let address = self.r[rn as usize];
+
+    if address & 0b1 == 0 {
+      // stay in arm mode
+      self.pc = address & !(0b11);
+
+      // reload the pipeline
+      self.reload_pipeline32();
+    } else {
+      // enter thumb state
+      self.pc = address & !(0b1);
+      self.cpsr.insert(PSRRegister::STATE_BIT);
+
+      // reload the pipeline
+      self.reload_pipeline16();
+    }
+
+    // pipeline is now flushed
   }
 
   fn halfword_data_transfer_register(&mut self, instr: u32) {
@@ -81,6 +108,19 @@ impl CPU {
 
   fn branch(&mut self, instr: u32) {
     println!("inside branch");
+    let l = (instr >> 24) & 0b1;
+    let offset = (((instr & 0xFFFFFF) << 8) as i32) >> 6;
+
+    if l == 1 {
+      // pc current instruction address is self.pc - 8, plus the word size of 4 bytes = self.pc - 4
+      self.r[LR_REGISTER] = (self.pc - 4) & !(0b1);
+    }
+
+    self.pc = ((self.pc as i32).wrapping_add(offset) as u32) & !(0b1);
+
+    self.reload_pipeline32();
+
+    // flush
   }
 
   fn arm_software_interrupt(&mut self, instr: u32) {

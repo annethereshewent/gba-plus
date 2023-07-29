@@ -22,7 +22,7 @@ fn main() {
   cpu.load_game(bytes);
   cpu.skip_bios();
 
-  for i in 0..5 {
+  for i in 0..20 {
     cpu.step_arm();
   }
 }

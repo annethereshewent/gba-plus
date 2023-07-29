@@ -34,8 +34,7 @@ impl CPU {
       CPU::branch
     } else if upper & 0b11110000 == 0b11110000 {
       CPU::arm_software_interrupt
-    }
-    else {
+    }  else {
       CPU::arm_panic
     }
   }

@@ -368,7 +368,6 @@ impl CPU {
 
     self.reload_pipeline32();
 
-    // flush
     None
   }
 

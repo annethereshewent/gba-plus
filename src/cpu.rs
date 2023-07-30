@@ -225,7 +225,6 @@ impl CPU {
     println!("attempting to execute instruction {:b} at address {:X}", instruction, pc.wrapping_sub(8));
 
     if self.arm_condition_met(condition) {
-
       if let Some(access) = self.execute_arm(instruction) {
         self.next_fetch = access;
       }
@@ -333,6 +332,7 @@ impl CPU {
   }
 
   pub fn reload_pipeline32(&mut self) {
+    self.pc = self.pc & !(0b11);
     self.pipeline[0] = self.mem_read_32(self.pc);
 
     self.pc += 4;

@@ -2,10 +2,10 @@ use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, SOFTWARE_INTERRUPT_VECTO
 
 impl CPU {
   fn decode_thumb(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) -> Option<MemoryAccess> {
-    if format & 0b11100000 == 0 {
-      CPU::move_shifted_register
-    } else if format & 0b11111000 == 0b00011000 {
+    if format & 0b11111000 == 0b00011000 {
       CPU::add_subtract
+    } else if format & 0b11100000 == 0 {
+      CPU::move_shifted_register
     } else if format & 0b11100000 == 0b00100000 {
       CPU::move_compare_add_sub_imm
     } else if format & 0b11111100 == 0b01000000 {
@@ -67,6 +67,7 @@ impl CPU {
       0 => self.lsl_offset(offset5, rs, rd),
       1 => self.lsr_offset(offset5, rs, rd),
       2 => self.asr_offset(offset5, rs, rd),
+      // 3 => self.ror_offset(offset5, rs, rd),
       _ => panic!("invalid op")
     }
 
@@ -88,8 +89,10 @@ impl CPU {
     let operand2 = if is_immediate { rn_offset as u32 } else { self.r[rn_offset as usize] };
 
     self.r[rd as usize] = if op_code == 0 {
+      println!("adding {operand1} and {operand2}");
       self.add(operand1, operand2)
     } else {
+      println!("subtracting {operand1} and {operand2}");
       self.subtract(operand1, operand2)
     };
 
@@ -215,6 +218,14 @@ impl CPU {
     let rd = instr & 0b111;
 
     let address = self.r[rb as usize].wrapping_add(self.r[ro as usize]);
+
+    println!("load bit = {l}");
+
+    if l == 0 {
+      println!("writing to address {:X}", address);
+    } else {
+      println!("reading from address {:X}", address);
+    }
 
     match (l, b) {
       (0, 0) => {
@@ -510,6 +521,8 @@ impl CPU {
 
     let signed_offset = ((((instr & 0xff) as u32) << 24) as i32) >> 23;
 
+    println!("condition = {cond}");
+
     match cond {
       0 => self.branch_if(self.cpsr.contains(PSRRegister::ZERO), signed_offset),
       1 => self.branch_if(!self.cpsr.contains(PSRRegister::ZERO), signed_offset),
@@ -590,22 +603,19 @@ impl CPU {
   }
 
   fn bge(&self) -> bool {
-    // (self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW))
     self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn blt(&self) -> bool {
-    // (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
+    println!("the blt = {}", self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW));
     self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn bgt(&self) -> bool {
-    // !self.cpsr.contains(PSRRegister::ZERO) && ((self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)))
     self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn ble(&self) -> bool {
-    //self.cpsr.contains(PSRRegister::ZERO) || (self.cpsr.contains(PSRRegister::NEGATIVE) && !self.cpsr.contains(PSRRegister::OVERFLOW)) || (!self.cpsr.contains(PSRRegister::NEGATIVE) && self.cpsr.contains(PSRRegister::OVERFLOW))
     self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
@@ -788,6 +798,10 @@ impl CPU {
     self.set_carry_zero_and_negative_flags(val, carry)
   }
 
+  fn ror_offset(&mut self, offset: u8, rs: u8, rd: u8) {
+    self.r[rd as usize] = self.ror(self.r[rs as usize], offset as u32);
+  }
+
   fn bx(&mut self, source: u32) {
     // if thumb mode
     if source & 0b1 == 1 {
@@ -813,6 +827,7 @@ impl CPU {
 
   fn branch_if(&mut self, cond: bool, offset: i32) -> Option<MemoryAccess> {
     if cond {
+      println!("branching");
       self.pc = (self.pc as i32).wrapping_add(offset) as u32;
 
       // reload pipeline
@@ -820,6 +835,8 @@ impl CPU {
 
       return None
     }
+
+    println!("not branching");
 
     self.pc = self.pc.wrapping_add(2);
 

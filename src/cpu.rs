@@ -36,6 +36,8 @@ pub struct CPU {
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
   bios: Vec<u8>,
+  chip_wram: [u8; 256 * 1024],
+  board_wram: [u8; 32 * 1024],
   rom: Vec<u8>,
   is_init: bool,
   next_fetch: MemoryAccess
@@ -119,7 +121,9 @@ impl CPU {
       rom: Vec::new(),
       bios: Vec::new(),
       is_init: true,
-      next_fetch: MemoryAccess::NonSequential
+      next_fetch: MemoryAccess::NonSequential,
+      chip_wram: [0; 256 * 1024],
+      board_wram: [0; 32 * 1024]
     };
 
     cpu.populate_thumb_lut();
@@ -197,8 +201,6 @@ impl CPU {
   pub fn execute_thumb(&mut self, instr: u16) -> Option<MemoryAccess> {
     let handler_fn = self.thumb_lut[(instr >> 8) as usize];
 
-    println!("executing an instruction!");
-
     handler_fn(self, instr)
   }
 
@@ -219,8 +221,10 @@ impl CPU {
 
     let condition = (instruction >> 28) as u8;
 
+    println!("attempting to execute instruction {:b} at address {:X}", instruction, pc.wrapping_sub(8));
+
     if self.arm_condition_met(condition) {
-      println!("executing instruction {:b}", instruction);
+
       if let Some(access) = self.execute_arm(instruction) {
         self.next_fetch = access;
       }
@@ -268,6 +272,7 @@ impl CPU {
     self.pipeline[0] = self.pipeline[1];
     self.pipeline[1] = next_instruction;
 
+    println!("executing instruction {:b} at address {:X}", instruction, pc.wrapping_sub(4));
 
     if let Some(fetch) = self.execute_thumb(instruction as u16) {
       self.next_fetch = fetch;
@@ -285,21 +290,35 @@ impl CPU {
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
+      0x2_000_000..=0x203ffff => self.board_wram[(address - 0x2_000_000) as usize],
+      0x3_000_000..=0x3007fff => self.chip_wram[(address - 0x3_000_000) as usize],
       0x8_000_000..=0xD_FFF_FFF => self.rom[(address - 0x8_000_000) as usize],
       _ => 0
     }
   }
 
   pub fn mem_write_32(&mut self, address: u32, val: u32) {
+    let upper = (val >> 16) as u16;
+    let lower = (val & 0xffff) as u16;
 
+    self.mem_write_16(address, lower);
+    self.mem_write_16(address + 2, upper);
   }
 
   pub fn mem_write_16(&mut self, address: u32, val: u16) {
+    let upper = (val >> 8) as u8;
+    let lower = (val & 0xff) as u8;
 
+    self.mem_write_8(address, lower);
+    self.mem_write_8(address, upper);
   }
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
-
+    match address {
+      0x2_000_000..=0x203ffff => self.board_wram[(address - 0x2_000_000) as usize] = val,
+      0x3_000_000..=0x3007fff => self.chip_wram[(address - 0x3_000_000) as usize] = val,
+      _ => ()
+    }
   }
 
   pub fn reload_pipeline16(&mut self) {

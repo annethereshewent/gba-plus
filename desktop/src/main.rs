@@ -22,7 +22,7 @@ fn main() {
   cpu.load_game(bytes);
   cpu.load_bios(fs::read("../gba_bios.bin").unwrap());
 
-  for _ in 0..1024 {
+  loop {
     cpu.step();
   }
 }

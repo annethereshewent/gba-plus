@@ -139,6 +139,7 @@ impl CPU {
 
   fn multiply(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply");
+    self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
@@ -225,6 +226,8 @@ impl CPU {
       // pc current instruction address is self.pc - 8, plus the word size of 4 bytes = self.pc - 4
       self.r[LR_REGISTER] = (self.pc - 4) & !(0b1);
     }
+
+    println!("offset is {:X}", offset);
 
     self.pc = ((self.pc as i32).wrapping_add(offset) as u32) & !(0b1);
 

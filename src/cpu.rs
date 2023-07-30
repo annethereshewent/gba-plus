@@ -95,13 +95,14 @@ impl PSRRegister {
       0b10111 => OperatingMode::Abort,
       0b11011 => OperatingMode::Undefined,
       0b11111 => OperatingMode::System,
-      _ => panic!("unknown mode specified: {:b}", self.bits())
+      _ => panic!("unknown mode specified: {:b}", self.bits() & 0b11111)
     }
   }
 }
 
 impl CPU {
   pub fn new() -> Self {
+
     let mut cpu = Self {
       r: [0; 15],
       pc: 0,
@@ -113,7 +114,7 @@ impl CPU {
       r13_banks: [0; 6],
       r14_banks: [0; 6],
       spsr: PSRRegister::new(),
-      cpsr: PSRRegister::new(),
+      cpsr: PSRRegister::from_bits_retain(0xd3),
       spsr_banks: [PSRRegister::new(); 6],
       thumb_lut: Vec::new(),
       arm_lut: Vec::new(),

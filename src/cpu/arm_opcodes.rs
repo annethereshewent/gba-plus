@@ -1,4 +1,4 @@
-use crate::cpu::{PC_REGISTER, PSRRegister, LR_REGISTER};
+use crate::cpu::{PC_REGISTER, PSRRegister, LR_REGISTER, OperatingMode};
 
 use super::{CPU, MemoryAccess};
 
@@ -48,9 +48,11 @@ impl CPU {
   fn data_processing(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside data processing");
 
+    let mut return_val = Some(MemoryAccess::Sequential);
+
     let i = (instr >> 25) & 0b1;
     let op_code = (instr >> 21) & 0b1111;
-    let s = (instr >> 20) & 0b1;
+    let mut s = (instr >> 20) & 0b1;
     let rn = (instr >> 16) & 0b1111;
     let rd = (instr >> 12) & 0b1111;
 
@@ -101,6 +103,11 @@ impl CPU {
       }
     };
 
+    if rd == PC_REGISTER as u32 && s == 1 {
+      self.transfer_spsr_mode();
+      s = 0;
+    }
+
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = match op_code {
       0 => (operand1 & operand2, true),
@@ -122,19 +129,28 @@ impl CPU {
       _ => unreachable!("not possible")
     };
 
-    println!("s = {s}");
-
     if s == 1 {
       // change the flags
       self.update_flags(result, overflow, carry);
     }
 
     if should_update {
-      self.r[rd as usize] = result;
+      if rd == PC_REGISTER as u32 {
+        self.pc = result & !(0b11);
+
+        self.reload_pipeline32();
+
+        return_val = None;
+      } else {
+        self.r[rd as usize] = result;
+      }
     }
 
-    self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+    if !should_update || rd != PC_REGISTER as u32 {
+      self.pc = self.pc.wrapping_add(4);
+    }
+
+    return_val
   }
 
   fn multiply(&mut self, instr: u32) -> Option<MemoryAccess> {
@@ -184,8 +200,6 @@ impl CPU {
       // reload the pipeline
       self.reload_pipeline16();
     }
-
-    // pipeline is now flushed
     None
   }
 
@@ -206,8 +220,129 @@ impl CPU {
   fn single_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside single data transfer");
 
-    self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+    let mut result = Some(MemoryAccess::NonSequential);
+
+    let i = (instr >> 25) & 0b1;
+    let p = (instr >> 24) & 0b1;
+    let u = (instr >> 23) & 0b1;
+    let b = (instr >> 22) & 0b1;
+    let w = (instr >> 21) & 0b1;
+    let l = (instr >> 20) & 0b1;
+
+    let rn = (instr >> 16) & 0b1111;
+    let rd = (instr >> 12) & 0b1111;
+    let mut offset: u32 = instr & 0xfff;
+
+    let mut should_update_pc = true;
+
+    let mut address = if rn == PC_REGISTER as u32 {
+      self.pc
+    } else {
+      self.r[rn as usize]
+    };
+
+    if i == 1 {
+      // offset is a register shifted in some way
+      let shift_type = (instr >> 5) & 0b11;
+
+      let rm = offset & 0xf;
+
+      let shifted_operand = if rm == PC_REGISTER as u32 {
+        self.pc + 4
+      } else {
+        self.r[rm as usize]
+      };
+
+      let shift_by_register = (instr >> 4) & 0b1;
+
+      let shift = if shift_by_register == 1 {
+        let rs = offset >> 8;
+
+        if rs == PC_REGISTER as u32 {
+          self.pc & 0xff
+        } else {
+          self.r[rs as usize] & 0xff
+        }
+      } else {
+        offset >> 7
+      };
+
+      offset = match shift_type {
+        0 => shifted_operand << shift,
+        1 => shifted_operand >> shift,
+        2 => ((shifted_operand as i32) >> shift) as u32,
+        3 => shifted_operand.rotate_right(shift),
+        _ => unreachable!("can't happen")
+      };
+    }
+
+    if u == 0 {
+      offset = -(offset as i32) as u32;
+    }
+
+    let effective_address = (address as i32).wrapping_add(offset as i32) as u32;
+
+    let old_mode = self.cpsr.mode();
+
+    if p == 0 && w == 1 {
+      self.set_mode(OperatingMode::User);
+    }
+
+    if p == 1 {
+      address = effective_address;
+    }
+
+    if l == 1 {
+      // load
+      let data = if b == 1 {
+        self.mem_read_8(address) as u32
+      } else {
+        self.mem_read_32(address)
+      };
+
+      if rd == PC_REGISTER as u32 {
+        self.pc = data & !(0b11);
+
+        result = None;
+
+        should_update_pc = false;
+
+        self.reload_pipeline32();
+      } else {
+        self.r[rd as usize] = data;
+      }
+    } else {
+      // store
+      let value = if rd == PC_REGISTER as u32 {
+        self.pc + 4
+      } else {
+        self.r[rd as usize]
+      };
+
+      if b == 1 {
+        self.mem_write_8(address, value as u8);
+      } else {
+        self.mem_write_32(address & !(0b11), value);
+      }
+    }
+
+    if (l == 0 || rn != rd) && (p == 0 || w == 1) {
+      if rn == PC_REGISTER as u32 {
+        panic!("shouldn't happen");
+      } else {
+        self.r[rn as usize] = effective_address;
+      }
+    }
+
+    if p == 0 && w == 1 {
+      self.set_mode(old_mode);
+    }
+
+    if should_update_pc {
+      self.pc = self.pc.wrapping_add(4);
+    }
+
+    result
   }
 
   fn block_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
@@ -260,7 +395,7 @@ impl CPU {
     self.cpsr.set(PSRRegister::ZERO, result == 0);
     self.cpsr.set(PSRRegister::NEGATIVE, (result as i32) < 0);
 
-    println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
+    // println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
   }
 
   fn subtract_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
@@ -314,5 +449,14 @@ impl CPU {
     *overflow = overflow_result1 || overflow_result2;
 
     result2
+  }
+
+  fn transfer_spsr_mode(&mut self) {
+
+    if self.spsr.mode() as u8 != self.cpsr.mode() as u8 {
+      self.set_mode(self.spsr.mode());
+    }
+
+    self.cpsr = self.spsr;
   }
 }

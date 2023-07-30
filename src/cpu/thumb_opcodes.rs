@@ -67,7 +67,6 @@ impl CPU {
       0 => self.lsl_offset(offset5, rs, rd),
       1 => self.lsr_offset(offset5, rs, rd),
       2 => self.asr_offset(offset5, rs, rd),
-      // 3 => self.ror_offset(offset5, rs, rd),
       _ => panic!("invalid op")
     }
 
@@ -607,7 +606,6 @@ impl CPU {
   }
 
   fn blt(&self) -> bool {
-    println!("the blt = {}", self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW));
     self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
@@ -798,10 +796,6 @@ impl CPU {
     self.set_carry_zero_and_negative_flags(val, carry)
   }
 
-  fn ror_offset(&mut self, offset: u8, rs: u8, rd: u8) {
-    self.r[rd as usize] = self.ror(self.r[rs as usize], offset as u32);
-  }
-
   fn bx(&mut self, source: u32) {
     // if thumb mode
     if source & 0b1 == 1 {
@@ -821,7 +815,7 @@ impl CPU {
       self.pc = address;
 
       // reload pipeline
-      self.reload_pipeline16();
+      self.reload_pipeline32();
     }
   }
 

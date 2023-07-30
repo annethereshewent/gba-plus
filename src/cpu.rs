@@ -35,6 +35,7 @@ pub struct CPU {
   thumb_lut: Vec<fn(&mut CPU, instruction: u16) -> Option<MemoryAccess>>,
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
+  bios: Vec<u8>,
   rom: Vec<u8>,
   is_init: bool,
   next_fetch: MemoryAccess
@@ -116,6 +117,7 @@ impl CPU {
       arm_lut: Vec::new(),
       pipeline: [0; 2],
       rom: Vec::new(),
+      bios: Vec::new(),
       is_init: true,
       next_fetch: MemoryAccess::NonSequential
     };
@@ -282,6 +284,7 @@ impl CPU {
 
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
+      0..=0x3fff => self.bios[address as usize],
       0x8_000_000..=0xD_FFF_FFF => self.rom[(address - 0x8_000_000) as usize],
       _ => 0
     }
@@ -331,5 +334,9 @@ impl CPU {
     self.r[SP_REGISTER] += 4;
 
     val
+  }
+
+  pub fn load_bios(&mut self, bytes: Vec<u8>) {
+    self.bios = bytes;
   }
 }

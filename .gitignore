@@ -1,3 +1,5 @@
 /target
 /desktop/target
 .vscode
+*.bin
+*.gba

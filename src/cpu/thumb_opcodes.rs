@@ -206,6 +206,7 @@ impl CPU {
   }
 
   fn load_store_reg_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
+    println!("inside load store reg offset");
     let b = (instr >> 10) & 0b1;
     let l = (instr >> 11) & 0b1;
 

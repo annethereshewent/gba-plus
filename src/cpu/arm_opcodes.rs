@@ -48,6 +48,91 @@ impl CPU {
   fn data_processing(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside data processing");
 
+    let i = (instr >> 25) & 0b1;
+    let op_code = (instr >> 21) & 0b1111;
+    let s = (instr >> 20) & 0b1;
+    let rn = (instr >> 16) & 0b1111;
+    let rd = (instr >> 12) & 0b1111;
+
+    let mut operand1 = if rn == PC_REGISTER as u32 {
+      self.pc
+    } else {
+      self.r[rn as usize]
+    };
+
+    let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+    let mut overflow = self.cpsr.contains(PSRRegister::OVERFLOW);
+
+    let operand2 = if i == 1 {
+      let immediate = instr & 0xff;
+      let rotate = (2 * (instr >> 8)) as u8;
+
+      self.ror_arm(immediate, rotate, &mut carry)
+    } else {
+      let shift_by_register = (instr >> 4) & 0b1 == 1;
+
+      let shift = if shift_by_register {
+        if rn == PC_REGISTER as u32 {
+          operand1 += 4;
+        }
+        let rs = (instr >> 8) & 0b1111;
+
+        self.r[rs as usize]
+      } else {
+        (instr >> 7) & 0b11111
+      };
+
+      let shift_type = (instr >> 5) & 0b11;
+
+      let rm = instr & 0b1111;
+
+      let shifted_operand = if rm == PC_REGISTER as u32 {
+        self.pc
+      } else {
+        self.r[rm as usize]
+      };
+
+      match shift_type {
+        0 => shifted_operand << shift,
+        1 => shifted_operand >> shift,
+        2 => ((shifted_operand as i32) >> shift) as u32,
+        3 => shifted_operand.rotate_right(shift),
+        _ => unreachable!("can't happen")
+      }
+    };
+
+    // finally do the operation on the two operands and store in rd
+    let (result, should_update) = match op_code {
+      0 => (operand1 & operand2, true),
+      1 => (operand1 ^ operand2, true),
+      2 => (self.subtract_arm(operand1, operand2, &mut carry, &mut overflow), true),
+      3 => (self.subtract_arm(operand2,operand1, &mut carry, &mut overflow), true),
+      4 => (self.add_arm(operand1, operand2, &mut carry, &mut overflow), true),
+      5 => (self.add_carry_arm(operand1, operand2, &mut carry, &mut overflow), true),
+      6 => (self.subtract_carry_arm(operand1, operand2, &mut carry, &mut overflow), true),
+      7 => (self.subtract_carry_arm(operand2, operand1, &mut carry, &mut overflow), true),
+      8 => (operand1 & operand2, false),
+      9 => (operand1 ^ operand2, false),
+      10 => (self.subtract_arm(operand1, operand2, &mut carry, &mut overflow), false),
+      11 => (self.add_arm(operand1, operand2, &mut carry, &mut overflow), false),
+      12 => (operand1 | operand2, true),
+      13 => (operand2, true),
+      14 => (operand1 & !operand2, true),
+      15 => (!operand2, true),
+      _ => unreachable!("not possible")
+    };
+
+    println!("s = {s}");
+
+    if s == 1 {
+      // change the flags
+      self.update_flags(result, overflow, carry);
+    }
+
+    if should_update {
+      self.r[rd as usize] = result;
+    }
+
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
@@ -154,5 +239,77 @@ impl CPU {
 
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
+  }
+
+  fn ror_arm(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
+    let amount = amount % 32;
+
+    let result = immediate.rotate_right(amount as u32);
+
+    *carry = (result >> 31) & 0b1 == 1;
+
+    result
+  }
+
+  fn update_flags(&mut self, result: u32, overflow: bool, carry: bool) {
+    self.cpsr.set(PSRRegister::CARRY, carry);
+    self.cpsr.set(PSRRegister::OVERFLOW, overflow);
+    self.cpsr.set(PSRRegister::ZERO, result == 0);
+    self.cpsr.set(PSRRegister::NEGATIVE, (result as i32) < 0);
+
+    println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
+  }
+
+  fn subtract_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
+    let (result, carry_result) = operand1.overflowing_sub(operand2);
+
+    *carry = carry_result;
+
+
+    let (_, overflow_result) = (operand1 as i32).overflowing_sub(operand2 as i32);
+
+    *overflow = overflow_result;
+
+    result
+  }
+
+  fn subtract_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
+    let (result1, carry_result1) = operand1.overflowing_sub(operand2);
+    let (result2, carry_result2) = result1.overflowing_sub(if *carry { 0 } else { 1 });
+
+    *carry = carry_result1 || carry_result2;
+
+    let (overflow_add1, overflow_result1) = (operand1 as i32).overflowing_sub(operand2 as i32);
+    let (_, overflow_result2) = (overflow_add1 as i32).overflowing_sub(if *carry { 0 } else { 1 });
+
+    *overflow = overflow_result1 || overflow_result2;
+
+    result2
+  }
+
+  fn add_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
+    let (result, carry_result) = operand1.overflowing_add(operand2);
+
+    *carry = carry_result;
+
+    let (_, overflow_result) = (operand1 as i32).overflowing_add(operand2 as i32);
+
+    *overflow = overflow_result;
+
+    result
+  }
+
+  fn add_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
+    let (result1, carry_result1) = operand1.overflowing_add(operand2);
+    let (result2, carry_result2) = result1.overflowing_add(if *carry { 1 } else { 0 });
+
+    *carry = carry_result1 || carry_result2;
+
+    let (overflow_add1, overflow_result1) = (operand1 as i32).overflowing_add(operand2 as i32);
+    let (_, overflow_result2) = (overflow_add1 as i32).overflowing_add(if *carry { 1 } else { 0 });
+
+    *overflow = overflow_result1 || overflow_result2;
+
+    result2
   }
 }

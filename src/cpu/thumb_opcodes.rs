@@ -196,7 +196,7 @@ impl CPU {
   fn pc_relative_load(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside pc relative load");
     let rd = (instr >> 8) & 0b111;
-    let immediate = instr & 0b11111111;
+    let immediate = (instr & 0b11111111) << 2;
 
     let address = (self.pc & !(0b11)) + immediate as u32;
 
@@ -808,6 +808,7 @@ impl CPU {
       // reload the pipeline here
       self.reload_pipeline16();
     } else {
+      println!("switching to ARM");
       // if ARM mode
       let address = source & !(0b11);
       self.cpsr.set(PSRRegister::STATE_BIT, false);

@@ -29,6 +29,7 @@ pub struct CPU {
   r12_banks: [u32; 2],
   r13_banks: [u32; 6],
   r14_banks: [u32; 6],
+  post_flag: u8,
   spsr: PSRRegister,
   cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
@@ -39,7 +40,6 @@ pub struct CPU {
   chip_wram: [u8; 256 * 1024],
   board_wram: [u8; 32 * 1024],
   rom: Vec<u8>,
-  is_init: bool,
   next_fetch: MemoryAccess
 }
 
@@ -121,10 +121,10 @@ impl CPU {
       pipeline: [0; 2],
       rom: Vec::new(),
       bios: Vec::new(),
-      is_init: true,
       next_fetch: MemoryAccess::NonSequential,
       chip_wram: [0; 256 * 1024],
-      board_wram: [0; 32 * 1024]
+      board_wram: [0; 32 * 1024],
+      post_flag: 0
     };
 
     cpu.populate_thumb_lut();
@@ -235,6 +235,7 @@ impl CPU {
   }
 
   fn arm_condition_met(&self, condition: u8) -> bool {
+    println!("condition is {condition}");
     match condition {
       0 => self.cpsr.contains(PSRRegister::ZERO),
       1 => !self.cpsr.contains(PSRRegister::ZERO),
@@ -292,6 +293,7 @@ impl CPU {
       0..=0x3fff => self.bios[address as usize],
       0x2_000_000..=0x203ffff => self.board_wram[(address - 0x2_000_000) as usize],
       0x3_000_000..=0x3007fff => self.chip_wram[(address - 0x3_000_000) as usize],
+      0x4_000_300 => self.post_flag,
       0x8_000_000..=0xD_FFF_FFF => self.rom[(address - 0x8_000_000) as usize],
       _ => 0
     }
@@ -317,6 +319,7 @@ impl CPU {
     match address {
       0x2_000_000..=0x203ffff => self.board_wram[(address - 0x2_000_000) as usize] = val,
       0x3_000_000..=0x3007fff => self.chip_wram[(address - 0x3_000_000) as usize] = val,
+      0x4_000_300 => self.post_flag = val,
       _ => ()
     }
   }

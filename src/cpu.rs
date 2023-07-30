@@ -83,7 +83,7 @@ bitflags! {
 
 impl PSRRegister {
   pub fn new() -> Self {
-    Self::from_bits_truncate(0)
+    Self::from_bits_retain(0)
   }
 
   pub fn mode(&self) -> OperatingMode {
@@ -180,7 +180,7 @@ impl CPU {
       self.r[12] = self.r12_banks[0];
     }
 
-    self.cpsr = PSRRegister::from_bits_truncate(new_cpsr);
+    self.cpsr = PSRRegister::from_bits_retain(new_cpsr);
   }
 
   pub fn skip_bios(&mut self) {
@@ -192,7 +192,7 @@ impl CPU {
     self.r13_banks[5] = 0x0300_7f00; // UND
     self.r[13] = 0x0300_7f00;
     self.pc = 0x0800_0000;
-    self.cpsr = PSRRegister::from_bits_truncate(0x5f);
+    self.cpsr = PSRRegister::from_bits_retain(0x5f);
   }
 
   pub fn load_game(&mut self, rom: Vec<u8>) {

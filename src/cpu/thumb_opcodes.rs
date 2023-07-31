@@ -106,6 +106,8 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
 
+    println!("rd = {rd}, op_code = {op_code}, offset = {offset}");
+
     match op_code {
       0 => self.mov(rd, offset as u32, true),
       1 => self.cmp(self.r[rd as usize], offset as u32),
@@ -166,6 +168,9 @@ impl CPU {
       source += 8;
     }
 
+    println!("reading from register {source}");
+    println!("the value is {}", self.r[source as usize]);
+
     match op_code {
       0 => {
         let result = self.r[destination as usize].wrapping_add(self.r[source as usize]);
@@ -217,8 +222,6 @@ impl CPU {
     let rd = instr & 0b111;
 
     let address = self.r[rb as usize].wrapping_add(self.r[ro as usize]);
-
-    println!("load bit = {l}");
 
     if l == 0 {
       println!("writing to address {:X}", address);
@@ -416,17 +419,20 @@ impl CPU {
     if l == 0 {
       for i in 0..8 {
         if (register_list >> i) & 0b1 == 1 {
+          println!("pushing register {i} to the stack");
           self.push(self.r[i]);
         }
       }
       if r == 1 {
         // push LR to the stack
+        println!("pushing register 14 to the stack");
         self.push(self.r[14]);
       }
     } else {
       // pop
       for i in 0..8 {
         if (register_list >> i) & 0b1 == 1 {
+          println!("popping register {i} from the stack");
           self.r[i] = self.pop();
         }
       }

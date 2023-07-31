@@ -56,6 +56,8 @@ impl CPU {
     let rn = (instr >> 16) & 0b1111;
     let rd = (instr >> 12) & 0b1111;
 
+    println!("operand1 coming from register {rn}");
+
     let mut operand1 = if rn == PC_REGISTER as u32 {
       self.pc
     } else {
@@ -67,7 +69,7 @@ impl CPU {
 
     let operand2 = if i == 1 {
       let immediate = instr & 0xff;
-      let rotate = (2 * (instr >> 8)) as u8;
+      let rotate = (2 * ((instr >> 8) & 0b1111)) as u8;
 
       self.ror_arm(immediate, rotate, &mut carry)
     } else {
@@ -108,6 +110,8 @@ impl CPU {
       s = 0;
     }
 
+    println!("rd is {rd}, operand2 is {operand2} and op code is {op_code}");
+
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = match op_code {
       0 => (operand1 & operand2, true),
@@ -130,7 +134,8 @@ impl CPU {
     };
 
     if s == 1 {
-      // change the flags
+      println!("compared {operand1} with {operand2}, op code is {op_code}");
+      println!("updating flags for result {result}");
       self.update_flags(result, overflow, carry);
     }
 
@@ -300,6 +305,8 @@ impl CPU {
         self.mem_read_32(address)
       };
 
+      println!("setting register {rd} to {data} from address {:X}", address);
+
       if rd == PC_REGISTER as u32 {
         self.pc = data & !(0b11);
 
@@ -318,6 +325,8 @@ impl CPU {
       } else {
         self.r[rd as usize]
       };
+
+      println!("storing {value} at {:X}", address);
 
       if b == 1 {
         self.mem_write_8(address, value as u8);
@@ -358,8 +367,11 @@ impl CPU {
     let offset = (((instr & 0xFFFFFF) << 8) as i32) >> 6;
 
     if l == 1 {
+      println!("l = 1!");
       // pc current instruction address is self.pc - 8, plus the word size of 4 bytes = self.pc - 4
       self.r[LR_REGISTER] = (self.pc - 4) & !(0b1);
+
+      println!("register 14 is now 0x{:X}", self.r[14]);
     }
 
     println!("offset is {:X}", offset);
@@ -394,7 +406,7 @@ impl CPU {
     self.cpsr.set(PSRRegister::ZERO, result == 0);
     self.cpsr.set(PSRRegister::NEGATIVE, (result as i32) < 0);
 
-    // println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
+    println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
   }
 
   fn subtract_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {

@@ -113,7 +113,7 @@ impl CPU {
       r12_banks: [0; 2],
       r13_banks: [0; 6],
       r14_banks: [0; 6],
-      spsr: PSRRegister::new(),
+      spsr: PSRRegister::from_bits_retain(0xd3),
       cpsr: PSRRegister::from_bits_retain(0xd3),
       spsr_banks: [PSRRegister::new(); 6],
       thumb_lut: Vec::new(),
@@ -257,6 +257,7 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
+    println!("register 0 is now 0x{:X}", self.r[0]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -291,8 +292,8 @@ impl CPU {
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
-      0x2_000_000..=0x203ffff => self.board_wram[(address - 0x2_000_000) as usize],
-      0x3_000_000..=0x3007fff => self.chip_wram[(address - 0x3_000_000) as usize],
+      0x2_000_000..=0x2_03f_fff => self.board_wram[(address - 0x2_000_000) as usize],
+      0x3_000_000..=0x3_007_fff => self.chip_wram[(address - 0x3_000_000) as usize],
       0x4_000_300 => self.post_flag,
       0x8_000_000..=0xD_FFF_FFF => self.rom[(address - 0x8_000_000) as usize],
       _ => 0
@@ -312,14 +313,14 @@ impl CPU {
     let lower = (val & 0xff) as u8;
 
     self.mem_write_8(address, lower);
-    self.mem_write_8(address, upper);
+    self.mem_write_8(address + 1, upper);
   }
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
     match address {
-      0x2_000_000..=0x203ffff => self.board_wram[(address - 0x2_000_000) as usize] = val,
-      0x3_000_000..=0x3007fff => self.chip_wram[(address - 0x3_000_000) as usize] = val,
-      0x4_000_300 => self.post_flag = val,
+      0x2_000_000..=0x2_03f_fff => self.board_wram[(address - 0x2_000_000) as usize] = val,
+      0x3_000_000..=0x3_007_fff => self.chip_wram[(address - 0x3_000_000) as usize] = val,
+      0x4_000_300 => self.post_flag = if val != 0 { 1 } else { 0 },
       _ => ()
     }
   }
@@ -348,11 +349,15 @@ impl CPU {
   pub fn push(&mut self, val: u32) {
     self.r[SP_REGISTER] -= 4;
 
-    self.mem_write_32(self.r[SP_REGISTER], val);
+    println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
+
+    self.mem_write_32(self.r[SP_REGISTER] & !(0b11), val);
   }
 
   pub fn pop(&mut self) -> u32 {
-    let val = self.mem_read_32(self.r[SP_REGISTER]);
+    let val = self.mem_read_32(self.r[SP_REGISTER] & !(0b11));
+
+    println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.r[SP_REGISTER] += 4;
 

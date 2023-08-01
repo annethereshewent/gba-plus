@@ -24,7 +24,22 @@ impl CPU {
     } else if upper & 0b11100100 == 0b00000100 && lower & 0b1001 == 0b1001 {
       CPU::halfword_data_transfer_immediate
     } else if upper & 0b11000000 == 0 {
-      CPU::data_processing
+      // check for psr transfer instructions as they are a subset of data processing
+      let s = upper & 0b1;
+      let op_code = (upper >> 1) & 0b1111;
+
+      let is_updating_flags_only = (op_code & 0b1100) == 0b1000;
+
+      if s == 0 && is_updating_flags_only {
+        if op_code & 0b1 == 0 {
+          CPU::transfer_status_to_register
+        } else {
+          CPU::transfer_register_to_status
+        }
+      } else {
+        CPU::data_processing
+      }
+
     } else if upper & 0b11100000 == 0b01100000 && lower & 0b1 == 1 {
       // undefined instruction
       CPU::arm_panic
@@ -110,7 +125,6 @@ impl CPU {
       s = 0;
     }
 
-    println!("rd is {rd}, operand 1 is {operand1}, operand2 is {operand2} and op code is {op_code}");
 
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = match op_code {
@@ -248,7 +262,7 @@ impl CPU {
     let mut should_update_pc = true;
 
     let mut address = if rn == PC_REGISTER as u32 {
-      self.pc
+      self.pc.wrapping_sub(8) + 8
     } else {
       self.r[rn as usize]
     };
@@ -282,7 +296,7 @@ impl CPU {
       offset = match shift_type {
         0 => shifted_operand << shift,
         1 => shifted_operand >> shift,
-        2 => ((shifted_operand as i32) >> shift) as u32,
+        2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
         3 => shifted_operand.rotate_right(shift),
         _ => unreachable!("can't happen")
       };
@@ -309,7 +323,7 @@ impl CPU {
       let data = if b == 1 {
         self.mem_read_8(address) as u32
       } else {
-        self.mem_read_32(address)
+        self.ldr_word(address)
       };
 
       println!("setting register {rd} to {data} from address {:X}", address);
@@ -541,6 +555,90 @@ impl CPU {
     None
   }
 
+
+  fn transfer_status_to_register(&mut self, instr: u32) -> Option<MemoryAccess> {
+    println!("inside psr transfer to register (mrs)");
+    let p = (instr >> 22) & 0b1;
+
+    let value = if p == 0 {
+      self.cpsr.bits()
+    } else {
+      self.spsr.bits()
+    };
+
+    let rd = (instr >> 12) & 0b1111;
+
+    if rd == PC_REGISTER as u32 {
+      self.pc = value & !(0b11);
+    } else {
+      self.r[rd as usize] = value;
+    }
+
+    Some(MemoryAccess::Sequential)
+  }
+
+  fn transfer_register_to_status(&mut self, instr: u32) -> Option<MemoryAccess> {
+    println!("inside PSR transfer from register (msr)");
+    let i = (instr >> 25) & 0b1;
+    let p = (instr >> 22) & 0b1;
+
+    let f = (instr >> 19) & 0b1;
+    let s = (instr >> 18) & 0b1;
+    let x = (instr >> 17) & 0b1;
+    let c = (instr >> 16) & 0b1;
+
+    let mut mask = 0;
+
+    let value = if i == 1 {
+      let immediate = instr & 0xff;
+      let rotate = ((instr >> 8) & 0b111) * 2;
+
+      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
+      let value = self.ror_arm(immediate, rotate as u8, &mut carry);
+
+      self.cpsr.set(PSRRegister::CARRY, carry);
+
+      value
+    } else {
+      let rm = instr & 0b1111;
+
+      self.r[rm as usize]
+    };
+
+
+    if f == 1 {
+      mask |= 0xff << 24;
+    }
+    if s == 1 {
+      mask |= 0xff << 16
+    }
+    if x == 1 {
+      mask |= 0xff << 8
+    }
+    if c == 1 {
+      mask |= 0xff;
+    }
+
+    if matches!(self.cpsr.mode(), OperatingMode::User) && p == 1 {
+      panic!("SPSR not accessible in user mode");
+    }
+
+    if p == 1 {
+      self.spsr = PSRRegister::from_bits_retain(value);
+    } else {
+      let new_psr = PSRRegister::from_bits_retain((self.cpsr.bits() & !mask) | (value & mask));
+
+      if (self.cpsr.mode() as u8 != new_psr.mode() as u8) {
+        self.set_mode(new_psr.mode());
+      }
+
+      self.cpsr = new_psr;
+    }
+
+    Some(MemoryAccess::Sequential)
+  }
+
   fn ror_arm(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
     let amount = amount % 32;
 
@@ -611,6 +709,25 @@ impl CPU {
     *overflow = overflow_result1 || overflow_result2;
 
     result2
+  }
+
+  fn ldr_word(&mut self, address: u32) -> u32 {
+    if address & (0b11) != 0 {
+      let rotation = (address & 0b1) << 3;
+
+      let value = self.mem_read_32(address & !(0b11));
+
+      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
+      let return_val = self.ror_arm(value, rotation as u8, &mut carry);
+
+      self.cpsr.set(PSRRegister::CARRY, carry);
+
+      return_val
+    } else {
+      println!("in here :-(");
+      self.mem_read_32(address)
+    }
   }
 
   fn transfer_spsr_mode(&mut self) {

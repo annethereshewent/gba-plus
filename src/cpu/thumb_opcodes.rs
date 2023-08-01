@@ -168,7 +168,7 @@ impl CPU {
       source += 8;
     }
 
-    println!("reading from register {source}");
+    println!("reading from register {source}, op code is {op_code}");
 
     let operand1 = if destination == PC_REGISTER as u16 {
       self.pc

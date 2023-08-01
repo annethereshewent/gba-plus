@@ -257,7 +257,7 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
-    println!("register 14 is now 0x{:X}", self.r[14]);
+    println!("register 11 is now 0x{:X}", self.r[11]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -331,13 +331,14 @@ impl CPU {
   }
 
   pub fn reload_pipeline16(&mut self) {
+    self.pc = self.pc & !(0b1);
     self.pipeline[0] = self.mem_read_16(self.pc) as u32;
 
-    self.pc += 2;
+    self.pc = self.pc.wrapping_add(2);
 
     self.pipeline[1] = self.mem_read_16(self.pc) as u32;
 
-    self.pc += 2;
+    self.pc = self.pc.wrapping_add(2);
   }
 
   pub fn reload_pipeline32(&mut self) {
@@ -374,15 +375,11 @@ impl CPU {
   pub fn push(&mut self, val: u32) {
     self.r[SP_REGISTER] -= 4;
 
-    println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
-
     self.mem_write_32(self.r[SP_REGISTER] & !(0b11), val);
   }
 
   pub fn pop(&mut self) -> u32 {
     let val = self.mem_read_32(self.r[SP_REGISTER] & !(0b11));
-
-    println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.r[SP_REGISTER] += 4;
 

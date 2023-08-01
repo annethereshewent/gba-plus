@@ -188,6 +188,8 @@ impl CPU {
 
     let rn = instr & 0b1111;
 
+    println!("reading register {rn}");
+
     if rn == PC_REGISTER as u32 {
       panic!("using pc register for branch and exchange");
     }
@@ -411,7 +413,11 @@ impl CPU {
         self.r[rn as usize] = address;
         w = 0;
       }
-      p = !p;
+      if p == 0 {
+        p = 1;
+      } else {
+        p = 0;
+      }
     }
 
     if l == 0 {
@@ -444,7 +450,9 @@ impl CPU {
             address += 4;
           }
 
-          self.mem_write_32(address & 0b11, self.r[i as usize]);
+          println!("(p = {}), writing {:X} to {:X}", p, value, address & !(0b11));
+
+          self.mem_write_32(address & !(0b11), value);
 
 
           if p == 0 {
@@ -464,7 +472,11 @@ impl CPU {
             address += 4;
           }
 
-          let value = self.mem_read_32(address);
+          let value = self.mem_read_32(address & !(0b11));
+
+          if i == 14 {
+            println!("reading {:X} from {:X}", value, address & !(0b11));
+          }
 
           if i == PC_REGISTER as u32 {
             self.pc = value & !(0b11);
@@ -524,8 +536,9 @@ impl CPU {
   fn arm_software_interrupt(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside arm software interrupt");
 
-    self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+    self.interrupt();
+
+    None
   }
 
   fn ror_arm(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {

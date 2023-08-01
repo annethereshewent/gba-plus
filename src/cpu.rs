@@ -257,7 +257,7 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
-    println!("register 0 is now 0x{:X}", self.r[0]);
+    println!("register 14 is now 0x{:X}", self.r[14]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -317,6 +317,11 @@ impl CPU {
   }
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
+
+    if address == 0x3007FC4 {
+      println!("writing value {:X} to address 3007FC4", val);
+    }
+
     match address {
       0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_fffe) as usize] = val,
       0x3_000_000..=0x3_007_fff => self.chip_wram[(address & & 0x7ffe) as usize] = val,
@@ -344,6 +349,26 @@ impl CPU {
     self.pipeline[1] = self.mem_read_32(self.pc);
 
     self.pc = self.pc.wrapping_add(4);
+  }
+
+  pub fn interrupt(&mut self) {
+    let supervisor_bank = OperatingMode::Supervisor.bank_index();
+
+    self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
+    self.spsr_banks[supervisor_bank] = self.cpsr;
+
+    // change to ARM state
+    self.cpsr.remove(PSRRegister::STATE_BIT);
+
+    self.set_mode( OperatingMode::Supervisor);
+
+    self.cpsr.insert(PSRRegister::IRQ_DISABLE);
+
+    self.pc = SOFTWARE_INTERRUPT_VECTOR;
+
+    // reload pipeline
+    self.reload_pipeline32();
+
   }
 
   pub fn push(&mut self, val: u32) {

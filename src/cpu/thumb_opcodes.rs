@@ -169,20 +169,31 @@ impl CPU {
     }
 
     println!("reading from register {source}");
-    println!("the value is {}", self.r[source as usize]);
+
+    let operand1 = if destination == PC_REGISTER as u16 {
+      self.pc
+    } else {
+      self.r[destination as usize]
+    };
+
+    let operand2 = if source == PC_REGISTER as u16 {
+      self.pc
+    } else {
+      self.r[source as usize]
+    };
 
     match op_code {
       0 => {
-        let result = self.r[destination as usize].wrapping_add(self.r[source as usize]);
+        let result = operand1.wrapping_add(operand2);
         if destination == PC_REGISTER as u16 {
           self.pc = result & !(0b1);
         } else {
           self.r[destination as usize] = result;
         }
       }
-      1 => { self.subtract(self.r[destination as usize], self.r[source as usize]); }
-      2 => self.mov(destination, self.r[source as usize], false),
-      3 => self.bx(self.r[source as usize]),
+      1 => { self.subtract(operand1, operand2); }
+      2 => self.mov(destination, operand2, false),
+      3 => self.bx(operand2),
       _ => unreachable!("can't be")
     }
 
@@ -558,22 +569,8 @@ impl CPU {
 
   fn thumb_software_interrupt(&mut self, _instr: u16) -> Option<MemoryAccess> {
     println!("inside software interrupt");
-    let supervisor_bank = OperatingMode::Supervisor.bank_index();
 
-    self.r14_banks[supervisor_bank] = self.pc - 2;
-    self.spsr_banks[supervisor_bank] = self.cpsr;
-
-    // change to ARM state
-    self.cpsr.remove(PSRRegister::STATE_BIT);
-
-    self.set_mode( OperatingMode::Supervisor);
-
-    self.cpsr.insert(PSRRegister::IRQ_DISABLE);
-
-    self.pc = SOFTWARE_INTERRUPT_VECTOR;
-
-    // reload pipeline
-    self.reload_pipeline16();
+    self.interrupt();
 
     None
   }

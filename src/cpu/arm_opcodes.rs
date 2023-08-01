@@ -574,6 +574,8 @@ impl CPU {
       self.r[rd as usize] = value;
     }
 
+    self.pc = self.pc.wrapping_add(4);
+
     Some(MemoryAccess::Sequential)
   }
 
@@ -635,6 +637,8 @@ impl CPU {
 
       self.cpsr = new_psr;
     }
+
+    self.pc = self.pc.wrapping_add(4);
 
     Some(MemoryAccess::Sequential)
   }
@@ -725,7 +729,6 @@ impl CPU {
 
       return_val
     } else {
-      println!("in here :-(");
       self.mem_read_32(address)
     }
   }

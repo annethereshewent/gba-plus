@@ -257,7 +257,6 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
-    println!("register 11 is now 0x{:X}", self.r[11]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -318,10 +317,6 @@ impl CPU {
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
 
-    if address == 0x3007FC4 {
-      println!("writing value {:X} to address 3007FC4", val);
-    }
-
     match address {
       0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_fffe) as usize] = val,
       0x3_000_000..=0x3_007_fff => self.chip_wram[(address & & 0x7ffe) as usize] = val,
@@ -375,11 +370,15 @@ impl CPU {
   pub fn push(&mut self, val: u32) {
     self.r[SP_REGISTER] -= 4;
 
+    println!("pushing {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
+
     self.mem_write_32(self.r[SP_REGISTER] & !(0b11), val);
   }
 
   pub fn pop(&mut self) -> u32 {
     let val = self.mem_read_32(self.r[SP_REGISTER] & !(0b11));
+
+    println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.r[SP_REGISTER] += 4;
 

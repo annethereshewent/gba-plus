@@ -37,8 +37,8 @@ pub struct CPU {
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
   bios: Vec<u8>,
-  chip_wram: [u8; 256 * 1024],
-  board_wram: [u8; 32 * 1024],
+  board_wram: [u8; 256 * 1024],
+  chip_wram: [u8; 32 * 1024],
   rom: Vec<u8>,
   next_fetch: MemoryAccess
 }
@@ -122,8 +122,8 @@ impl CPU {
       rom: Vec::new(),
       bios: Vec::new(),
       next_fetch: MemoryAccess::NonSequential,
-      chip_wram: [0; 256 * 1024],
-      board_wram: [0; 32 * 1024],
+      board_wram: [0; 256 * 1024],
+      chip_wram: [0; 32 * 1024],
       post_flag: 0
     };
 
@@ -222,7 +222,7 @@ impl CPU {
 
     let condition = (instruction >> 28) as u8;
 
-    println!("attempting to execute instruction {:b} at address {:X}", instruction, pc.wrapping_sub(8));
+    println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
 
     if self.arm_condition_met(condition) {
       if let Some(access) = self.execute_arm(instruction) {
@@ -274,7 +274,7 @@ impl CPU {
     self.pipeline[0] = self.pipeline[1];
     self.pipeline[1] = next_instruction;
 
-    println!("executing instruction {:b} at address {:X}", instruction, pc.wrapping_sub(4));
+    println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
 
     if let Some(fetch) = self.execute_thumb(instruction as u16) {
       self.next_fetch = fetch;
@@ -292,10 +292,10 @@ impl CPU {
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
-      0x2_000_000..=0x2_03f_fff => self.board_wram[(address - 0x2_000_000) as usize],
-      0x3_000_000..=0x3_007_fff => self.chip_wram[(address - 0x3_000_000) as usize],
+      0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_fffe) as usize],
+      0x3_000_000..=0x3_007_fff => self.chip_wram[(address & 0x7ffe) as usize],
       0x4_000_300 => self.post_flag,
-      0x8_000_000..=0xD_FFF_FFF => self.rom[(address - 0x8_000_000) as usize],
+      0x8_000_000..=0xD_FFF_FFF => self.rom[(address & 0x01ff_ffff) as usize],
       _ => 0
     }
   }
@@ -318,8 +318,8 @@ impl CPU {
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
     match address {
-      0x2_000_000..=0x2_03f_fff => self.board_wram[(address - 0x2_000_000) as usize] = val,
-      0x3_000_000..=0x3_007_fff => self.chip_wram[(address - 0x3_000_000) as usize] = val,
+      0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_fffe) as usize] = val,
+      0x3_000_000..=0x3_007_fff => self.chip_wram[(address & & 0x7ffe) as usize] = val,
       0x4_000_300 => self.post_flag = if val != 0 { 1 } else { 0 },
       _ => ()
     }
@@ -339,11 +339,11 @@ impl CPU {
     self.pc = self.pc & !(0b11);
     self.pipeline[0] = self.mem_read_32(self.pc);
 
-    self.pc += 4;
+    self.pc = self.pc.wrapping_add(4);
 
     self.pipeline[1] = self.mem_read_32(self.pc);
 
-    self.pc += 4;
+    self.pc = self.pc.wrapping_add(4);
   }
 
   pub fn push(&mut self, val: u32) {

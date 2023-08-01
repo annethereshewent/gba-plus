@@ -110,7 +110,7 @@ impl CPU {
       s = 0;
     }
 
-    println!("rd is {rd}, operand2 is {operand2} and op code is {op_code}");
+    println!("rd is {rd}, operand 1 is {operand1}, operand2 is {operand2} and op code is {op_code}");
 
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = match op_code {
@@ -143,7 +143,12 @@ impl CPU {
       if rd == PC_REGISTER as u32 {
         self.pc = result & !(0b11);
 
-        self.reload_pipeline32();
+        if self.cpsr.contains(PSRRegister::STATE_BIT) {
+          println!("switched to arm");
+          self.reload_pipeline16();
+        } else {
+          self.reload_pipeline32();
+        }
 
         return_val = None;
       } else {
@@ -357,8 +362,146 @@ impl CPU {
   fn block_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside block data transfer");
 
-    self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+    let mut result = Some(MemoryAccess::Sequential);
+
+    let mut p = (instr >> 24) & 0b1;
+    let u = (instr >> 23) & 0b1;
+    let s = (instr >> 22) & 0b1;
+    let mut w = (instr >> 21) & 0b1;
+    let l = (instr >> 20) & 0b1;
+
+    let rn = (instr >> 16) & 0b1111;
+
+    let register_list = instr & 0xffff;
+
+    let mut should_increment_pc = true;
+
+    if s == 1 && (matches!(self.cpsr.mode(), OperatingMode::User) || matches!(self.cpsr.mode(), OperatingMode::System)) {
+      panic!("s bit set in unprivileged mode");
+    }
+
+    let user_banks_transferred = if s == 1 {
+      if l == 1 {
+        (register_list << 15) & 0b1 == 0
+      } else {
+        true
+      }
+    } else {
+      false
+    };
+
+    let old_mode = self.cpsr.mode();
+
+    if user_banks_transferred {
+      self.set_mode(OperatingMode::User);
+    }
+
+    let psr_transfer = s == 1 && l == 1 && (register_list << 15) & 0b1 == 1;
+
+    let num_registers = register_list.count_ones();
+
+    let mut address = self.r[rn as usize];
+
+    let old_base = address;
+
+    if register_list != 0 && u == 0 {
+      address = address.wrapping_sub(num_registers * 4);
+
+      if w == 1 {
+        self.r[rn as usize] = address;
+        w = 0;
+      }
+      p = !p;
+    }
+
+    if l == 0 {
+      // store
+      let mut is_first_register = true;
+      for i in 0..16 {
+        if (register_list >> i) & 0b1 == 1 {
+          let value = if i != rn {
+            if i == PC_REGISTER as u32 {
+              // pc - 8 + 12 = + 4
+              self.pc + 4
+            } else {
+              self.r[i as usize]
+            }
+          } else if is_first_register {
+            old_base
+          } else {
+            let offset = num_registers * 4;
+
+            if u == 1 {
+              old_base + offset
+            } else {
+              old_base - offset
+            }
+          };
+
+          is_first_register = false;
+
+          if p == 1 {
+            address += 4;
+          }
+
+          self.mem_write_32(address & 0b11, self.r[i as usize]);
+
+
+          if p == 0 {
+            address += 4;
+          }
+        }
+      }
+    } else {
+      // load
+      for i in 0..16 {
+        if (register_list >> i) & 0b1 == 1 {
+          if i == rn {
+            w = 0;
+          }
+
+          if p == 1 {
+            address += 4;
+          }
+
+          let value = self.mem_read_32(address);
+
+          if i == PC_REGISTER as u32 {
+            self.pc = value & !(0b11);
+
+            if psr_transfer {
+              self.transfer_spsr_mode();
+            }
+
+            should_increment_pc = false;
+            self.reload_pipeline32();
+
+            result = None;
+
+          } else {
+            self.r[i as usize] = value;
+          }
+
+          if p == 0 {
+            address += 4;
+          }
+        }
+      }
+    }
+
+    if user_banks_transferred {
+      self.set_mode(old_mode);
+    }
+
+    if w == 1 {
+      self.r[rn as usize] = address;
+    }
+
+    if should_increment_pc {
+      self.pc = self.pc.wrapping_add(4);
+    }
+
+    result
   }
 
   fn branch(&mut self, instr: u32) -> Option<MemoryAccess> {
@@ -367,14 +510,9 @@ impl CPU {
     let offset = (((instr & 0xFFFFFF) << 8) as i32) >> 6;
 
     if l == 1 {
-      println!("l = 1!");
       // pc current instruction address is self.pc - 8, plus the word size of 4 bytes = self.pc - 4
       self.r[LR_REGISTER] = (self.pc - 4) & !(0b1);
-
-      println!("register 14 is now 0x{:X}", self.r[14]);
     }
-
-    println!("offset is {:X}", offset);
 
     self.pc = ((self.pc as i32).wrapping_add(offset) as u32) & !(0b1);
 

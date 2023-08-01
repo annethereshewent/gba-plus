@@ -32,10 +32,10 @@ impl CPU {
       CPU::push_pop_registers
     } else if format & 0b11110000 == 0b11000000 {
       CPU::multiple_load_store
-    } else if format & 0b11110000 == 0b11010000 {
-      CPU::conditional_branch
     } else if format == 0b11011111 {
       CPU::thumb_software_interrupt
+    } else if format & 0b11110000 == 0b11010000 {
+      CPU::conditional_branch
     } else if format & 0b11111000 == 0b11100000 {
       CPU::unconditional_branch
     } else if format & 0b11110000 == 0b11110000 {
@@ -415,6 +415,9 @@ impl CPU {
     let r = (instr >> 8) & 0b1;
     let register_list = instr & 0xff;
 
+    let mut should_update_pc = true;
+    let mut result = Some(MemoryAccess::Sequential);
+
     // push
     if l == 0 {
       for i in 0..8 {
@@ -426,7 +429,7 @@ impl CPU {
       if r == 1 {
         // push LR to the stack
         println!("pushing register 14 to the stack");
-        self.push(self.r[14]);
+        self.push(self.r[LR_REGISTER]);
       }
     } else {
       // pop
@@ -438,17 +441,23 @@ impl CPU {
       }
       if r == 1 {
         // pop PC off the stack
+        println!("popping the pc off da stack");
         self.pc = self.pop();
         self.pc &= !(1);
 
         // reload the pipeline
         self.reload_pipeline16();
+
+        should_update_pc = false;
+        result = None;
       }
     }
 
-    self.pc = self.pc.wrapping_add(2);
+    if should_update_pc {
+      self.pc = self.pc.wrapping_add(2);
+    }
 
-    Some(MemoryAccess::Sequential)
+    result
   }
 
   fn multiple_load_store(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -571,9 +580,9 @@ impl CPU {
 
   fn unconditional_branch(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside unconditional branch");
-    let address = ((instr & 0b11111111111) << 1) as i32;
+    let address = ((((instr & 0b11111111111) as i32) << 21)) >> 20;
 
-    self.pc = (self.pc as i32).wrapping_add(address) as u32;
+    self.pc = (self.pc as i32).wrapping_add((address) as i32) as u32;
 
     self.reload_pipeline16();
 
@@ -583,10 +592,10 @@ impl CPU {
   fn long_branch_link(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside long branch link");
     let h = (instr >> 11) & 0b1;
-    let offset = instr & 0b11111111111;
+    let offset = (instr & 0b11111111111) as i32;
 
     if h == 0 {
-      let address = (offset << 12) as i32;
+      let address = (offset << 21) >> 9;
 
       self.r[LR_REGISTER] = (self.pc as i32).wrapping_add(address) as u32;
 
@@ -745,7 +754,7 @@ impl CPU {
   }
 
   fn lsr(&mut self, operand: u32, shift: u32) -> u32 {
-    let carry = ((operand >> (shift - 1)) & 0b1) == 1;
+    let carry = if shift != 0 { ((operand >> (shift - 1)) & 0b1) == 1 } else { false };
     let result = operand >> shift;
 
     self.set_carry_zero_and_negative_flags(result, carry);

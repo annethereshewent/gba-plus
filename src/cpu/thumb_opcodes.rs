@@ -182,7 +182,7 @@ impl CPU {
       self.r[source as usize]
     };
 
-    let mut should_update_pc = false;
+    let mut should_update_pc = true;
 
     let mut return_result = Some(MemoryAccess::Sequential);
 

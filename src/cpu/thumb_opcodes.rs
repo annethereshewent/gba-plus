@@ -1,4 +1,4 @@
-use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, SOFTWARE_INTERRUPT_VECTOR, OperatingMode, LR_REGISTER, MemoryAccess};
+use super::{CPU, PSRRegister, PC_REGISTER, SP_REGISTER, LR_REGISTER, MemoryAccess};
 
 impl CPU {
   fn decode_thumb(&mut self, format: u16) -> fn(&mut CPU, instruction: u16) -> Option<MemoryAccess> {
@@ -182,31 +182,43 @@ impl CPU {
       self.r[source as usize]
     };
 
+    let mut should_update_pc = false;
+
+    let mut return_result = Some(MemoryAccess::Sequential);
+
     match op_code {
       0 => {
         let result = operand1.wrapping_add(operand2);
         if destination == PC_REGISTER as u16 {
           self.pc = result & !(0b1);
+
+          should_update_pc = false;
+          return_result = None;
         } else {
           self.r[destination as usize] = result;
         }
       }
       1 => { self.subtract(operand1, operand2); }
-      2 => self.mov(destination, operand2, false),
-      3 => self.bx(operand2),
+      2 => {
+        self.mov(destination, operand2, false);
+        if destination == PC_REGISTER as u16 {
+          return_result = None;
+          should_update_pc = false;
+        }
+      }
+      3 => {
+        self.bx(operand2);
+        should_update_pc = false;
+        return_result = None;
+      },
       _ => unreachable!("can't be")
     }
 
-    if destination == PC_REGISTER as u16 {
-      // reload the pipeline
-      self.reload_pipeline16();
-
-      return None;
+    if should_update_pc {
+      self.pc = self.pc.wrapping_add(2);
     }
 
-    self.pc = self.pc.wrapping_add(2);
-
-    Some(MemoryAccess::Sequential)
+    return_result
   }
 
   fn pc_relative_load(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -632,6 +644,8 @@ impl CPU {
   fn mov(&mut self, rd: u16, val: u32, set_flags: bool) {
     if rd == 15 {
       self.pc = val & !(0b1);
+
+      self.reload_pipeline16();
     } else {
       self.r[rd as usize] = val;
     }
@@ -823,6 +837,7 @@ impl CPU {
       println!("switching to ARM");
       // if ARM mode
       let address = source & !(0b11);
+
       self.cpsr.set(PSRRegister::STATE_BIT, false);
 
       self.pc = address;

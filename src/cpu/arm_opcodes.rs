@@ -121,10 +121,12 @@ impl CPU {
     };
 
     if rd == PC_REGISTER as u32 && s == 1 {
+      println!("transferring spsr");
       self.transfer_spsr_mode();
       s = 0;
     }
 
+    println!("rn = {rn} rd = {rd} operand1 = {:X} operand2 = {:X} op_code = {op_code}", operand1, operand2);
 
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = match op_code {
@@ -148,19 +150,18 @@ impl CPU {
     };
 
     if s == 1 {
-      println!("compared {operand1} with {operand2}, op code is {op_code}");
-      println!("updating flags for result {result}");
       self.update_flags(result, overflow, carry);
     }
 
     if should_update {
       if rd == PC_REGISTER as u32 {
-        self.pc = result & !(0b11);
-
         if self.cpsr.contains(PSRRegister::STATE_BIT) {
-          println!("switched to arm");
+          self.pc = result & !(0b1);
+          println!("switched to thumb");
           self.reload_pipeline16();
         } else {
+          self.pc = result & !(0b11);
+          println!("switching to arm");
           self.reload_pipeline32();
         }
 
@@ -262,7 +263,8 @@ impl CPU {
     let mut should_update_pc = true;
 
     let mut address = if rn == PC_REGISTER as u32 {
-      self.pc.wrapping_sub(8) + 8
+      println!("pc is {:X}", self.pc);
+      self.pc
     } else {
       self.r[rn as usize]
     };
@@ -717,7 +719,7 @@ impl CPU {
 
   fn ldr_word(&mut self, address: u32) -> u32 {
     if address & (0b11) != 0 {
-      let rotation = (address & 0b1) << 3;
+      let rotation = (address & 0b11) << 3;
 
       let value = self.mem_read_32(address & !(0b11));
 
@@ -734,10 +736,12 @@ impl CPU {
   }
 
   fn transfer_spsr_mode(&mut self) {
-
     if self.spsr.mode() as u8 != self.cpsr.mode() as u8 {
+      println!("changing modes");
       self.set_mode(self.spsr.mode());
     }
+
+    println!("spsr = {:b}", self.spsr.bits());
 
     self.cpsr = self.spsr;
   }

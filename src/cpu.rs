@@ -291,10 +291,11 @@ impl CPU {
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
-      0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_fffe) as usize],
-      0x3_000_000..=0x3_007_fff => self.chip_wram[(address & 0x7ffe) as usize],
+      0x2_000_000..=0x2_fff_fff => self.board_wram[(address & 0x3_ffff) as usize],
+      0x3_000_000..=0x3_fff_fff => self.chip_wram[(address & 0x7fff) as usize],
       0x4_000_300 => self.post_flag,
       0x8_000_000..=0xD_FFF_FFF => self.rom[(address & 0x01ff_ffff) as usize],
+      0x10_000_000..=0xff_fff_fff => panic!("unused memory"),
       _ => 0
     }
   }
@@ -318,8 +319,8 @@ impl CPU {
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
 
     match address {
-      0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_fffe) as usize] = val,
-      0x3_000_000..=0x3_007_fff => self.chip_wram[(address & & 0x7ffe) as usize] = val,
+      0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_ffff) as usize] = val,
+      0x3_000_000..=0x3_007_fff => self.chip_wram[(address & & 0x7fff) as usize] = val,
       0x4_000_300 => self.post_flag = if val != 0 { 1 } else { 0 },
       _ => ()
     }
@@ -352,11 +353,12 @@ impl CPU {
 
     self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
     self.spsr_banks[supervisor_bank] = self.cpsr;
+    self.set_mode( OperatingMode::Supervisor);
+
+    println!("saving cpsr with bits {:b}", self.cpsr.bits());
 
     // change to ARM state
     self.cpsr.remove(PSRRegister::STATE_BIT);
-
-    self.set_mode( OperatingMode::Supervisor);
 
     self.cpsr.insert(PSRRegister::IRQ_DISABLE);
 
@@ -370,7 +372,7 @@ impl CPU {
   pub fn push(&mut self, val: u32) {
     self.r[SP_REGISTER] -= 4;
 
-    println!("pushing {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
+    println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.mem_write_32(self.r[SP_REGISTER] & !(0b11), val);
   }

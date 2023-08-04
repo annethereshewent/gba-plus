@@ -112,10 +112,20 @@ impl CPU {
         self.r[rm as usize]
       };
 
+
+      println!("da shifted operand is {:X}", shifted_operand);
+      println!("da shift is {shift}");
+
       match shift_type {
-        0 => shifted_operand << shift,
+        0 => {
+          if shift >= 32 {
+            shifted_operand
+          } else {
+            shifted_operand << shift
+          }
+        },
         1 => shifted_operand >> shift,
-        2 => ((shifted_operand as i32) >> shift) as u32,
+        2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
         3 => shifted_operand.rotate_right(shift),
         _ => unreachable!("can't happen")
       }

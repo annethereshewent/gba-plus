@@ -294,6 +294,8 @@ impl CPU {
     let rb = (instr >> 3) & 0b111;
     let rd = instr & 0b111;
 
+    println!("r{ro} = {:X}, r{rb} = {:X}", self.r[ro as usize], self.r[rb as usize]);
+
     let address = self.r[ro as usize].wrapping_add(self.r[rb as usize]);
 
     match (s, h) {

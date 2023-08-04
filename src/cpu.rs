@@ -257,6 +257,7 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
+    println!("r0 = {:X}", self.r[0]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -298,7 +299,19 @@ impl CPU {
       0x2_000_000..=0x2_fff_fff => self.board_wram[(address & 0x3_ffff) as usize],
       0x3_000_000..=0x3_fff_fff => self.chip_wram[(address & 0x7fff) as usize],
       0x4_000_300 => self.post_flag,
-      0x8_000_000..=0xD_FFF_FFF => self.rom[(address & 0x01ff_ffff) as usize],
+      0x8_000_000..=0xD_FFF_FFF => {
+        let offset = address & 0x01ff_ffff;
+        if offset >= self.rom.len() as u32 {
+          let x = (address / 2) & 0xffff;
+          if address & 1 != 0 {
+              (x >> 8) as u8
+          } else {
+              x as u8
+          }
+        } else {
+          self.rom[(address & 0x01ff_ffff) as usize]
+        }
+      }
       0x10_000_000..=0xff_fff_fff => panic!("unused memory"),
       _ => 0
     }

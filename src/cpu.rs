@@ -148,11 +148,20 @@ impl CPU {
     self.r13_banks[old_index] = self.r[13];
     self.r14_banks[old_index] = self.r[14];
 
+    if old_index == 0 {
+      println!("cpsr = {:b}", self.cpsr.bits());
+      println!("set spsr for system/user to {:b}", self.spsr);
+    }
+
     let new_cpsr = (self.cpsr.bits() & !(0b11111)) | (new_mode as u32);
 
     self.spsr = self.spsr_banks[new_index];
     self.r[13] = self.r13_banks[new_index];
     self.r[14] = self.r14_banks[new_index];
+
+
+
+    println!("spsr = {:b}", self.spsr.bits());
 
     if matches!(new_mode, OperatingMode::FIQ) {
       self.r8_banks[0] = self.r[8];
@@ -257,7 +266,6 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
-    println!("r0 = {:X}", self.r[0]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -313,7 +321,18 @@ impl CPU {
         }
       }
       0x10_000_000..=0xff_fff_fff => panic!("unused memory"),
-      _ => 0
+      _ => {
+        println!("reading from unsupported address: {:X}", address);
+        0
+      }
+    }
+  }
+
+  fn get_register(&self, r: usize) -> u32 {
+    if r == PC_REGISTER {
+      self.pc
+    } else {
+      self.r[r]
     }
   }
 
@@ -370,9 +389,10 @@ impl CPU {
 
     self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
     self.spsr_banks[supervisor_bank] = self.cpsr;
-    self.set_mode( OperatingMode::Supervisor);
 
     println!("saving cpsr with bits {:b}", self.cpsr.bits());
+
+    self.set_mode( OperatingMode::Supervisor);
 
     // change to ARM state
     self.cpsr.remove(PSRRegister::STATE_BIT);
@@ -402,6 +422,23 @@ impl CPU {
     self.r[SP_REGISTER] += 4;
 
     val
+  }
+
+  pub fn ldr_halfword(&mut self, address: u32) -> u16 {
+    if address & 0b1 != 0 {
+      let rotation = (address & 0b1) << 3;
+
+      let value = self.mem_read_16(address & !(0b1));
+
+      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+      let return_val = self.ror(value as u32, rotation as u8, &mut carry) as u16;
+
+      self.cpsr.set(PSRRegister::CARRY, carry);
+
+      return_val
+    } else {
+      self.mem_read_16(address)
+    }
   }
 
   pub fn load_bios(&mut self, bytes: Vec<u8>) {

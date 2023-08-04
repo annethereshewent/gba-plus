@@ -1,4 +1,5 @@
 use crate::cpu::{PC_REGISTER, PSRRegister, LR_REGISTER, OperatingMode};
+use strum_macros::Display;
 
 use super::{CPU, MemoryAccess};
 
@@ -57,7 +58,7 @@ impl CPU {
   }
 
   fn arm_panic(&mut self, instr: u32) -> Option<MemoryAccess> {
-    panic!("unsupported instr: {:b}", instr)
+    panic!("unsupported instr: {:032b}", instr)
   }
 
   fn data_processing(&mut self, instr: u32) -> Option<MemoryAccess> {
@@ -71,13 +72,7 @@ impl CPU {
     let rn = (instr >> 16) & 0b1111;
     let rd = (instr >> 12) & 0b1111;
 
-    println!("operand1 coming from register {rn}");
-
-    let mut operand1 = if rn == PC_REGISTER as u32 {
-      self.pc
-    } else {
-      self.r[rn as usize]
-    };
+    let mut operand1 = self.get_register(rn as usize);
 
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
     let mut overflow = self.cpsr.contains(PSRRegister::OVERFLOW);
@@ -106,15 +101,7 @@ impl CPU {
 
       let rm = instr & 0b1111;
 
-      let shifted_operand = if rm == PC_REGISTER as u32 {
-        self.pc
-      } else {
-        self.r[rm as usize]
-      };
-
-
-      println!("da shifted operand is {:X}", shifted_operand);
-      println!("da shift is {shift}");
+      let shifted_operand = self.get_register(rm as usize);
 
       match shift_type {
         0 => {
@@ -137,7 +124,8 @@ impl CPU {
       s = 0;
     }
 
-    println!("rn = {rn} rd = {rd} operand1 = {:X} operand2 = {:X} op_code = {op_code}", operand1, operand2);
+    println!("rn = {rn} rd = {rd}");
+    println!("op: {} operand1 = {:X}, operand2 = {:X}", self.get_op_name(op_code as u8), operand1, operand2);
 
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = match op_code {
@@ -172,7 +160,7 @@ impl CPU {
           self.reload_pipeline16();
         } else {
           self.pc = result & !(0b11);
-          println!("switching to arm");
+          println!("switched to arm");
           self.reload_pipeline32();
         }
 
@@ -246,18 +234,87 @@ impl CPU {
 
   fn halfword_data_transfer_register(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer register");
+    let rm = instr & 0b1111;
 
-    panic!("not implemented");
-    self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+    let offset = self.get_register(rm as usize);
+
+    self.halfword_transfer(offset, instr)
   }
 
   fn halfword_data_transfer_immediate(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer immediate");
-    panic!("not implemented");
+
+    let offset_high = (instr >> 8) & 0b1111;
+    let offset_low = instr & 0b1111;
 
     self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+
+    self.halfword_transfer((offset_high << 4) | offset_low, instr)
+  }
+
+  fn halfword_transfer(&mut self, offset: u32, instr: u32) -> Option<MemoryAccess> {
+    let sh = (instr >> 5) & 0b11;
+    let rd = (instr >> 12) & 0b1111;
+    let rn = (instr >> 16) & 0b1111;
+
+    let l = (instr >> 20) & 0b1;
+    let w = (instr >> 21) & 0b1;
+    let u = (instr >> 23) & 0b1;
+    let p = (instr >> 24) & 0b1;
+
+    let mut address = self.get_register(rn as usize);
+
+    let offset = if u == 0 {
+      -(offset as i32) as u32
+    } else {
+      offset
+    };
+
+    let effective_address = (address as i32).wrapping_add(offset as i32) as u32;
+
+    if p == 1 {
+      address = effective_address;
+    }
+
+    let mut result = Some(MemoryAccess::Sequential);
+
+    if l == 0 {
+      // store
+      let value = if rd == PC_REGISTER as u32 {
+        self.pc + 4
+      } else {
+        self.r[rd as usize]
+      };
+
+      if sh == 1 {
+        self.mem_write_16(address & !(0b1), value as u16);
+      } else {
+        panic!("invalid option for storing half words");
+      }
+    } else {
+      // load
+      let value = match sh {
+        1 => self.ldr_halfword(address) as u32, // unsigned halfwords
+        2 => self.mem_read_8(address) as i8 as i32 as u32, // signed byte
+        3 => self.ldr_halfword(address) as i16 as i32 as u32, // signed halfwords,
+        _ => panic!("shouldn't happen")
+      };
+
+      if rd == PC_REGISTER as u32 {
+        self.pc = value & !(0b11);
+
+        self.reload_pipeline32();
+
+        result = None;
+      } else {
+        self.r[rd as usize] = value;
+      }
+    }
+
+    if (l == 0 && rd != rn) && (w == 1 || p == 0) {
+      self.r[rn as usize] = effective_address;
+    }
+    result
   }
 
   fn single_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
@@ -278,13 +335,9 @@ impl CPU {
 
     let mut should_update_pc = true;
 
-    let mut address = if rn == PC_REGISTER as u32 {
-      println!("pc is {:X}", self.pc);
-      self.pc
-    } else {
-      println!("getting address from {rn}: {:X}", self.r[rn as usize]);
-      self.r[rn as usize]
-    };
+    println!("getting address from register {rn}");
+
+    let mut address = self.get_register(rn as usize);
 
     if i == 1 {
       println!("offset is a register shifted in some way");
@@ -296,7 +349,7 @@ impl CPU {
       let shifted_operand = if rm == PC_REGISTER as u32 {
         self.pc + 4
       } else {
-        println!("using rm = {:X}", self.r[rm as usize]);
+        println!("using r{rm} = {:X}", self.r[rm as usize]);
         self.r[rm as usize]
       };
 
@@ -469,11 +522,14 @@ impl CPU {
               // pc - 8 + 12 = + 4
               self.pc + 4
             } else {
+              println!("pushing from register {i}");
               self.r[i as usize]
             }
           } else if is_first_register {
+            println!("using old base");
             old_base
           } else {
+            println!("using old base +- offset");
             let offset = num_registers * 4;
 
             if u == 1 {
@@ -510,6 +566,8 @@ impl CPU {
           }
 
           let value = self.mem_read_32(address & !(0b11));
+
+          println!("popping {:X} from {:X} to register {i}", value, address);
 
           if i == PC_REGISTER as u32 {
             self.pc = value & !(0b11);
@@ -612,7 +670,7 @@ impl CPU {
 
     let value = if i == 1 {
       let immediate = instr & 0xff;
-      let rotate = ((instr >> 8) & 0b111) * 2;
+      let rotate = ((instr >> 8) & 0b1111) * 2;
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
@@ -627,7 +685,6 @@ impl CPU {
       self.r[rm as usize]
     };
 
-
     if f == 1 {
       mask |= 0xff << 24;
     }
@@ -641,20 +698,26 @@ impl CPU {
       mask |= 0xff;
     }
 
-    if matches!(self.cpsr.mode(), OperatingMode::User) && p == 1 {
-      panic!("SPSR not accessible in user mode");
-    }
-
-    if p == 1 {
-      self.spsr = PSRRegister::from_bits_retain(value);
-    } else {
-      let new_psr = PSRRegister::from_bits_retain((self.cpsr.bits() & !mask) | (value & mask));
-
-      if (self.cpsr.mode() as u8 != new_psr.mode() as u8) {
-        self.set_mode(new_psr.mode());
+    if matches!(self.cpsr.mode(), OperatingMode::User) {
+      if p == 1 {
+        panic!("SPSR not accessible in user mode");
       }
+      let new_cpsr = self.cpsr.bits() & !(0xf000_0000) | (value & 0xf000_0000);
 
-      self.cpsr = new_psr;
+      self.cpsr = PSRRegister::from_bits_retain(new_cpsr);
+    } else {
+      if p == 1 {
+        println!("setting spsr to {:b}", value);
+        self.spsr = PSRRegister::from_bits_retain(value);
+      } else {
+        let new_psr = PSRRegister::from_bits_retain((self.cpsr.bits() & !mask) | (value & mask));
+
+        if self.cpsr.mode() as u8 != new_psr.mode() as u8 {
+          self.set_mode(new_psr.mode());
+        }
+
+        self.cpsr = new_psr;
+      }
     }
 
     self.pc = self.pc.wrapping_add(4);
@@ -743,13 +806,37 @@ impl CPU {
   }
 
   fn transfer_spsr_mode(&mut self) {
-    if self.spsr.mode() as u8 != self.cpsr.mode() as u8 {
+    let spsr = self.spsr;
+    if spsr.mode() as u8 != self.cpsr.mode() as u8 {
       println!("changing modes");
-      self.set_mode(self.spsr.mode());
+      println!("new mode is {:b}", spsr.mode() as u8);
+
+      self.set_mode(spsr.mode());
     }
 
     println!("spsr = {:b}", self.spsr.bits());
 
     self.cpsr = self.spsr;
+  }
+  fn get_op_name(&self, op_code: u8) -> &'static str {
+    match op_code {
+      0 => "AND",
+      1 => "EOR",
+      2 => "SUB",
+      3 => "RSB",
+      4 => "ADD",
+      5 => "ADC",
+      6 => "SBC",
+      7 => "RSC",
+      8 => "TST",
+      9 => "TEQ",
+      10 => "CMP",
+      11 => "CMN",
+      12 => "ORR",
+      13 => "MOV",
+      14 => "BIC",
+      15 => "MVN",
+      _ => unreachable!("can't happen")
+    }
   }
 }

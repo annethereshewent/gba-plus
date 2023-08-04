@@ -750,10 +750,23 @@ impl CPU {
   }
 
   fn lsl(&mut self, operand: u32, shift: u32) -> u32 {
-    let carry_shift = 32 - shift;
-    let carry = shift != 0 && (operand >> carry_shift) & 0b1 == 1;
 
-    let result = if shift < 32 { operand << shift } else { 0 };
+    let mut carry = false;
+
+    let result = if shift < 32 {
+      let carry_shift = 32 - shift;
+      carry = shift != 0 && (operand >> carry_shift) & 0b1 == 1;
+
+
+
+      if shift < 32 { operand << shift } else { 0 }
+    } else if shift == 32 {
+      carry = operand >> 31 & 0b1 == 1;
+      0
+    } else {
+      carry = false;
+      0
+    };
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -861,23 +874,6 @@ impl CPU {
 
       // reload pipeline
       self.reload_pipeline32();
-    }
-  }
-
-  fn ldr_halfword(&mut self, address: u32) -> u16 {
-    if address & 0b1 != 0 {
-      let rotation = (address & 0b1) << 3;
-
-      let value = self.mem_read_16(address & !(0b1));
-
-      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
-      let return_val = self.ror(value as u32, rotation as u8, &mut carry) as u16;
-
-      self.cpsr.set(PSRRegister::CARRY, carry);
-
-      return_val
-    } else {
-      self.mem_read_16(address)
     }
   }
 

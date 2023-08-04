@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 bitflags = "2.3.1"
+strum = "0.25"
+strum_macros = "0.25"

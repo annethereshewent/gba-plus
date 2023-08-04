@@ -86,7 +86,7 @@ impl CPU {
       let immediate = instr & 0xff;
       let rotate = (2 * ((instr >> 8) & 0b1111)) as u8;
 
-      self.ror_arm(immediate, rotate, &mut carry)
+      self.ror(immediate, rotate, &mut carry)
     } else {
       let shift_by_register = (instr >> 4) & 0b1 == 1;
 
@@ -606,7 +606,7 @@ impl CPU {
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-      let value = self.ror_arm(immediate, rotate as u8, &mut carry);
+      let value = self.ror(immediate, rotate as u8, &mut carry);
 
       self.cpsr.set(PSRRegister::CARRY, carry);
 
@@ -650,16 +650,6 @@ impl CPU {
     self.pc = self.pc.wrapping_add(4);
 
     Some(MemoryAccess::Sequential)
-  }
-
-  fn ror_arm(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
-    let amount = amount % 32;
-
-    let result = immediate.rotate_right(amount as u32);
-
-    *carry = (result >> 31) & 0b1 == 1;
-
-    result
   }
 
   fn update_flags(&mut self, result: u32, overflow: bool, carry: bool) {
@@ -732,7 +722,7 @@ impl CPU {
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-      let return_val = self.ror_arm(value, rotation as u8, &mut carry);
+      let return_val = self.ror(value, rotation as u8, &mut carry);
 
       self.cpsr.set(PSRRegister::CARRY, carry);
 

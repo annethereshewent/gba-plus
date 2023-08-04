@@ -285,6 +285,10 @@ impl CPU {
   }
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
+    if address == 0x4_000_088 {
+      return 0x200;
+    }
+
     self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
   }
 
@@ -390,4 +394,15 @@ impl CPU {
   pub fn load_bios(&mut self, bytes: Vec<u8>) {
     self.bios = bytes;
   }
+
+  pub fn ror(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
+    let amount = amount % 32;
+
+    let result = immediate.rotate_right(amount as u32);
+
+    *carry = (result >> 31) & 0b1 == 1;
+
+    result
+  }
+
 }

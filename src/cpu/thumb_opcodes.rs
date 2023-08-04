@@ -63,6 +63,9 @@ impl CPU {
     let rs = ((instr >> 3) & 0b111) as u8;
     let rd = (instr & 0b111) as u8;
 
+    println!("rs = {rs}, rd = {rd}, offset = {offset5}, op_code = {op_code}");
+    println!("rs value = {:X}, rd value = {:X}", self.r[rs as usize], self.r[rd as usize]);
+
     match op_code {
       0 => self.lsl_offset(offset5, rs, rd),
       1 => self.lsr_offset(offset5, rs, rd),
@@ -106,6 +109,8 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
 
+    println!("op code = {op_code}, rd = {rd}, offset = {offset}");
+
     match op_code {
       0 => self.mov(rd, offset as u32, true),
       1 => self.cmp(self.r[rd as usize], offset as u32),
@@ -133,7 +138,7 @@ impl CPU {
       4 => self.r[rd as usize] = self.asr(self.r[rd as usize], self.r[rs as usize]),
       5 => self.r[rd as usize] = self.adc(self.r[rd as usize], self.r[rs as usize]),
       6 => self.r[rd as usize] = self.sbc(self.r[rd as usize], self.r[rs as usize]),
-      7 => self.r[rd as usize] = self.ror(self.r[rd as usize], self.r[rs as usize]),
+      7 => self.r[rd as usize] = self.ror_thumb(self.r[rd as usize], self.r[rs as usize]),
       8 => { self.and(self.r[rs as usize], self.r[rd as usize]); },
       9 => self.r[rd as usize] = self.subtract(0, self.r[rs as usize]),
       10 => { self.subtract(self.r[rd as usize], self.r[rs as usize]); },
@@ -166,7 +171,7 @@ impl CPU {
       source += 8;
     }
 
-    println!("reading from register {source}, op code is {op_code}");
+    println!("reading from register {source} and destination {destination}, op code is {op_code}");
 
     let operand1 = if destination == PC_REGISTER as u16 {
       self.pc
@@ -179,6 +184,8 @@ impl CPU {
     } else {
       self.r[source as usize]
     };
+
+    println!("operand1 = {operand1}, operand2 = {operand2}");
 
     let mut should_update_pc = true;
 
@@ -222,11 +229,14 @@ impl CPU {
   fn pc_relative_load(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside pc relative load");
     let rd = (instr >> 8) & 0b111;
-    let immediate = (instr & 0b11111111) << 2;
+
+    let immediate = (instr & 0xff) << 2;
 
     let address = (self.pc & !(0b11)) + immediate as u32;
 
     self.r[rd as usize] = self.mem_read_32(address);
+
+    println!("loaded {:X} into register {rd}", self.r[rd as usize]);
 
     self.pc = self.pc.wrapping_add(2);
 
@@ -289,22 +299,27 @@ impl CPU {
     match (s, h) {
       (0, 0) => {
         let value = (self.r[rd as usize] & 0xffff) as u16;
-        self.mem_write_16(address, value);
+        self.mem_write_16(address & !(0b1), value);
       }
       (0, 1) => {
-        let value = self.mem_read_16(address);
+        let value = self.ldr_halfword(address);
 
         self.r[rd as usize] = value as u32;
       }
       (1, 0) => {
-        let value = self.mem_read_8(address) as i32;
+        let value = self.mem_read_8(address) as i8 as i32;
 
         self.r[rd as usize] = value as u32;
       }
       (1,1) => {
-        let value = self.mem_read_16(address) as i32;
+        // let value = self.mem_read_16(address) as i16 as i32;
 
-        self.r[rd as usize] = value as u32;
+        // self.r[rd as usize] = value as u32;
+        self.r[rd as usize] = if address & 0b1 != 0 {
+          self.mem_read_8(address) as i8 as i32 as u32
+        } else {
+          self.mem_read_16(address) as i16 as i32 as u32
+        };
       }
       _ => unreachable!("can't be")
     }
@@ -359,11 +374,13 @@ impl CPU {
 
     let address = self.r[rb as usize].wrapping_add(offset as u32);
 
+    println!("rd = {rd} and rb = {rb} and offset = {offset}");
+
     if l == 0 {
       let value = (self.r[rd as usize] & 0xffff) as u16;
-      self.mem_write_16(address, value);
+      self.mem_write_16(address & !(0b1), value);
     } else {
-      let value = self.mem_read_16(address) as u32;
+      let value = self.ldr_halfword(address) as u32;
 
       self.r[rd as usize] = value;
     }
@@ -741,7 +758,7 @@ impl CPU {
     result
   }
 
-  fn ror(&mut self, operand: u32, shift: u32) -> u32 {
+  fn ror_thumb(&mut self, operand: u32, shift: u32) -> u32 {
     let result = operand.rotate_right(shift);
     let carry = (result >> 31) & 0b1 == 1;
 
@@ -842,6 +859,23 @@ impl CPU {
 
       // reload pipeline
       self.reload_pipeline32();
+    }
+  }
+
+  fn ldr_halfword(&mut self, address: u32) -> u16 {
+    if address & 0b1 != 0 {
+      let rotation = (address & 0b1) << 3;
+
+      let value = self.mem_read_16(address & !(0b1));
+
+      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+      let return_val = self.ror(value as u32, rotation as u8, &mut carry) as u16;
+
+      self.cpsr.set(PSRRegister::CARRY, carry);
+
+      return_val
+    } else {
+      self.mem_read_16(address)
     }
   }
 

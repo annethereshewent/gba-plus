@@ -106,8 +106,6 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
 
-    println!("rd = {rd}, op_code = {op_code}, offset = {offset}");
-
     match op_code {
       0 => self.mov(rd, offset as u32, true),
       1 => self.cmp(self.r[rd as usize], offset as u32),
@@ -443,16 +441,16 @@ impl CPU {
 
     // push
     if l == 0 {
-      for i in 0..8 {
-        if (register_list >> i) & 0b1 == 1 {
-          println!("pushing register {i} to the stack");
-          self.push(self.r[i]);
-        }
-      }
       if r == 1 {
         // push LR to the stack
         println!("pushing register 14 to the stack");
         self.push(self.r[LR_REGISTER]);
+      }
+      for i in (0..8).rev() {
+        if (register_list >> i) & 0b1 == 1 {
+          println!("pushing register {i} to the stack");
+          self.push(self.r[i]);
+        }
       }
     } else {
       // pop

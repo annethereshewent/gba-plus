@@ -96,7 +96,8 @@ impl CPU {
         }
         let rs = (instr >> 8) & 0b1111;
 
-        self.r[rs as usize]
+
+        self.r[rs as usize] & 0xff
       } else {
         (instr >> 7) & 0b11111
       };
@@ -180,6 +181,7 @@ impl CPU {
 
   fn multiply(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply");
+    panic!("not implemented");
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
@@ -187,12 +189,14 @@ impl CPU {
   fn multiply_long(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply long");
 
+    panic!("not implemented");
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
   fn single_data_swap(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside single data swap");
+    panic!("not implemented");
 
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
@@ -233,12 +237,14 @@ impl CPU {
   fn halfword_data_transfer_register(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer register");
 
+    panic!("not implemented");
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
   fn halfword_data_transfer_immediate(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside halfword data transfer immediate");
+    panic!("not implemented");
 
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
@@ -266,10 +272,12 @@ impl CPU {
       println!("pc is {:X}", self.pc);
       self.pc
     } else {
+      println!("getting address from {rn}: {:X}", self.r[rn as usize]);
       self.r[rn as usize]
     };
 
     if i == 1 {
+      println!("offset is a register shifted in some way");
       // offset is a register shifted in some way
       let shift_type = (instr >> 5) & 0b11;
 
@@ -278,8 +286,11 @@ impl CPU {
       let shifted_operand = if rm == PC_REGISTER as u32 {
         self.pc + 4
       } else {
+        println!("using rm = {:X}", self.r[rm as usize]);
         self.r[rm as usize]
       };
+
+
 
       let shift_by_register = (instr >> 4) & 0b1;
 
@@ -309,6 +320,8 @@ impl CPU {
     }
 
     let effective_address = (address as i32).wrapping_add(offset as i32) as u32;
+
+    println!("offset = {:X} address = {:X} effective = {:X}", offset, address, effective_address);
 
     let old_mode = self.cpsr.mode();
 
@@ -466,8 +479,6 @@ impl CPU {
             address += 4;
           }
 
-          println!("(p = {}), writing {:X} to {:X}", p, value, address & !(0b11));
-
           self.mem_write_32(address & !(0b11), value);
 
 
@@ -489,10 +500,6 @@ impl CPU {
           }
 
           let value = self.mem_read_32(address & !(0b11));
-
-          if i == 14 {
-            println!("reading {:X} from {:X}", value, address & !(0b11));
-          }
 
           if i == PC_REGISTER as u32 {
             self.pc = value & !(0b11);

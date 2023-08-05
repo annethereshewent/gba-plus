@@ -242,7 +242,7 @@ impl CPU {
 
     let rn = instr & 0b1111;
 
-    println!("reading register {rn}");
+    println!("reading register {rn} with address {:X}", self.r[rn as usize]);
 
     if rn == PC_REGISTER as u32 {
       panic!("using pc register for branch and exchange");
@@ -731,8 +731,9 @@ impl CPU {
       if p == 1 {
         println!("(inside msr) setting spsr to {:b}", value);
         self.spsr = PSRRegister::from_bits_retain(value);
+        println!("current mode = {:b}", self.cpsr.mode() as u8);
       } else {
-        println!("(inside msr) setting new cpsr to {:b}", value & mask);
+        println!("(inside msr) setting new cpsr to {:b}", (self.cpsr.bits() & !mask) | (value & mask));
         let new_psr = PSRRegister::from_bits_retain((self.cpsr.bits() & !mask) | (value & mask));
 
         if self.cpsr.mode() as u8 != new_psr.mode() as u8 {

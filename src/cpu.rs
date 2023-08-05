@@ -127,7 +127,7 @@ impl CPU {
       r12_banks: [0; 2],
       r13_banks: [0; 6],
       r14_banks: [0; 6],
-      spsr: PSRRegister::from_bits_retain(0xd3),
+      spsr: PSRRegister::from_bits_retain(0),
       cpsr: PSRRegister::from_bits_retain(0xd3),
       spsr_banks: [PSRRegister::new(); 6],
       thumb_lut: Vec::new(),
@@ -166,7 +166,7 @@ impl CPU {
 
     if old_index == 0 {
       println!("(set mode)cpsr = {:b}", self.cpsr.bits());
-      println!("(set mode) set spsr for system/user to {:b}", self.spsr);
+      println!("(set mode) set spsr for system/user to {:b}", self.spsr.bits());
     }
 
     let new_cpsr = (self.cpsr.bits() & !(0b11111)) | (new_mode as u32);
@@ -455,6 +455,7 @@ impl CPU {
 
     self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
     self.spsr_banks[supervisor_bank] = self.cpsr;
+    self.spsr = self.cpsr;
 
     println!("saving cpsr with bits {:b}", self.cpsr.bits());
 

@@ -15,10 +15,10 @@ pub struct CycleLookupTables {
 impl CycleLookupTables {
   pub fn new() -> Self {
     Self {
-      n_cycles_32: [0; LUT_SIZE],
-      s_cycles_32: [0; LUT_SIZE],
-      n_cycles_16: [0; LUT_SIZE],
-      s_cycles_16: [0; LUT_SIZE]
+      n_cycles_32: [1; LUT_SIZE],
+      s_cycles_32: [1; LUT_SIZE],
+      n_cycles_16: [1; LUT_SIZE],
+      s_cycles_16: [1; LUT_SIZE]
     }
   }
 

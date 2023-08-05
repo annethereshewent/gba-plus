@@ -382,7 +382,7 @@ impl CPU {
   }
 
   fn update_cycles(&mut self, address: u32,  access: MemoryAccess, width: MemoryWidth) {
-    let page = (address >> 24) as usize;
+    let page = ((address >> 24) & 0xf) as usize;
     let cycles = match width {
       MemoryWidth::Width8 | MemoryWidth::Width16 => match access {
         MemoryAccess::NonSequential => self.cycle_luts.n_cycles_16[page],

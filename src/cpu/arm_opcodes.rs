@@ -86,7 +86,6 @@ impl CPU {
     };
 
     if rd == PC_REGISTER as u32 && s == 1 {
-      println!("transferring spsr");
       self.transfer_spsr_mode();
       s = 0;
     }
@@ -662,8 +661,6 @@ impl CPU {
 
     let rd = (instr >> 12) & 0b1111;
 
-    println!("transferring {:b} to register r{rd}", value);
-
     if rd == PC_REGISTER as u32 {
       self.pc = value & !(0b11);
     } else {
@@ -688,7 +685,6 @@ impl CPU {
     let mut mask = 0;
 
     let value = if i == 1 {
-      println!("using an immediate value");
       let immediate = instr & 0xff;
       let rotate = ((instr >> 8) & 0b1111) * 2;
 
@@ -729,11 +725,8 @@ impl CPU {
       self.cpsr = PSRRegister::from_bits_retain(new_cpsr);
     } else {
       if p == 1 {
-        println!("(inside msr) setting spsr to {:b}", value);
         self.spsr = PSRRegister::from_bits_retain(value);
-        println!("current mode = {:b}", self.cpsr.mode() as u8);
       } else {
-        println!("(inside msr) setting new cpsr to {:b}", (self.cpsr.bits() & !mask) | (value & mask));
         let new_psr = PSRRegister::from_bits_retain((self.cpsr.bits() & !mask) | (value & mask));
 
         if self.cpsr.mode() as u8 != new_psr.mode() as u8 {
@@ -741,8 +734,6 @@ impl CPU {
         }
 
         self.cpsr = new_psr;
-
-        println!("cpsr is now {:b}", self.cpsr.bits());
       }
     }
 
@@ -816,13 +807,8 @@ impl CPU {
   fn transfer_spsr_mode(&mut self) {
     let spsr = self.spsr;
     if spsr.mode() as u8 != self.cpsr.mode() as u8 {
-      println!("changing modes");
-      println!("new mode is {:b}", spsr.mode() as u8);
-
       self.set_mode(spsr.mode());
     }
-
-    println!("(transfer spsr mode) spsr = {:b}", spsr.bits());
 
     self.cpsr = spsr;
   }

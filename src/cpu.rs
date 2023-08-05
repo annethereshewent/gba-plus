@@ -164,19 +164,11 @@ impl CPU {
     self.r13_banks[old_index] = self.r[13];
     self.r14_banks[old_index] = self.r[14];
 
-    if old_index == 0 {
-      println!("(set mode)cpsr = {:b}", self.cpsr.bits());
-      println!("(set mode) set spsr for system/user to {:b}", self.spsr.bits());
-    }
-
     let new_cpsr = (self.cpsr.bits() & !(0b11111)) | (new_mode as u32);
 
     self.spsr = self.spsr_banks[new_index];
     self.r[13] = self.r13_banks[new_index];
     self.r[14] = self.r14_banks[new_index];
-
-    println!("(inside set mode) spsr = {:b}", self.spsr.bits());
-    println!("(set mode) new cpsr mode = {:b}", new_cpsr);
 
     if matches!(new_mode, OperatingMode::FIQ) {
       self.r8_banks[0] = self.r[8];
@@ -421,9 +413,9 @@ impl CPU {
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
 
     match address {
-      0x2_000_000..=0x2_03f_fff => self.board_wram[(address & 0x3_ffff) as usize] = val,
-      0x3_000_000..=0x3_007_fff => self.chip_wram[(address & & 0x7fff) as usize] = val,
-      0x4_000_300 => self.post_flag = if val != 0 { 1 } else { 0 },
+      0x200_0000..=0x203_ffff => self.board_wram[(address & 0x3_ffff) as usize] = val,
+      0x300_0000..=0x300_7fff => self.chip_wram[(address & & 0x7fff) as usize] = val,
+      0x400_0300 => self.post_flag = if val != 0 { 1 } else { 0 },
       _ => ()
     }
   }
@@ -455,9 +447,6 @@ impl CPU {
 
     self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
     self.spsr_banks[supervisor_bank] = self.cpsr;
-    // self.spsr = self.cpsr;
-
-    println!("saving cpsr with bits {:b}", self.cpsr.bits());
 
     self.set_mode( OperatingMode::Supervisor);
 

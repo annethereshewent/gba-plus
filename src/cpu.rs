@@ -41,7 +41,7 @@ pub struct CPU {
   r12_banks: [u32; 2],
   r13_banks: [u32; 6],
   r14_banks: [u32; 6],
-  post_flag: u8,
+  post_flag: u16,
   spsr: PSRRegister,
   cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
@@ -309,20 +309,21 @@ impl CPU {
   }
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
-    if address == 0x4_000_088 {
-      return 0x200;
+    match address {
+      0x400_0004 => self.gpu.dispstat.bits(),
+      0x400_0006 => self.gpu.vcount,
+      0x400_0088 => 0x200,
+      0x400_0300 => self.post_flag,
+      _ => self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
     }
-
-    self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
   }
 
   pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
-      0x2_000_000..=0x2_fff_fff => self.board_wram[(address & 0x3_ffff) as usize],
-      0x3_000_000..=0x3_fff_fff => self.chip_wram[(address & 0x7fff) as usize],
-      0x4_000_300 => self.post_flag,
-      0x8_000_000..=0xD_FFF_FFF => {
+      0x2_000_000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize],
+      0x3_000_000..=0x3ff_ffff => self.chip_wram[(address & 0x7fff) as usize],
+      0x8_000_000..=0xdff_ffff => {
         let offset = address & 0x01ff_ffff;
         if offset >= self.rom.len() as u32 {
           let x = (address / 2) & 0xffff;

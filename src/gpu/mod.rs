@@ -5,8 +5,8 @@ pub mod registers;
 pub struct GPU {
   cycles: u32,
   mode: GpuMode,
-  vcount: u16,
-  dispstat: DisplayStatusRegister
+  pub vcount: u16,
+  pub dispstat: DisplayStatusRegister
 }
 
 const HDRAW_CYCLES: u32 = 960;

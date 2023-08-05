@@ -9,7 +9,7 @@ impl CPU {
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
     match address {
-      0x400_0000..=0x400_03fe => self.io_read_16(address),
+      0x400_0000..=0x400_03ff => self.io_read_16(address),
       _ => self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
     }
   }
@@ -20,6 +20,17 @@ impl CPU {
       0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize],
       0x300_0000..=0x3ff_ffff => self.chip_wram[(address & 0x7fff) as usize],
       0x400_0000..=0x400_03fe => self.io_read_8(address),
+      0x500_0000..=0x500_03ff => self.gpu.palette_ram[(address & 0x3ff) as usize],
+      0x600_0000..=0x601_7fff => {
+        let mut offset = address % VRAM_SIZE as u32;
+
+        if offset > 0x18000 {
+          offset -= 0x8000
+        }
+
+        self.gpu.vram[offset as usize]
+      }
+      0x700_0000..=0x700_03ff => self.gpu.oam_ram[(address & 0x3ff) as usize],
       0x800_0000..=0xdff_ffff => {
         let offset = address & 0x01ff_ffff;
         if offset >= self.rom.len() as u32 {
@@ -33,7 +44,7 @@ impl CPU {
           self.rom[(address & 0x01ff_ffff) as usize]
         }
       }
-      0x10_000_000..=0xff_fff_fff => panic!("unused memory"),
+      0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
         println!("reading from unsupported address: {:X}", address);
         0

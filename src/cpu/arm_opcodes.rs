@@ -128,25 +128,113 @@ impl CPU {
 
   fn multiply(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply");
-    panic!("not implemented");
+
+    let a = (instr >> 21) & 0b1;
+    let s = (instr >> 20) & 0b1;
+    let rd = (instr >> 16) & 0b1111;
+    let rn = (instr >> 12) & 0b1111;
+    let rs = (instr >> 8) & 0b1111;
+    let rm = instr & 0b1111;
+
+    let operand1 = self.get_register(rm as usize);
+    let operand2 = self.get_register(rs as usize);
+    let operand3 = self.get_register(rn as usize);
+
+    let result = if a == 0 {
+      operand1.wrapping_mul(operand2)
+    } else {
+      self.add_cycles(1);
+      operand1.wrapping_mul(operand2).wrapping_add(operand3)
+    };
+
+    let cycles = self.get_multiplier_cycles(operand2);
+
+    self.add_cycles(cycles);
+
+    if s == 1 {
+      // update flags
+      self.update_flags(result, false, false);
+    }
+
+    self.r[rd as usize] = result;
+
     self.pc = self.pc.wrapping_add(4);
+
     Some(MemoryAccess::Sequential)
   }
 
   fn multiply_long(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside multiply long");
 
-    panic!("not implemented");
+    let u = (instr >> 22) & 0b1;
+    let a = (instr >> 21) & 0b1;
+    let s = (instr >> 20) & 0b1;
+
+    let rd_hi = (instr >> 16) & 0b1111;
+    let rd_low = (instr >> 12) & 0b1111;
+    let rs = (instr >> 8) & 0b1111;
+    let rm = instr & 0b1111;
+
+    let operand1 = self.get_register(rm as usize);
+    let operand2 = self.get_register(rs as usize);
+
+    let mut result = if u == 0 {
+      // unsigned
+      (operand1 as u64).wrapping_mul(operand2 as u64)
+    } else {
+      // signed
+      (operand1 as i32 as i64).wrapping_mul(operand2 as i32 as i64) as u64
+    };
+
+    if a == 1 {
+      let accumulate = (self.r[rd_hi as usize] as u64) << 32 | (self.r[rd_low as usize] as u64);
+
+      result = result.wrapping_add(accumulate);
+
+      self.add_cycles(1);
+    }
+
+    // store the results in rd high and rd low
+    self.r[rd_low as usize] = (result & 0xffffffff) as i32 as u32;
+    self.r[rd_hi as usize] = (result >> 32) as i32 as u32;
+
+    let cycles = self.get_multiplier_cycles(operand2);
+
+    self.add_cycles(cycles);
+
+    if s == 1 {
+      self.cpsr.set(PSRRegister::NEGATIVE, result >> 63 & 0b1 == 1);
+      self.cpsr.set(PSRRegister::ZERO, result == 0);
+      self.cpsr.set(PSRRegister::CARRY, false);
+      self.cpsr.set(PSRRegister::OVERFLOW, false);
+    }
+
     self.pc = self.pc.wrapping_add(4);
     Some(MemoryAccess::Sequential)
   }
 
   fn single_data_swap(&mut self, instr: u32) -> Option<MemoryAccess> {
     println!("inside single data swap");
-    panic!("not implemented");
+
+    let b = (instr >> 22) & 0b1;
+    let rn = (instr >> 16) & 0b1111;
+    let rd = (instr >> 12) & 0b1111;
+    let rm = instr & 0b1111;
+
+    let base_address = self.get_register(rn as usize);
+
+    if b == 1 {
+      let temp = self.load_8(base_address, MemoryAccess::NonSequential);
+      self.store_8(base_address, self.get_register(rm as usize) as u8, MemoryAccess::Sequential);
+      self.r[rd as usize] = temp as u32;
+    } else {
+      let temp = self.load_32(base_address, MemoryAccess::NonSequential);
+      self.store_32(base_address & !(0b11), self.get_register(rm as usize), MemoryAccess::Sequential);
+      self.r[rd as usize] = temp;
+    }
 
     self.pc = self.pc.wrapping_add(4);
-    Some(MemoryAccess::Sequential)
+    Some(MemoryAccess::NonSequential)
   }
 
   fn branch_and_exchange(&mut self, instr: u32) -> Option<MemoryAccess> {
@@ -553,7 +641,7 @@ impl CPU {
     None
   }
 
-  fn arm_software_interrupt(&mut self, instr: u32) -> Option<MemoryAccess>  {
+  fn arm_software_interrupt(&mut self, _instr: u32) -> Option<MemoryAccess>  {
     println!("inside arm software interrupt");
 
     self.interrupt();

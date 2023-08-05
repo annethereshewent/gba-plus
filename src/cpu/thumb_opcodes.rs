@@ -889,18 +889,6 @@ impl CPU {
     Some(MemoryAccess::Sequential)
   }
 
-  fn get_multiplier_cycles(&self, operand: u32) -> u32 {
-    if operand & 0xff == operand {
-      1
-    } else if operand & 0xffff == operand {
-      2
-    } else if operand & 0xffffff == operand {
-      3
-    } else {
-      4
-    }
-  }
-
   fn load_store_offset(&mut self, address: u32, instr: u16) -> Option<MemoryAccess> {
     let b = (instr >> 10) & 0b1;
     let l = (instr >> 11) & 0b1;

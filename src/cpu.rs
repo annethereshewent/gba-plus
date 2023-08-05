@@ -538,4 +538,16 @@ impl CPU {
     result
   }
 
+  pub fn get_multiplier_cycles(&self, operand: u32) -> u32 {
+    if operand & 0xff == operand {
+      1
+    } else if operand & 0xffff == operand {
+      2
+    } else if operand & 0xffffff == operand {
+      3
+    } else {
+      4
+    }
+  }
+
 }

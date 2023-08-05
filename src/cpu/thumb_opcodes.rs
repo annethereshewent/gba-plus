@@ -90,6 +90,8 @@ impl CPU {
     let operand1 = self.r[rs as usize];
     let operand2 = if is_immediate { rn_offset as u32 } else { self.r[rn_offset as usize] };
 
+    println!("rs = {rs}, rd = {rd}");
+
     self.r[rd as usize] = if op_code == 0 {
       println!("adding {operand1} and {operand2}");
       self.add(operand1, operand2)
@@ -109,7 +111,7 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
 
-    println!("op code = {op_code}, rd = {rd}, offset = {offset}");
+    println!("op code = {op_code}, r{rd} = {:X}, offset = {offset}", self.r[rd as usize]);
 
     match op_code {
       0 => self.mov(rd, offset as u32, true),
@@ -129,6 +131,9 @@ impl CPU {
     let op_code = (instr >> 6) & 0b1111;
     let rs = (instr >> 3) & 0b111;
     let rd = instr & 0b111;
+
+    println!("rs = {rs} rd = {rd} op_code = {op_code}");
+    println!("r{rs} = {:X}, r{rd} = {:X}", self.r[rs as usize], self.r[rd as usize]);
 
     match op_code {
       0 => self.r[rd as usize] = self.and(self.r[rs as usize], self.r[rd as usize]),
@@ -318,7 +323,16 @@ impl CPU {
 
   fn load_store_immediate_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store immediate offset");
-    let offset = (instr >> 6) & 0b11111;
+
+
+    let b = (instr >> 12) & 0b1;
+
+    let offset = if b == 1 {
+      (instr >> 6) & 0b11111
+    } else {
+      ((instr >> 6) & 0b11111) << 2
+    };
+
     let rb = (instr >> 3) & 0b111;
 
     let address = self.r[rb as usize].wrapping_add(offset as u32);
@@ -335,7 +349,7 @@ impl CPU {
 
     let address = self.r[rb as usize].wrapping_add(offset as u32);
 
-    println!("rd = {rd} and rb = {rb} and offset = {offset}");
+    println!("rd = {rd} and rb = {rb}, address = {:X} and offset = {offset}", address);
 
     let mut result = Some(MemoryAccess::Sequential);
 

@@ -822,9 +822,9 @@ impl CPU {
       self.set_mode(spsr.mode());
     }
 
-    println!("(transfer spsr mode) spsr = {:b}", self.spsr.bits());
+    println!("(transfer spsr mode) spsr = {:b}", spsr.bits());
 
-    self.cpsr = self.spsr;
+    self.cpsr = spsr;
   }
 
   fn get_op_name(&self, op_code: u8) -> &'static str {

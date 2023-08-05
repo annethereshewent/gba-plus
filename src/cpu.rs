@@ -430,22 +430,22 @@ impl CPU {
 
   pub fn reload_pipeline16(&mut self) {
     self.pc = self.pc & !(0b1);
-    self.pipeline[0] = self.mem_read_16(self.pc) as u32;
+    self.pipeline[0] = self.load_16(self.pc, MemoryAccess::NonSequential) as u32;
 
     self.pc = self.pc.wrapping_add(2);
 
-    self.pipeline[1] = self.mem_read_16(self.pc) as u32;
+    self.pipeline[1] = self.load_16(self.pc, MemoryAccess::Sequential) as u32;
 
     self.pc = self.pc.wrapping_add(2);
   }
 
   pub fn reload_pipeline32(&mut self) {
     self.pc = self.pc & !(0b11);
-    self.pipeline[0] = self.mem_read_32(self.pc);
+    self.pipeline[0] = self.load_32(self.pc, MemoryAccess::NonSequential);
 
     self.pc = self.pc.wrapping_add(4);
 
-    self.pipeline[1] = self.mem_read_32(self.pc);
+    self.pipeline[1] = self.load_32(self.pc, MemoryAccess::Sequential);
 
     self.pc = self.pc.wrapping_add(4);
   }
@@ -455,7 +455,7 @@ impl CPU {
 
     self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
     self.spsr_banks[supervisor_bank] = self.cpsr;
-    self.spsr = self.cpsr;
+    // self.spsr = self.cpsr;
 
     println!("saving cpsr with bits {:b}", self.cpsr.bits());
 

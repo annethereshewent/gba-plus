@@ -2,18 +2,28 @@ use self::registers::display_status_register::DisplayStatusRegister;
 
 pub mod registers;
 
-pub struct GPU {
-  cycles: u32,
-  mode: GpuMode,
-  pub vcount: u16,
-  pub dispstat: DisplayStatusRegister
-}
-
 const HDRAW_CYCLES: u32 = 960;
 const HBLANK_CYCLES: u32 = 272;
 
 const VISIBLE_LINES: u16 = 160;
 const VBLANK_LINES: u16 = 68;
+
+const SCREEN_WIDTH: u16 = 240;
+const SCREEN_HEIGHT: u16 = 160;
+
+const VRAM_SIZE: usize = 96 * 1024;
+const PALETTE_RAM_SIZE: usize = 1024;
+const OAM_RAM_SIZE: usize = 1024;
+
+pub struct GPU {
+  cycles: u32,
+  mode: GpuMode,
+  pub vcount: u16,
+  pub dispstat: DisplayStatusRegister,
+  vram: [u8; VRAM_SIZE],
+  palette_ram: [u8; PALETTE_RAM_SIZE],
+  oam_ram_size: [u8; OAM_RAM_SIZE]
+}
 
 enum GpuMode {
   Hblank,
@@ -26,7 +36,10 @@ impl GPU {
       cycles: 0,
       vcount: 0,
       mode: GpuMode::Hdraw,
-      dispstat: DisplayStatusRegister::from_bits_retain(0)
+      dispstat: DisplayStatusRegister::from_bits_retain(0),
+      vram: [0; VRAM_SIZE],
+      palette_ram: [0; PALETTE_RAM_SIZE],
+      oam_ram_size: [0; OAM_RAM_SIZE]
     }
   }
 

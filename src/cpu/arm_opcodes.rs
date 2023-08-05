@@ -82,40 +82,7 @@ impl CPU {
 
       self.ror(immediate, rotate, &mut carry)
     } else {
-      let shift_by_register = (instr >> 4) & 0b1 == 1;
-
-      let shift = if shift_by_register {
-        if rn == PC_REGISTER as u32 {
-          operand1 += 4;
-        }
-        self.add_cycles(1);
-
-        let rs = (instr >> 8) & 0b1111;
-
-        self.r[rs as usize] & 0xff
-      } else {
-        (instr >> 7) & 0b11111
-      };
-
-      let shift_type = (instr >> 5) & 0b11;
-
-      let rm = instr & 0b1111;
-
-      let shifted_operand = self.get_register(rm as usize);
-
-      match shift_type {
-        0 => {
-          if shift >= 32 {
-            shifted_operand
-          } else {
-            shifted_operand << shift
-          }
-        },
-        1 => shifted_operand >> shift,
-        2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
-        3 => shifted_operand.rotate_right(shift),
-        _ => unreachable!("can't happen")
-      }
+      self.get_data_processing_register_operand(instr, rn, &mut operand1)
     };
 
     if rd == PC_REGISTER as u32 && s == 1 {
@@ -128,25 +95,7 @@ impl CPU {
     println!("op: {} operand1 = {:X}, operand2 = {:X}", self.get_op_name(op_code as u8), operand1, operand2);
 
     // finally do the operation on the two operands and store in rd
-    let (result, should_update) = match op_code {
-      0 => (operand1 & operand2, true),
-      1 => (operand1 ^ operand2, true),
-      2 => (self.subtract_arm(operand1, operand2, &mut carry, &mut overflow), true),
-      3 => (self.subtract_arm(operand2,operand1, &mut carry, &mut overflow), true),
-      4 => (self.add_arm(operand1, operand2, &mut carry, &mut overflow), true),
-      5 => (self.add_carry_arm(operand1, operand2, &mut carry, &mut overflow), true),
-      6 => (self.subtract_carry_arm(operand1, operand2, &mut carry, &mut overflow), true),
-      7 => (self.subtract_carry_arm(operand2, operand1, &mut carry, &mut overflow), true),
-      8 => (operand1 & operand2, false),
-      9 => (operand1 ^ operand2, false),
-      10 => (self.subtract_arm(operand1, operand2, &mut carry, &mut overflow), false),
-      11 => (self.add_arm(operand1, operand2, &mut carry, &mut overflow), false),
-      12 => (operand1 | operand2, true),
-      13 => (operand2, true),
-      14 => (operand1 & !operand2, true),
-      15 => (!operand2, true),
-      _ => unreachable!("not possible")
-    };
+    let (result, should_update) = self.execute_alu_op(op_code, operand1, operand2, &mut carry, &mut overflow);
 
     if s == 1 {
       self.update_flags(result, overflow, carry);
@@ -344,40 +293,7 @@ impl CPU {
     if i == 1 {
       println!("offset is a register shifted in some way");
       // offset is a register shifted in some way
-      let shift_type = (instr >> 5) & 0b11;
-
-      let rm = offset & 0xf;
-
-      let shifted_operand = if rm == PC_REGISTER as u32 {
-        self.pc + 4
-      } else {
-        println!("using r{rm} = {:X}", self.r[rm as usize]);
-        self.r[rm as usize]
-      };
-
-
-
-      let shift_by_register = (instr >> 4) & 0b1;
-
-      let shift = if shift_by_register == 1 {
-        let rs = offset >> 8;
-
-        if rs == PC_REGISTER as u32 {
-          self.pc & 0xff
-        } else {
-          self.r[rs as usize] & 0xff
-        }
-      } else {
-        offset >> 7
-      };
-
-      offset = match shift_type {
-        0 => shifted_operand << shift,
-        1 => shifted_operand >> shift,
-        2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
-        3 => shifted_operand.rotate_right(shift),
-        _ => unreachable!("can't happen")
-      };
+      self.update_single_data_transfer_offset(instr, &mut offset);
     }
 
     if u == 0 {
@@ -821,6 +737,7 @@ impl CPU {
 
     self.cpsr = self.spsr;
   }
+
   fn get_op_name(&self, op_code: u8) -> &'static str {
     match op_code {
       0 => "AND",
@@ -841,5 +758,100 @@ impl CPU {
       15 => "MVN",
       _ => unreachable!("can't happen")
     }
+  }
+
+  fn execute_alu_op(&mut self, op_code: u32, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> (u32, bool) {
+    match op_code {
+      0 => (operand1 & operand2, true),
+      1 => (operand1 ^ operand2, true),
+      2 => (self.subtract_arm(operand1, operand2, carry, overflow), true),
+      3 => (self.subtract_arm(operand2,operand1, carry, overflow), true),
+      4 => (self.add_arm(operand1, operand2, carry, overflow), true),
+      5 => (self.add_carry_arm(operand1, operand2, carry, overflow), true),
+      6 => (self.subtract_carry_arm(operand1, operand2, carry, overflow), true),
+      7 => (self.subtract_carry_arm(operand2, operand1, carry, overflow), true),
+      8 => (operand1 & operand2, false),
+      9 => (operand1 ^ operand2, false),
+      10 => (self.subtract_arm(operand1, operand2, carry, overflow), false),
+      11 => (self.add_arm(operand1, operand2, carry, overflow), false),
+      12 => (operand1 | operand2, true),
+      13 => (operand2, true),
+      14 => (operand1 & !operand2, true),
+      15 => (!operand2, true),
+      _ => unreachable!("not possible")
+    }
+  }
+
+  fn get_data_processing_register_operand(&mut self, instr: u32, rn: u32, operand1: &mut u32) -> u32 {
+    let shift_by_register = (instr >> 4) & 0b1 == 1;
+
+    let shift = if shift_by_register {
+      if rn == PC_REGISTER as u32 {
+        *operand1 += 4;
+      }
+      self.add_cycles(1);
+
+      let rs = (instr >> 8) & 0b1111;
+
+      self.r[rs as usize] & 0xff
+    } else {
+      (instr >> 7) & 0b11111
+    };
+
+    let shift_type = (instr >> 5) & 0b11;
+
+    let rm = instr & 0b1111;
+
+    let shifted_operand = self.get_register(rm as usize);
+
+    match shift_type {
+      0 => {
+        if shift >= 32 {
+          shifted_operand
+        } else {
+          shifted_operand << shift
+        }
+      },
+      1 => shifted_operand >> shift,
+      2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
+      3 => shifted_operand.rotate_right(shift),
+      _ => unreachable!("can't happen")
+    }
+  }
+
+  fn update_single_data_transfer_offset(&mut self, instr: u32, offset: &mut u32) {
+    // offset is a register shifted in some way
+    let shift_type = (instr >> 5) & 0b11;
+
+    let rm = *offset & 0xf;
+
+    let shifted_operand = if rm == PC_REGISTER as u32 {
+      self.pc + 4
+    } else {
+      println!("using r{rm} = {:X}", self.r[rm as usize]);
+      self.r[rm as usize]
+    };
+
+    let shift_by_register = (instr >> 4) & 0b1;
+
+    let shift = if shift_by_register == 1 {
+      let rs = *offset >> 8;
+
+      if rs == PC_REGISTER as u32 {
+        self.pc & 0xff
+      } else {
+        self.r[rs as usize] & 0xff
+      }
+    } else {
+      *offset >> 7
+    };
+
+    *offset = match shift_type {
+      0 => shifted_operand << shift,
+      1 => shifted_operand >> shift,
+      2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
+      3 => shifted_operand.rotate_right(shift),
+      _ => unreachable!("can't happen")
+    };
   }
 }

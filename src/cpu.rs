@@ -302,7 +302,7 @@ impl CPU {
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
     match address {
-      0x400_000..=0x400_03fe => self.io_read_16(address),
+      0x400_0000..=0x400_03fe => self.io_read_16(address),
       _ => self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
     }
   }

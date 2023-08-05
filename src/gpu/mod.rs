@@ -1,4 +1,4 @@
-use self::{registers::display_status_register::DisplayStatusRegister, picture::Picture};
+use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister}, picture::Picture};
 
 pub mod registers;
 pub mod picture;
@@ -21,6 +21,7 @@ pub struct GPU {
   mode: GpuMode,
   pub vcount: u16,
   pub dispstat: DisplayStatusRegister,
+  pub dispcnt: DisplayControlRegister,
   pub picture: Picture,
   pub vram: [u8; VRAM_SIZE],
   pub palette_ram: [u8; PALETTE_RAM_SIZE],
@@ -39,6 +40,7 @@ impl GPU {
       vcount: 0,
       mode: GpuMode::Hdraw,
       dispstat: DisplayStatusRegister::from_bits_retain(0),
+      dispcnt: DisplayControlRegister::from_bits_retain(0x80),
       vram: [0; VRAM_SIZE],
       palette_ram: [0; PALETTE_RAM_SIZE],
       oam_ram: [0; OAM_RAM_SIZE],
@@ -133,7 +135,38 @@ impl GPU {
     }
   }
 
-  fn render_scanline(&mut self) {
+  fn render_objects(&mut self) {
 
+  }
+
+  fn render_mode4(&mut self) {
+
+  }
+
+  /* to convert to rgb888
+    r_8 = (r << 3) | (r >> 2)
+    g_8 = (g << 2) | (g >> 4)
+    b_8 = (b << 3) | (b >> 2)
+  */
+
+  fn render_scanline(&mut self) {
+    if self.dispcnt.contains(DisplayControlRegister::FORCED_BLANK) {
+      for i in (0..SCREEN_WIDTH) {
+        self.picture.set_pixel(i as usize, self.vcount as usize, (0xf8, 0xf8, 0xf8));
+      }
+
+      return;
+    }
+
+    if self.dispcnt.contains(DisplayControlRegister::DISPLAY_OBJ) {
+      self.render_objects();
+    }
+
+    match self.dispcnt.bg_mode() {
+      4 => {
+        self.render_mode4();
+      }
+      _ => ()
+    }
   }
 }

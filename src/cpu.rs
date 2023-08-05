@@ -5,7 +5,7 @@
 // R15 are zero and bits [31:2] contain the PC. In THUMB state,
 // bit [0] is zero and bits [31:1] contain the PC.
 
-use crate::gpu::{GPU, VRAM_SIZE, registers::display_status_register::DisplayStatusRegister};
+use crate::gpu::GPU;
 
 use self::cycle_lookup_tables::CycleLookupTables;
 

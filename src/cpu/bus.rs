@@ -1,4 +1,4 @@
-use crate::gpu::{registers::display_status_register::DisplayStatusRegister, VRAM_SIZE};
+use crate::gpu::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister}, VRAM_SIZE};
 
 use super::CPU;
 
@@ -49,6 +49,7 @@ impl CPU {
     };
 
     match address {
+      0x400_0000 => self.gpu.dispcnt.bits(),
       0x400_0004 => self.gpu.dispstat.bits(),
       0x400_0006 => self.gpu.vcount,
       0x400_0088 => 0x200,
@@ -138,6 +139,7 @@ impl CPU {
     };
 
     match address {
+      0x400_0000 => self.gpu.dispcnt = DisplayControlRegister::from_bits_retain(value),
       0x400_0004 => self.gpu.dispstat = DisplayStatusRegister::from_bits_retain(value),
       0x400_0006 => (),
       0x400_0088 => (),

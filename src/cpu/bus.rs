@@ -1,4 +1,4 @@
-use crate::gpu::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister}, VRAM_SIZE};
+use crate::gpu::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, VRAM_SIZE};
 
 use super::CPU;
 
@@ -14,7 +14,7 @@ impl CPU {
     }
   }
 
-  pub fn mem_read_8(&mut self, address: u32) -> u8 {
+  pub fn  mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
       0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize],
@@ -63,6 +63,10 @@ impl CPU {
       0x400_0000 => self.gpu.dispcnt.bits(),
       0x400_0004 => self.gpu.dispstat.bits(),
       0x400_0006 => self.gpu.vcount,
+      0x400_0008 => self.gpu.bgcnt[0].bits(),
+      0x400_000a => self.gpu.bgcnt[1].bits(),
+      0x400_000c => self.gpu.bgcnt[2].bits(),
+      0x400_000e => self.gpu.bgcnt[3].bits(),
       0x400_0088 => 0x200,
       0x400_0300 => self.post_flag,
       _ => {
@@ -153,6 +157,10 @@ impl CPU {
       0x400_0000 => self.gpu.dispcnt = DisplayControlRegister::from_bits_retain(value),
       0x400_0004 => self.gpu.dispstat = DisplayStatusRegister::from_bits_retain(value),
       0x400_0006 => (),
+      0x400_0008 => self.gpu.bgcnt[0] = BgControlRegister::from_bits_retain(value),
+      0x400_000a => self.gpu.bgcnt[1] = BgControlRegister::from_bits_retain(value),
+      0x400_000c => self.gpu.bgcnt[2] = BgControlRegister::from_bits_retain(value),
+      0x400_000e => self.gpu.bgcnt[3] = BgControlRegister::from_bits_retain(value),
       0x400_0088 => (),
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
       _ => println!("io register not implemented: {:X}", address)

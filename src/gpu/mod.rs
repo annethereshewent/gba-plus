@@ -1,4 +1,4 @@
-use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister}, picture::Picture};
+use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, picture::Picture};
 
 pub mod registers;
 pub mod picture;
@@ -25,7 +25,8 @@ pub struct GPU {
   pub picture: Picture,
   pub vram: [u8; VRAM_SIZE],
   pub palette_ram: [u8; PALETTE_RAM_SIZE],
-  pub oam_ram: [u8; OAM_RAM_SIZE]
+  pub oam_ram: [u8; OAM_RAM_SIZE],
+  pub bgcnt: [BgControlRegister; 4]
 }
 
 enum GpuMode {
@@ -44,7 +45,8 @@ impl GPU {
       vram: [0; VRAM_SIZE],
       palette_ram: [0; PALETTE_RAM_SIZE],
       oam_ram: [0; OAM_RAM_SIZE],
-      picture: Picture::new()
+      picture: Picture::new(),
+      bgcnt: [BgControlRegister::from_bits_retain(0); 4]
     }
   }
 

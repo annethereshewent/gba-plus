@@ -149,8 +149,8 @@ impl CPU {
     self.r14_banks[old_index] = self.r[14];
 
     if old_index == 0 {
-      println!("cpsr = {:b}", self.cpsr.bits());
-      println!("set spsr for system/user to {:b}", self.spsr);
+      println!("(set mode)cpsr = {:b}", self.cpsr.bits());
+      println!("(set mode) set spsr for system/user to {:b}", self.spsr);
     }
 
     let new_cpsr = (self.cpsr.bits() & !(0b11111)) | (new_mode as u32);
@@ -159,9 +159,8 @@ impl CPU {
     self.r[13] = self.r13_banks[new_index];
     self.r[14] = self.r14_banks[new_index];
 
-
-
-    println!("spsr = {:b}", self.spsr.bits());
+    println!("(inside set mode) spsr = {:b}", self.spsr.bits());
+    println!("(set mode) new cpsr mode = {:b}", new_cpsr);
 
     if matches!(new_mode, OperatingMode::FIQ) {
       self.r8_banks[0] = self.r[8];

@@ -133,12 +133,24 @@ impl CPU {
     match op_code {
       0 => self.r[rd as usize] = self.and(self.r[rs as usize], self.r[rd as usize]),
       1 => self.r[rd as usize] = self.xor(self.r[rs as usize], self.r[rd as usize]),
-      2 => self.r[rd as usize] = self.lsl(self.r[rd as usize], self.r[rs as usize]),
-      3 => self.r[rd as usize] = self.lsr(self.r[rd as usize], self.r[rs as usize]),
-      4 => self.r[rd as usize] = self.asr(self.r[rd as usize], self.r[rs as usize]),
+      2 => {
+        self.add_cycles(1);
+        self.r[rd as usize] = self.lsl(self.r[rd as usize], self.r[rs as usize]);
+      }
+      3 => {
+        self.add_cycles(1);
+        self.r[rd as usize] = self.lsr(self.r[rd as usize], self.r[rs as usize]);
+      }
+      4 => {
+        self.add_cycles(1);
+        self.r[rd as usize] = self.asr(self.r[rd as usize], self.r[rs as usize])
+      }
       5 => self.r[rd as usize] = self.adc(self.r[rd as usize], self.r[rs as usize]),
       6 => self.r[rd as usize] = self.sbc(self.r[rd as usize], self.r[rs as usize]),
-      7 => self.r[rd as usize] = self.ror_thumb(self.r[rd as usize], self.r[rs as usize]),
+      7 => {
+        self.add_cycles(1);
+        self.r[rd as usize] = self.ror_thumb(self.r[rd as usize], self.r[rs as usize]);
+      }
       8 => { self.and(self.r[rs as usize], self.r[rd as usize]); },
       9 => self.r[rd as usize] = self.subtract(0, self.r[rs as usize]),
       10 => { self.subtract(self.r[rd as usize], self.r[rs as usize]); },
@@ -234,55 +246,25 @@ impl CPU {
 
     let address = (self.pc & !(0b11)) + immediate as u32;
 
-    self.r[rd as usize] = self.mem_read_32(address);
+    self.r[rd as usize] = self.load_32(address, MemoryAccess::NonSequential);
 
     println!("loaded {:X} into register {rd}", self.r[rd as usize]);
 
     self.pc = self.pc.wrapping_add(2);
 
-    Some(MemoryAccess::Sequential)
+    self.add_cycles(1);
+
+    Some(MemoryAccess::NonSequential)
   }
 
   fn load_store_reg_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store reg offset");
-    let b = (instr >> 10) & 0b1;
-    let l = (instr >> 11) & 0b1;
-
-    let ro = (instr >> 6) & 0b111;
     let rb = (instr >> 3) & 0b111;
-    let rd = instr & 0b111;
+    let ro = (instr >> 6) & 0b111;
 
     let address = self.r[rb as usize].wrapping_add(self.r[ro as usize]);
 
-    if l == 0 {
-      println!("writing to address {:X}", address);
-    } else {
-      println!("reading from address {:X}", address);
-    }
-
-    match (l, b) {
-      (0, 0) => {
-        self.mem_write_32(address, self.r[rd as usize]);
-      }
-      (0, 1) => {
-        self.mem_write_8(address, self.r[rd as usize] as u8);
-      }
-      (1, 0) => {
-        let value = self.mem_read_32(address);
-
-        self.r[rd as usize] = value;
-      }
-      (1, 1) => {
-        let value = self.mem_read_8(address) as u32;
-
-        self.r[rd as usize] = value;
-      }
-      _ => unreachable!("can't be")
-    }
-
-    self.pc = self.pc.wrapping_add(2);
-
-    Some(MemoryAccess::Sequential)
+    self.load_store_offset(address, instr)
   }
 
   fn load_store_signed_byte_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -301,70 +283,47 @@ impl CPU {
     match (s, h) {
       (0, 0) => {
         let value = (self.r[rd as usize] & 0xffff) as u16;
-        self.mem_write_16(address & !(0b1), value);
+        self.store_16(address & !(0b1), value, MemoryAccess::NonSequential);
       }
       (0, 1) => {
         let value = self.ldr_halfword(address);
 
         self.r[rd as usize] = value as u32;
+
+        self.add_cycles(1);
       }
       (1, 0) => {
-        let value = self.mem_read_8(address) as i8 as i32;
+        let value = self.load_8(address, MemoryAccess::NonSequential) as i8 as i32;
 
         self.r[rd as usize] = value as u32;
+
+        self.add_cycles(1);
       }
       (1,1) => {
-        // let value = self.mem_read_16(address) as i16 as i32;
-
-        // self.r[rd as usize] = value as u32;
         self.r[rd as usize] = if address & 0b1 != 0 {
-          self.mem_read_8(address) as i8 as i32 as u32
+          self.load_8(address, MemoryAccess::NonSequential) as i8 as i32 as u32
         } else {
-          self.mem_read_16(address) as i16 as i32 as u32
+          self.load_16(address, MemoryAccess::NonSequential) as i16 as i32 as u32
         };
+
+        self.add_cycles(1);
       }
       _ => unreachable!("can't be")
     }
 
     self.pc = self.pc.wrapping_add(2);
 
-    Some(MemoryAccess::Sequential)
+    Some(MemoryAccess::NonSequential)
   }
 
   fn load_store_immediate_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store immediate offset");
-    let b = (instr >> 12) & 0b1;
-    let l = (instr >> 11) & 0b1;
     let offset = (instr >> 6) & 0b11111;
     let rb = (instr >> 3) & 0b111;
-    let rd = instr & 0b111;
 
     let address = self.r[rb as usize].wrapping_add(offset as u32);
 
-    match (l, b) {
-      (0, 0) => {
-        self.mem_write_32(address, self.r[rd as usize]);
-      }
-      (1, 0) => {
-        let value = self.mem_read_32(address);
-
-        self.r[rd as usize] = value;
-      }
-      (0, 1) => {
-        let byte  = (self.r[rd as usize] & 0xff) as u8;
-        self.mem_write_8(address, byte);
-      }
-      (1, 1) => {
-        let val = self.mem_read_8(address) as u32;
-
-        self.r[rd as usize] = val;
-      }
-      _ => unreachable!("cannot be")
-    }
-
-    self.pc = self.pc.wrapping_add(2);
-
-    Some(MemoryAccess::Sequential)
+    self.load_store_offset(address, instr)
   }
 
   fn load_store_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -378,18 +337,24 @@ impl CPU {
 
     println!("rd = {rd} and rb = {rb} and offset = {offset}");
 
+    let mut result = Some(MemoryAccess::Sequential);
+
     if l == 0 {
       let value = (self.r[rd as usize] & 0xffff) as u16;
-      self.mem_write_16(address & !(0b1), value);
+      self.store_16(address & !(0b1), value, MemoryAccess::NonSequential);
+
+      result = Some(MemoryAccess::NonSequential);
     } else {
       let value = self.ldr_halfword(address) as u32;
+
+      self.add_cycles(1);
 
       self.r[rd as usize] = value;
     }
 
     self.pc = self.pc.wrapping_add(2);
 
-    Some(MemoryAccess::Sequential)
+    result
   }
 
   fn sp_relative_load_store(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -400,17 +365,23 @@ impl CPU {
 
     let address = self.r[SP_REGISTER].wrapping_add(word8 as u32);
 
+    let mut result = Some(MemoryAccess::Sequential);
+
     if l == 0 {
-      self.mem_write_32(address, self.r[rd as usize]);
+      self.store_32(address & !(0b11), self.r[rd as usize], MemoryAccess::NonSequential);
+
+      result = Some(MemoryAccess::NonSequential);
     } else {
-      let value = self.mem_read_32(address);
+      let value = self.ldr_word(address);
+
+      self.add_cycles(1);
 
       self.r[rd as usize] = value;
     }
 
     self.pc = self.pc.wrapping_add(2);
 
-    Some(MemoryAccess::Sequential)
+    result
   }
 
   fn load_address(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -422,7 +393,7 @@ impl CPU {
     self.r[rd as usize] = if sp == 1 {
       self.r[SP_REGISTER].wrapping_add(word8 as u32)
     } else {
-      let pc_value = (self.pc.wrapping_sub(4) & !(0b1 << 1)) + 4;
+      let pc_value = (self.pc.wrapping_sub(4) & !(0b10)) + 4;
       pc_value.wrapping_add(word8 as u32)
     };
 
@@ -458,17 +429,20 @@ impl CPU {
     let mut should_update_pc = true;
     let mut result = Some(MemoryAccess::Sequential);
 
+    let mut access = MemoryAccess::NonSequential;
+
     // push
     if l == 0 {
       if r == 1 {
         // push LR to the stack
         println!("pushing register 14 to the stack");
-        self.push(self.r[LR_REGISTER]);
+        self.push(self.r[LR_REGISTER], access);
       }
       for i in (0..8).rev() {
         if (register_list >> i) & 0b1 == 1 {
           println!("pushing register {i} to the stack");
-          self.push(self.r[i]);
+          self.push(self.r[i], access);
+          access = MemoryAccess::Sequential;
         }
       }
     } else {
@@ -476,13 +450,14 @@ impl CPU {
       for i in 0..8 {
         if (register_list >> i) & 0b1 == 1 {
           println!("popping register {i} from the stack");
-          self.r[i] = self.pop();
+          self.r[i] = self.pop(access);
+          access = MemoryAccess::Sequential;
         }
       }
       if r == 1 {
         // pop PC off the stack
-        println!("popping the pc off da stack");
-        self.pc = self.pop();
+        println!("popping the pc off the stack");
+        self.pc = self.pop(MemoryAccess::Sequential);
         self.pc &= !(1);
 
         // reload the pipeline
@@ -491,6 +466,8 @@ impl CPU {
         should_update_pc = false;
         result = None;
       }
+
+      self.add_cycles(1);
     }
 
     if should_update_pc {
@@ -509,11 +486,15 @@ impl CPU {
     let mut address = self.r[rb as usize] & !(0b11);
     let align_preserve = self.r[rb as usize] & (0b11);
 
+    let mut should_update_pc = true;
+    let mut result = Some(MemoryAccess::NonSequential);
+
     if rlist != 0 {
       if l == 0 {
         // store
         let mut first = false;
 
+        let mut access = MemoryAccess::NonSequential;
         for r in 0..8 {
           let val = if r != rb {
             self.r[r as usize]
@@ -524,39 +505,49 @@ impl CPU {
             address + (rlist.count_ones() - 1) * 4
           };
 
-          self.mem_write_32(address, val);
+          self.store_32(address, val, access);
+
+          access = MemoryAccess::Sequential;
 
           address += 4;
         }
         self.r[rb as usize] = address + align_preserve;
       } else {
+        let mut access = MemoryAccess::NonSequential;
         // load
         for r in 0..8 {
           if (rlist >> r) & 0b1 == 1 {
-            let val = self.mem_read_32(address);
+            let val = self.load_32(address, access);
 
             self.r[r] = val;
             address += 4;
           }
+
+          access = MemoryAccess::Sequential;
         }
 
         if (rlist >> rb) & 0b1 == 0 {
           self.r[rb as usize] = address + align_preserve;
         }
+
+        self.add_cycles(1);
       }
     } else {
       // from gbatek: Empty Rlist: R15 loaded/stored (ARMv4 only), and Rb=Rb+40h (ARMv4-v5).
       if l == 0 {
         // store PC
-        self.mem_write_32(address, self.pc + 2);
+        self.store_32(address, self.pc + 2, MemoryAccess::NonSequential);
       } else {
         // load PC
-        let val = self.mem_read_32(address);
+        let val = self.load_32(address, MemoryAccess::NonSequential);
 
         self.pc = val & !(0b1);
 
         // reload the pipeline
         self.reload_pipeline16();
+
+        result = None;
+        should_update_pc = false;
       }
 
       address += 0x40;
@@ -564,9 +555,11 @@ impl CPU {
       self.r[rb as usize] = address + align_preserve;
     }
 
-    self.pc = self.pc.wrapping_add(2);
+    if should_update_pc {
+      self.pc = self.pc.wrapping_add(2);
+    }
 
-    Some(MemoryAccess::Sequential)
+    result
   }
 
   fn conditional_branch(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -819,7 +812,11 @@ impl CPU {
   }
 
   fn mul(&mut self, operand1: u32, operand2: u32) -> u32 {
-    let (result, _) = operand1.overflowing_mul(operand2);
+    let result = operand1.wrapping_mul(operand2);
+
+    let cycles = self.get_multiplier_cycles(operand2);
+
+    self.add_cycles(cycles);
 
     self.cpsr.set(PSRRegister::CARRY, false);
     self.cpsr.set(PSRRegister::OVERFLOW, false);
@@ -893,5 +890,63 @@ impl CPU {
     self.pc = self.pc.wrapping_add(2);
 
     Some(MemoryAccess::Sequential)
+  }
+
+  fn get_multiplier_cycles(&self, operand: u32) -> u32 {
+    if operand & 0xff == operand {
+      1
+    } else if operand & 0xffff == operand {
+      2
+    } else if operand & 0xffffff == operand {
+      3
+    } else {
+      4
+    }
+  }
+
+  fn load_store_offset(&mut self, address: u32, instr: u16) -> Option<MemoryAccess> {
+    let b = (instr >> 10) & 0b1;
+    let l = (instr >> 11) & 0b1;
+    let rd = instr & 0b111;
+
+    if l == 0 {
+      println!("writing to address {:X}", address);
+    } else {
+      println!("reading from address {:X}", address);
+    }
+
+    let mut result = Some(MemoryAccess::Sequential);
+
+    match (l, b) {
+      (0, 0) => {
+        self.store_32(address & !(0b11), self.r[rd as usize], MemoryAccess::NonSequential);
+
+        result = Some(MemoryAccess::NonSequential);
+      }
+      (0, 1) => {
+        self.store_8(address, self.r[rd as usize] as u8, MemoryAccess::NonSequential);
+
+        result = Some(MemoryAccess::NonSequential);
+      }
+      (1, 0) => {
+        let value = self.ldr_word(address);
+
+        self.r[rd as usize] = value;
+
+        self.add_cycles(1);
+      }
+      (1, 1) => {
+        let value = self.load_8(address, MemoryAccess::NonSequential) as u32;
+
+        self.r[rd as usize] = value;
+
+        self.add_cycles(1);
+      }
+      _ => unreachable!("can't be")
+    }
+
+    self.pc = self.pc.wrapping_add(2);
+
+    result
   }
 }

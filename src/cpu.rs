@@ -5,8 +5,13 @@
 // R15 are zero and bits [31:2] contain the PC. In THUMB state,
 // bit [0] is zero and bits [31:1] contain the PC.
 
+use crate::gpu::GPU;
+
+use self::cycle_lookup_tables::CycleLookupTables;
+
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
+pub mod cycle_lookup_tables;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;
@@ -14,9 +19,16 @@ pub const SP_REGISTER: usize = 13;
 
 pub const SOFTWARE_INTERRUPT_VECTOR: u32 = 0x8;
 
+#[derive(Clone, Copy)]
 pub enum MemoryAccess {
   Sequential,
   NonSequential
+}
+
+enum MemoryWidth {
+  Width8,
+  Width16,
+  Width32
 }
 
 pub struct CPU {
@@ -40,7 +52,9 @@ pub struct CPU {
   board_wram: [u8; 256 * 1024],
   chip_wram: [u8; 32 * 1024],
   rom: Vec<u8>,
-  next_fetch: MemoryAccess
+  next_fetch: MemoryAccess,
+  cycle_luts: CycleLookupTables,
+  gpu: GPU
 }
 
 
@@ -124,7 +138,9 @@ impl CPU {
       next_fetch: MemoryAccess::NonSequential,
       board_wram: [0; 256 * 1024],
       chip_wram: [0; 32 * 1024],
-      post_flag: 0
+      post_flag: 0,
+      gpu: GPU::new(),
+      cycle_luts: CycleLookupTables::new()
     };
 
     cpu.populate_thumb_lut();
@@ -222,7 +238,7 @@ impl CPU {
   fn step_arm(&mut self) {
     let pc = self.pc & !(0b11);
 
-    let next_instruction = self.mem_read_32(pc);
+    let next_instruction = self.load_32(pc, self.next_fetch);
 
     let instruction = self.pipeline[0];
     self.pipeline[0] = self.pipeline[1];
@@ -275,7 +291,7 @@ impl CPU {
   fn step_thumb(&mut self) {
     let pc = self.pc & !(0b1);
 
-    let next_instruction = self.mem_read_16(pc) as u32;
+    let next_instruction = self.load_16(pc, self.next_fetch) as u32;
 
     let instruction = self.pipeline[0];
     self.pipeline[0] = self.pipeline[1];
@@ -333,6 +349,56 @@ impl CPU {
     } else {
       self.r[r]
     }
+  }
+
+  pub fn load_32(&mut self, address: u32, access: MemoryAccess) -> u32 {
+    self.update_cycles(address, access, MemoryWidth::Width16);
+    self.mem_read_32(address)
+  }
+
+  pub fn load_16(&mut self, address: u32, access: MemoryAccess) -> u16 {
+    self.update_cycles(address, access, MemoryWidth::Width32);
+    self.mem_read_16(address)
+  }
+
+  pub fn load_8(&mut self, address: u32, access: MemoryAccess) -> u8 {
+    self.update_cycles(address, access, MemoryWidth::Width8);
+    self.mem_read_8(address)
+  }
+
+  pub fn store_8(&mut self, address: u32, value: u8, access: MemoryAccess) {
+    self.update_cycles(address, access, MemoryWidth::Width8);
+    self.mem_write_8(address, value);
+  }
+
+  pub fn store_16(&mut self, address: u32, value: u16, access: MemoryAccess) {
+    self.update_cycles(address, access, MemoryWidth::Width8);
+    self.mem_write_16(address, value);
+  }
+
+  pub fn store_32(&mut self, address: u32, value: u32, access: MemoryAccess) {
+    self.update_cycles(address, access, MemoryWidth::Width8);
+    self.mem_write_32(address, value);
+  }
+
+  fn update_cycles(&mut self, address: u32,  access: MemoryAccess, width: MemoryWidth) {
+    let page = (address >> 24) as usize;
+    let cycles = match width {
+      MemoryWidth::Width8 | MemoryWidth::Width16 => match access {
+        MemoryAccess::NonSequential => self.cycle_luts.n_cycles_16[page],
+        MemoryAccess::Sequential => self.cycle_luts.s_cycles_16[page]
+      }
+      MemoryWidth::Width32 => match access {
+        MemoryAccess::NonSequential => self.cycle_luts.n_cycles_32[page],
+        MemoryAccess::Sequential => self.cycle_luts.s_cycles_32[page],
+      }
+    };
+
+    self.add_cycles(cycles);
+  }
+
+  fn add_cycles(&mut self, cycles: u32) {
+    self.gpu.tick(cycles);
   }
 
   pub fn mem_write_32(&mut self, address: u32, val: u32) {
@@ -405,16 +471,16 @@ impl CPU {
 
   }
 
-  pub fn push(&mut self, val: u32) {
+  pub fn push(&mut self, val: u32, access: MemoryAccess) {
     self.r[SP_REGISTER] -= 4;
 
     println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
 
-    self.mem_write_32(self.r[SP_REGISTER] & !(0b11), val);
+    self.store_32(self.r[SP_REGISTER] & !(0b11), val, access);
   }
 
-  pub fn pop(&mut self) -> u32 {
-    let val = self.mem_read_32(self.r[SP_REGISTER] & !(0b11));
+  pub fn pop(&mut self, access: MemoryAccess) -> u32 {
+    let val = self.load_32(self.r[SP_REGISTER] & !(0b11), access);
 
     println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
@@ -427,7 +493,7 @@ impl CPU {
     if address & 0b1 != 0 {
       let rotation = (address & 0b1) << 3;
 
-      let value = self.mem_read_16(address & !(0b1));
+      let value = self.load_16(address & !(0b1), MemoryAccess::NonSequential);
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
       let return_val = self.ror(value as u32, rotation as u8, &mut carry) as u16;
@@ -436,7 +502,25 @@ impl CPU {
 
       return_val
     } else {
-      self.mem_read_16(address)
+      self.load_16(address, MemoryAccess::NonSequential)
+    }
+  }
+
+  fn ldr_word(&mut self, address: u32) -> u32 {
+    if address & (0b11) != 0 {
+      let rotation = (address & 0b11) << 3;
+
+      let value = self.load_32(address & !(0b11), MemoryAccess::NonSequential);
+
+      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
+      let return_val = self.ror(value, rotation as u8, &mut carry);
+
+      self.cpsr.set(PSRRegister::CARRY, carry);
+
+      return_val
+    } else {
+      self.load_32(address, MemoryAccess::NonSequential)
     }
   }
 

@@ -89,8 +89,9 @@ impl CPU {
         if rn == PC_REGISTER as u32 {
           operand1 += 4;
         }
-        let rs = (instr >> 8) & 0b1111;
+        self.add_cycles(1);
 
+        let rs = (instr >> 8) & 0b1111;
 
         self.r[rs as usize] & 0xff
       } else {
@@ -276,7 +277,7 @@ impl CPU {
       address = effective_address;
     }
 
-    let mut result = Some(MemoryAccess::Sequential);
+    let mut result = Some(MemoryAccess::NonSequential);
 
     if l == 0 {
       // store
@@ -287,7 +288,7 @@ impl CPU {
       };
 
       if sh == 1 {
-        self.mem_write_16(address & !(0b1), value as u16);
+        self.store_16(address & !(0b1), value as u16, MemoryAccess::NonSequential);
       } else {
         panic!("invalid option for storing half words");
       }
@@ -295,7 +296,7 @@ impl CPU {
       // load
       let value = match sh {
         1 => self.ldr_halfword(address) as u32, // unsigned halfwords
-        2 => self.mem_read_8(address) as i8 as i32 as u32, // signed byte
+        2 => self.load_8(address, MemoryAccess::NonSequential) as i8 as i32 as u32, // signed byte
         3 => self.ldr_halfword(address) as i16 as i32 as u32, // signed halfwords,
         _ => panic!("shouldn't happen")
       };
@@ -309,6 +310,8 @@ impl CPU {
       } else {
         self.r[rd as usize] = value;
       }
+
+      self.add_cycles(1);
     }
 
     if (l == 0 && rd != rn) && (w == 1 || p == 0) {
@@ -389,6 +392,7 @@ impl CPU {
     let old_mode = self.cpsr.mode();
 
     if p == 0 && w == 1 {
+      println!("changing mode to user mode in single data transfer");
       self.set_mode(OperatingMode::User);
     }
 
@@ -399,7 +403,7 @@ impl CPU {
     if l == 1 {
       // load
       let data = if b == 1 {
-        self.mem_read_8(address) as u32
+        self.load_8(address, MemoryAccess::NonSequential) as u32
       } else {
         self.ldr_word(address)
       };
@@ -417,6 +421,8 @@ impl CPU {
       } else {
         self.r[rd as usize] = data;
       }
+
+      self.add_cycles(1);
     } else {
       // store
       let value = if rd == PC_REGISTER as u32 {
@@ -428,9 +434,9 @@ impl CPU {
       println!("storing {value} at {:X}", address);
 
       if b == 1 {
-        self.mem_write_8(address, value as u8);
+        self.store_8(address, value as u8, MemoryAccess::NonSequential);
       } else {
-        self.mem_write_32(address & !(0b11), value);
+        self.store_32(address & !(0b11), value, MemoryAccess::NonSequential);
       }
     }
 
@@ -456,7 +462,7 @@ impl CPU {
   fn block_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
     println!("inside block data transfer");
 
-    let mut result = Some(MemoryAccess::Sequential);
+    let mut result = Some(MemoryAccess::NonSequential);
 
     let mut p = (instr >> 24) & 0b1;
     let u = (instr >> 23) & 0b1;
@@ -512,6 +518,8 @@ impl CPU {
       }
     }
 
+    let mut access = MemoryAccess::Sequential;
+
     if l == 0 {
       // store
       let mut is_first_register = true;
@@ -545,7 +553,9 @@ impl CPU {
             address += 4;
           }
 
-          self.mem_write_32(address & !(0b11), value);
+          self.store_32(address & !(0b11), value, access);
+
+          access = MemoryAccess::Sequential;
 
 
           if p == 0 {
@@ -565,7 +575,9 @@ impl CPU {
             address += 4;
           }
 
-          let value = self.mem_read_32(address & !(0b11));
+          let value = self.load_32(address & !(0b11), access);
+
+          access = MemoryAccess::Sequential;
 
           println!("popping {:X} from {:X} to register {i}", value, address);
 
@@ -590,6 +602,8 @@ impl CPU {
           }
         }
       }
+
+      self.add_cycles(1);
     }
 
     if user_banks_transferred {
@@ -793,24 +807,6 @@ impl CPU {
     *overflow = overflow_result1 || overflow_result2;
 
     result2
-  }
-
-  fn ldr_word(&mut self, address: u32) -> u32 {
-    if address & (0b11) != 0 {
-      let rotation = (address & 0b11) << 3;
-
-      let value = self.mem_read_32(address & !(0b11));
-
-      let mut carry = self.cpsr.contains(PSRRegister::CARRY);
-
-      let return_val = self.ror(value, rotation as u8, &mut carry);
-
-      self.cpsr.set(PSRRegister::CARRY, carry);
-
-      return_val
-    } else {
-      self.mem_read_32(address)
-    }
   }
 
   fn transfer_spsr_mode(&mut self) {

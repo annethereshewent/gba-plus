@@ -750,14 +750,11 @@ impl CPU {
       let carry_shift = 32 - shift;
       carry = shift != 0 && (operand >> carry_shift) & 0b1 == 1;
 
-
-
       if shift < 32 { operand << shift } else { 0 }
     } else if shift == 32 {
       carry = operand >> 31 & 0b1 == 1;
       0
     } else {
-      carry = false;
       0
     };
 

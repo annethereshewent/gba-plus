@@ -1,5 +1,4 @@
 use crate::cpu::{PC_REGISTER, PSRRegister, LR_REGISTER, OperatingMode};
-use strum_macros::Display;
 
 use super::{CPU, MemoryAccess};
 

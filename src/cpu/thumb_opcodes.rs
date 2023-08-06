@@ -144,7 +144,7 @@ impl CPU {
       }
       3 => {
         self.add_cycles(1);
-        self.r[rd as usize] = self.lsr(self.r[rd as usize], self.r[rs as usize]);
+        self.r[rd as usize] = self.lsr(self.r[rd as usize], self.r[rs as usize], false);
       }
       4 => {
         self.add_cycles(1);
@@ -726,7 +726,7 @@ impl CPU {
   }
 
   fn subtract(&mut self, operand1: u32, operand2: u32) -> u32 {
-    let carry = operand2 > operand1;
+    let carry = operand1 >= operand2;
     let result = operand1.wrapping_sub(operand2);
 
     let (_, overflow) = (operand1 as i32).overflowing_sub(operand2 as i32);
@@ -758,17 +758,20 @@ impl CPU {
 
   fn lsl(&mut self, operand: u32, shift: u32) -> u32 {
 
-    let mut carry = false;
+    let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
     let result = if shift < 32 {
-      let carry_shift = 32 - shift;
-      carry = shift != 0 && (operand >> carry_shift) & 0b1 == 1;
+      if shift != 0 {
+        let carry_shift = 32 - shift;
+        carry = (operand >> carry_shift) & 0b1 == 1;
+      }
 
       if shift < 32 { operand << shift } else { 0 }
     } else if shift == 32 {
-      carry = operand >> 31 & 0b1 == 1;
+      carry = operand & 0b1 == 1;
       0
     } else {
+      carry = false;
       0
     };
 
@@ -778,8 +781,18 @@ impl CPU {
   }
 
   fn ror_thumb(&mut self, operand: u32, shift: u32) -> u32 {
-    let result = operand.rotate_right(shift);
-    let carry = (result >> 31) & 0b1 == 1;
+
+    let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
+    let result = if shift != 0 {
+      let shift = shift % 32;
+      let val = operand.rotate_right(shift);
+      carry = (val >> 31) & 0b1 == 1;
+
+      val
+    } else {
+      operand
+    };
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -795,12 +808,29 @@ impl CPU {
   }
 
   fn lsr_offset(&mut self, offset: u8, rs: u8, rd: u8) {
-    self.r[rd as usize] = self.lsr(self.r[rs as usize], offset as u32);
+    self.r[rd as usize] = self.lsr(self.r[rs as usize], offset as u32, true);
   }
 
-  fn lsr(&mut self, operand: u32, shift: u32) -> u32 {
-    let carry = if shift != 0 { ((operand >> (shift - 1)) & 0b1) == 1 } else { false };
-    let result = operand >> shift;
+  fn lsr(&mut self, operand: u32, shift: u32, immediate: bool) -> u32 {
+    let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
+    let result = if shift != 0 {
+      if shift < 32 {
+        carry = ((operand >> (shift - 1)) & 0b1) == 1;
+        operand >> shift
+      } else if shift == 32 {
+        carry = operand >> 31 == 1;
+        0
+      } else {
+        carry = false;
+        0
+      }
+    } else if immediate {
+      carry = operand >> 31 == 1;
+      0
+    } else {
+      operand
+    };
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -814,8 +844,24 @@ impl CPU {
   }
 
   fn asr(&mut self, operand: u32, shift: u32) -> u32 {
-    let carry = ((operand) >> (shift - 1)) & 0b1 == 1;
-    let result = (operand as i32 >> shift) as u32;
+    let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
+    let result = match shift  {
+      0 => operand,
+      x if x < 32 => {
+        carry = operand.wrapping_shr(shift as u32 - 1) & 0b1 == 1;
+        (operand as i32).wrapping_shr(shift as u32) as u32
+      }
+      _ => {
+        if operand >> 31 == 1 {
+          carry = true;
+          0xffff_ffff
+        } else {
+          carry = false;
+          0
+        }
+      }
+    };
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -852,12 +898,16 @@ impl CPU {
   }
 
   fn asr_offset(&mut self, offset: u8, rs: u8, rd: u8) {
-    let carry = ((self.r[rs as usize]) >> (offset - 1)) & 0b1 == 1;
-    let val = (self.r[rs as usize] as i32 >> offset) as u32;
+
+    let offset = if offset != 0 {
+      offset
+    } else {
+      32
+    };
+
+    let val = self.asr(self.r[rs as usize], offset.into());
 
     self.r[rd as usize] = val;
-
-    self.set_carry_zero_and_negative_flags(val, carry)
   }
 
   fn bx(&mut self, source: u32) {

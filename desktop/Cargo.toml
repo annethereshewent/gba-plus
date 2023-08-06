@@ -6,3 +6,7 @@ edition = "2021"
 
 [dependencies.gba-emulator]
 path = "../"
+
+[dependencies.sdl2]
+version = "0.35"
+features=["gfx"]

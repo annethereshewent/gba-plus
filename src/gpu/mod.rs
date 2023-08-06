@@ -18,6 +18,7 @@ pub const OAM_RAM_SIZE: usize = 1024;
 
 const VRAM_OBJECT_START_TILE: u32 = 0x1_0000;
 const VRAM_OBJECT_START_BITMAP: u32 = 0x1_4000;
+const COLOR_TRANSPARENT: u16 = 0x8000;
 
 pub struct GPU {
   cycles: u32,
@@ -118,7 +119,11 @@ impl GPU {
       // entering vblank
       self.dispstat.insert(DisplayStatusRegister::VBLANK);
 
-      // latch bg2/bg3 stuff here
+      // latch bg2/bg3 internal coordinates
+      for bg_prop in &mut self.bg_props {
+        bg_prop.internal_x = bg_prop.x;
+        bg_prop.internal_y = bg_prop.y;
+      }
 
       if self.dispstat.contains(DisplayStatusRegister::VBLANK_ENABLE) {
         // send vblank interrupt
@@ -131,7 +136,11 @@ impl GPU {
       // render scanline here
       self.render_scanline();
 
-      // update stuff with bg2/bg3 here
+      // update reference points at end of scanline
+      for bg_prop in &mut self.bg_props {
+        bg_prop.internal_x += bg_prop.dmx as i32;
+        bg_prop.internal_y += bg_prop.dmy as i32;
+      }
     }
   }
 
@@ -186,19 +195,75 @@ impl GPU {
     }
   }
 
-  fn render_objects(&mut self) {
-
-  }
-
-  fn render_mode4(&mut self) {
-
-  }
 
   /* to convert to rgb888
     r_8 = (r << 3) | (r >> 2)
     g_8 = (g << 2) | (g >> 4)
     b_8 = (b << 3) | (b >> 2)
   */
+  // todo: add offsets
+  fn get_palette_color(&self, index: u32) -> (u8, u8, u8) {
+    let value = if index == 0 {
+      COLOR_TRANSPARENT
+    } else {
+      let lower = self.palette_ram[index as usize];
+      let upper = self.palette_ram[(index + 1) as usize];
+
+      ((lower as u16) | (upper as u16) << 8) & 0x7fff
+    };
+
+    // now turn this into an rgb format that sdl can use
+    let mut r = (value & 0b11111) as u8;
+    let mut g = ((value >> 5) & 0b11111) as u8;
+    let mut b = ((value >> 10) & 0b11111) as u8;
+
+    r = (r << 3) | (r >> 2);
+    g = (g << 2) | (g >> 4);
+    b = (b << 3) | (b >> 2);
+
+    (r, g, b)
+  }
+
+  fn render_objects(&mut self) {
+
+  }
+
+  fn render_mode4(&mut self) {
+    let bg2_index = 2;
+
+    let page: u32 = if self.dispcnt.contains(DisplayControlRegister::DISPLAY_FRAME_SELECT) {
+      0
+    } else {
+      0xa000
+    };
+
+    let y = self.vcount;
+    let (ref_x, ref_y) = (self.bg_props[bg2_index-2].internal_x, self.bg_props[bg2_index-2].internal_y);
+    let dx = self.bg_props[bg2_index-2].dx;
+    let dy = self.bg_props[bg2_index-2].dy;
+
+    for x in 0..SCREEN_WIDTH {
+      let (mut transformed_x, mut transformed_y) = self.bg_transform(ref_x, ref_y, x as i32, dx as i32, dy as i32);
+
+      if (transformed_x < 0 || transformed_x >= SCREEN_WIDTH as i32 || transformed_y < 0 || transformed_y >= SCREEN_HEIGHT as i32) {
+        if self.bgcnt[bg2_index].contains(BgControlRegister::DISPLAY_AREA_OVERFLOW) {
+          transformed_x %= SCREEN_WIDTH as i32;
+          transformed_y %= SCREEN_HEIGHT as i32;
+        } else {
+          continue;
+        }
+      }
+
+      let vram_index = ((transformed_x + transformed_y * SCREEN_WIDTH as i32) + page as i32) as usize;
+
+      let color_index = self.vram[vram_index];
+
+      let color = self.get_palette_color(color_index as u32);
+
+      self.picture.set_pixel(x as usize, y as usize, color);
+    }
+
+  }
 
   fn render_scanline(&mut self) {
     if self.dispcnt.contains(DisplayControlRegister::FORCED_BLANK) {
@@ -219,5 +284,9 @@ impl GPU {
       }
       _ => ()
     }
+  }
+
+  fn bg_transform(&self, ref_x: i32, ref_y: i32, screen_x: i32, dx: i32, dy: i32) -> (i32, i32) {
+    (((ref_x + screen_x * dx) >> 8), ((ref_y + screen_x * dy) >> 8))
   }
 }

@@ -1,4 +1,4 @@
-use crate::gpu::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, VRAM_SIZE};
+use crate::gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE};
 
 use super::CPU;
 
@@ -153,14 +153,51 @@ impl CPU {
       address
     };
 
+    let gpu = &mut self.gpu;
+
+    macro_rules! write_bg_reference_point {
+      (low $coordinate:ident $internal:ident $i:expr) => {{
+        let existing = gpu.bg_props[$i].$coordinate as u32;
+
+        let new_value = ((existing & 0xffff0000) + (value as u32)) as i32;
+
+        gpu.bg_props[$i].$coordinate = new_value;
+        gpu.bg_props[$i].$internal = new_value;
+      }};
+      (high $coordinate:ident $internal:ident $i:expr) => {{
+        let existing = gpu.bg_props[$i].$coordinate;
+
+        let new_value = existing & 0xffff | ((((value & 0xfff) as i32) << 20) as i32) >> 4;
+
+        gpu.bg_props[$i].$coordinate = new_value;
+        gpu.bg_props[$i].$internal = new_value;
+      }}
+    }
+
     match address {
-      0x400_0000 => self.gpu.dispcnt = DisplayControlRegister::from_bits_retain(value),
+      0x400_0000 => self.gpu.write_dispcnt(value),
       0x400_0004 => self.gpu.dispstat = DisplayStatusRegister::from_bits_retain(value),
       0x400_0006 => (),
       0x400_0008 => self.gpu.bgcnt[0] = BgControlRegister::from_bits_retain(value),
       0x400_000a => self.gpu.bgcnt[1] = BgControlRegister::from_bits_retain(value),
       0x400_000c => self.gpu.bgcnt[2] = BgControlRegister::from_bits_retain(value),
       0x400_000e => self.gpu.bgcnt[3] = BgControlRegister::from_bits_retain(value),
+      0x400_0020 => self.gpu.bg_props[0].dx = value as i16,
+      0x400_0022 => self.gpu.bg_props[0].dmx = value as i16,
+      0x400_0024 => self.gpu.bg_props[0].dy = value as i16,
+      0x400_0026 => self.gpu.bg_props[0].dmy = value as i16,
+      0x400_0028 => write_bg_reference_point!(low x internal_x 0),
+      0x400_002a => write_bg_reference_point!(high x internal_x 0),
+      0x400_002c => write_bg_reference_point!(low y internal_y 0),
+      0x400_002e => write_bg_reference_point!(high y internal_y 0),
+      0x400_0030 => self.gpu.bg_props[1].dx = value as i16,
+      0x400_0032 => self.gpu.bg_props[1].dmx = value as i16,
+      0x400_0034 => self.gpu.bg_props[1].dy = value as i16,
+      0x400_0036 => self.gpu.bg_props[1].dmy = value as i16,
+      0x400_0038 => write_bg_reference_point!(low x internal_x 1),
+      0x400_003a => write_bg_reference_point!(high x internal_x 1),
+      0x400_003c => write_bg_reference_point!(low y internal_y 1),
+      0x400_003e => write_bg_reference_point!(high y internal_y 1),
       0x400_0088 => (),
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
       _ => println!("io register not implemented: {:X}", address)

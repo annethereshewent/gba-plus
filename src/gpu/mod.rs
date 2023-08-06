@@ -16,6 +16,9 @@ pub const VRAM_SIZE: usize = 96 * 1024;
 pub const PALETTE_RAM_SIZE: usize = 1024;
 pub const OAM_RAM_SIZE: usize = 1024;
 
+const VRAM_OBJECT_START_TILE: u32 = 0x1_0000;
+const VRAM_OBJECT_START_BITMAP: u32 = 0x1_4000;
+
 pub struct GPU {
   cycles: u32,
   mode: GpuMode,
@@ -26,12 +29,41 @@ pub struct GPU {
   pub vram: [u8; VRAM_SIZE],
   pub palette_ram: [u8; PALETTE_RAM_SIZE],
   pub oam_ram: [u8; OAM_RAM_SIZE],
-  pub bgcnt: [BgControlRegister; 4]
+  pub bgcnt: [BgControlRegister; 4],
+  pub bg_props: [BgProps; 2],
+  vram_obj_start: u32
 }
 
 enum GpuMode {
   Hblank,
   Hdraw
+}
+
+#[derive(Copy, Clone)]
+pub struct BgProps {
+  pub x: i32,
+  pub y: i32,
+  pub dx: i16,
+  pub dmx: i16,
+  pub dy: i16,
+  pub dmy: i16,
+  pub internal_x: i32,
+  pub internal_y: i32
+}
+
+impl BgProps {
+  pub fn new() -> Self {
+    Self {
+      x: 0,
+      y: 0,
+      dx: 0,
+      dmx: 0,
+      dy: 0,
+      dmy: 0,
+      internal_x: 0,
+      internal_y: 0
+    }
+  }
 }
 
 impl GPU {
@@ -40,13 +72,30 @@ impl GPU {
       cycles: 0,
       vcount: 0,
       mode: GpuMode::Hdraw,
+      bg_props: [BgProps::new(); 2],
       dispstat: DisplayStatusRegister::from_bits_retain(0),
       dispcnt: DisplayControlRegister::from_bits_retain(0x80),
       vram: [0; VRAM_SIZE],
       palette_ram: [0; PALETTE_RAM_SIZE],
       oam_ram: [0; OAM_RAM_SIZE],
       picture: Picture::new(),
-      bgcnt: [BgControlRegister::from_bits_retain(0); 4]
+      bgcnt: [BgControlRegister::from_bits_retain(0); 4],
+      vram_obj_start: 0x1_0000
+    }
+  }
+
+  pub fn write_dispcnt(&mut self, value: u16) {
+    let mode = self.dispcnt.bg_mode();
+    self.dispcnt = DisplayControlRegister::from_bits_retain(value);
+
+    // if mode has changed
+    if mode != self.dispcnt.bg_mode() {
+      // change where the obj tiles are fetched from
+      self.vram_obj_start = if self.dispcnt.bg_mode() < 3 {
+        VRAM_OBJECT_START_TILE
+      } else {
+        VRAM_OBJECT_START_BITMAP
+      };
     }
   }
 
@@ -56,7 +105,7 @@ impl GPU {
     self.dispstat.set(DisplayStatusRegister::VCOUNTER, self.dispstat.vcount_setting() == self.vcount);
 
     if self.dispstat.contains(DisplayStatusRegister::VCOUNTER_ENABLE) && self.dispstat.contains(DisplayStatusRegister::VCOUNTER) {
-      // trigger interrupt here
+      // trigger vcounter interrupt here
     }
   }
 
@@ -153,7 +202,7 @@ impl GPU {
 
   fn render_scanline(&mut self) {
     if self.dispcnt.contains(DisplayControlRegister::FORCED_BLANK) {
-      for i in (0..SCREEN_WIDTH) {
+      for i in 0..SCREEN_WIDTH {
         self.picture.set_pixel(i as usize, self.vcount as usize, (0xf8, 0xf8, 0xf8));
       }
 

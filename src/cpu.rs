@@ -55,7 +55,8 @@ pub struct CPU {
   rom: Vec<u8>,
   next_fetch: MemoryAccess,
   cycle_luts: CycleLookupTables,
-  gpu: GPU
+  pub gpu: GPU,
+  cycles: u32
 }
 
 
@@ -141,7 +142,8 @@ impl CPU {
       chip_wram: [0; 32 * 1024],
       post_flag: 0,
       gpu: GPU::new(),
-      cycle_luts: CycleLookupTables::new()
+      cycle_luts: CycleLookupTables::new(),
+      cycles: 0
     };
 
     cpu.populate_thumb_lut();
@@ -273,12 +275,17 @@ impl CPU {
     }
   }
 
-  pub fn step(&mut self) {
+  pub fn step(&mut self) -> u32 {
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
       self.step_arm();
     }
+
+    let return_cycles = self.cycles;
+    self.cycles = 0;
+
+    return_cycles
   }
 
   fn step_thumb(&mut self) {
@@ -352,6 +359,7 @@ impl CPU {
   }
 
   fn add_cycles(&mut self, cycles: u32) {
+    self.cycles += cycles;
     self.gpu.tick(cycles);
   }
 

@@ -13,6 +13,7 @@ pub mod arm_opcodes;
 pub mod thumb_opcodes;
 pub mod cycle_lookup_tables;
 pub mod bus;
+pub mod rotations_shifts;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;
@@ -460,20 +461,6 @@ impl CPU {
 
   pub fn load_bios(&mut self, bytes: Vec<u8>) {
     self.bios = bytes;
-  }
-
-  pub fn ror(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
-    if amount != 0 {
-      let amount = amount % 32;
-
-      let result = immediate.rotate_right(amount as u32);
-
-      *carry = (result >> 31) & 0b1 == 1;
-
-      result
-    } else {
-      immediate
-    }
   }
 
   pub fn get_multiplier_cycles(&self, operand: u32) -> u32 {

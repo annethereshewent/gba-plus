@@ -140,15 +140,15 @@ impl CPU {
       1 => self.r[rd as usize] = self.xor(self.r[rs as usize], self.r[rd as usize]),
       2 => {
         self.add_cycles(1);
-        self.r[rd as usize] = self.lsl(self.r[rd as usize], self.r[rs as usize]);
+        self.r[rd as usize] = self.lsl_thumb(self.r[rd as usize], self.r[rs as usize]);
       }
       3 => {
         self.add_cycles(1);
-        self.r[rd as usize] = self.lsr(self.r[rd as usize], self.r[rs as usize], false);
+        self.r[rd as usize] = self.lsr_thumb(self.r[rd as usize], self.r[rs as usize], false);
       }
       4 => {
         self.add_cycles(1);
-        self.r[rd as usize] = self.asr(self.r[rd as usize], self.r[rs as usize])
+        self.r[rd as usize] = self.asr_thumb(self.r[rd as usize], self.r[rs as usize])
       }
       5 => self.r[rd as usize] = self.adc(self.r[rd as usize], self.r[rs as usize]),
       6 => self.r[rd as usize] = self.sbc(self.r[rd as usize], self.r[rs as usize]),
@@ -753,27 +753,14 @@ impl CPU {
   }
 
   fn lsl_offset(&mut self, offset: u8, rs: u8, rd: u8) {
-    self.r[rd as usize] = self.lsl(self.r[rs as usize], offset as u32);
+    self.r[rd as usize] = self.lsl_thumb(self.r[rs as usize], offset as u32);
   }
 
-  fn lsl(&mut self, operand: u32, shift: u32) -> u32 {
+  fn lsl_thumb(&mut self, operand: u32, shift: u32) -> u32 {
 
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-    let result = if shift < 32 {
-      if shift != 0 {
-        let carry_shift = 32 - shift;
-        carry = (operand >> carry_shift) & 0b1 == 1;
-      }
-
-      if shift < 32 { operand << shift } else { 0 }
-    } else if shift == 32 {
-      carry = operand & 0b1 == 1;
-      0
-    } else {
-      carry = false;
-      0
-    };
+    let result = self.lsl(operand, shift, &mut carry);
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -784,15 +771,7 @@ impl CPU {
 
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-    let result = if shift != 0 {
-      let shift = shift % 32;
-      let val = operand.rotate_right(shift);
-      carry = (val >> 31) & 0b1 == 1;
-
-      val
-    } else {
-      operand
-    };
+    let result = self.ror(operand, shift as u8, &mut carry);
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -808,29 +787,13 @@ impl CPU {
   }
 
   fn lsr_offset(&mut self, offset: u8, rs: u8, rd: u8) {
-    self.r[rd as usize] = self.lsr(self.r[rs as usize], offset as u32, true);
+    self.r[rd as usize] = self.lsr_thumb(self.r[rs as usize], offset as u32, true);
   }
 
-  fn lsr(&mut self, operand: u32, shift: u32, immediate: bool) -> u32 {
+  fn lsr_thumb(&mut self, operand: u32, shift: u32, immediate: bool) -> u32 {
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-    let result = if shift != 0 {
-      if shift < 32 {
-        carry = ((operand >> (shift - 1)) & 0b1) == 1;
-        operand >> shift
-      } else if shift == 32 {
-        carry = operand >> 31 == 1;
-        0
-      } else {
-        carry = false;
-        0
-      }
-    } else if immediate {
-      carry = operand >> 31 == 1;
-      0
-    } else {
-      operand
-    };
+    let result = self.lsr(operand, shift, immediate, &mut carry);
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -843,25 +806,10 @@ impl CPU {
     self.cpsr.set(PSRRegister::NEGATIVE, (result >> 31 & 0b1) == 1);
   }
 
-  fn asr(&mut self, operand: u32, shift: u32) -> u32 {
+  fn asr_thumb(&mut self, operand: u32, shift: u32) -> u32 {
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-    let result = match shift  {
-      0 => operand,
-      x if x < 32 => {
-        carry = operand.wrapping_shr(shift as u32 - 1) & 0b1 == 1;
-        (operand as i32).wrapping_shr(shift as u32) as u32
-      }
-      _ => {
-        if operand >> 31 == 1 {
-          carry = true;
-          0xffff_ffff
-        } else {
-          carry = false;
-          0
-        }
-      }
-    };
+    let result = self.asr(operand, shift, &mut carry);
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -905,7 +853,7 @@ impl CPU {
       32
     };
 
-    let val = self.asr(self.r[rs as usize], offset.into());
+    let val = self.asr_thumb(self.r[rs as usize], offset.into());
 
     self.r[rd as usize] = val;
   }

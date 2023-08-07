@@ -82,7 +82,7 @@ impl CPU {
 
       self.ror(immediate, rotate, &mut carry)
     } else {
-      self.get_data_processing_register_operand(instr, rn, &mut operand1)
+      self.get_data_processing_register_operand(instr, rn, &mut operand1, &mut carry)
     };
 
     if rd == PC_REGISTER as u32 && s == 1 {
@@ -846,7 +846,7 @@ impl CPU {
     }
   }
 
-  fn get_data_processing_register_operand(&mut self, instr: u32, rn: u32, operand1: &mut u32) -> u32 {
+  fn get_data_processing_register_operand(&mut self, instr: u32, rn: u32, operand1: &mut u32, carry: &mut bool) -> u32 {
     let shift_by_register = (instr >> 4) & 0b1 == 1;
 
     let shift = if shift_by_register {
@@ -869,16 +869,10 @@ impl CPU {
     let shifted_operand = self.get_register(rm as usize);
 
     match shift_type {
-      0 => {
-        if shift >= 32 {
-          shifted_operand
-        } else {
-          shifted_operand << shift
-        }
-      },
-      1 => shifted_operand >> shift,
-      2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
-      3 => shifted_operand.rotate_right(shift),
+      0 => self.lsl(shifted_operand, shift, carry),
+      1 => self.lsr(shifted_operand, shift, false, carry),
+      2 => self.asr(shifted_operand, shift, carry),
+      3 => self.ror(shifted_operand, shift as u8, carry),
       _ => unreachable!("can't happen")
     }
   }
@@ -910,11 +904,13 @@ impl CPU {
       *offset >> 7
     };
 
+    let mut carry = self.cpsr.contains(PSRRegister::CARRY);
+
     *offset = match shift_type {
-      0 => shifted_operand << shift,
-      1 => shifted_operand >> shift,
-      2 => ((shifted_operand as i32).wrapping_shr(shift)) as u32,
-      3 => shifted_operand.rotate_right(shift),
+      0 => self.lsl(shifted_operand, shift, &mut carry),
+      1 => self.lsr(shifted_operand, shift, false, &mut carry),
+      2 => self.asr(shifted_operand, shift, &mut carry),
+      3 => self.ror(shifted_operand, shift as u8, &mut carry),
       _ => unreachable!("can't happen")
     };
   }

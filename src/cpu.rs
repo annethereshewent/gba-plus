@@ -276,7 +276,6 @@ impl CPU {
   }
 
   pub fn step(&mut self) -> u32 {
-    println!("r0 = {:X}, r3 = {:X}", self.r[0], self.r[3]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -470,8 +469,6 @@ impl CPU {
       let result = immediate.rotate_right(amount as u32);
 
       *carry = (result >> 31) & 0b1 == 1;
-
-      println!("carry is {carry}");
 
       result
     } else {

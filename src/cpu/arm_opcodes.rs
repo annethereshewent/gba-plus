@@ -80,10 +80,8 @@ impl CPU {
       let immediate = instr & 0xff;
       let rotate = (2 * ((instr >> 8) & 0b1111)) as u8;
 
-      println!("test");
       self.ror(immediate, rotate, &mut carry)
     } else {
-      println!("getting from register");
       self.get_data_processing_register_operand(instr, rn, &mut operand1)
     };
 
@@ -859,11 +857,8 @@ impl CPU {
 
       let rs = (instr >> 8) & 0b1111;
 
-      println!("shifting by reg");
-
       self.r[rs as usize] & 0xff
     } else {
-      println!("using the instruction");
       (instr >> 7) & 0b11111
     };
 
@@ -872,12 +867,6 @@ impl CPU {
     let rm = instr & 0b1111;
 
     let shifted_operand = self.get_register(rm as usize);
-
-    println!("register is r{rm}");
-
-    println!("shift type is {shift_type}");
-    println!("operand is {:X}", shifted_operand);
-    println!("shift is {shift}");
 
     match shift_type {
       0 => {

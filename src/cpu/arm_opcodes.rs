@@ -80,8 +80,10 @@ impl CPU {
       let immediate = instr & 0xff;
       let rotate = (2 * ((instr >> 8) & 0b1111)) as u8;
 
+      println!("test");
       self.ror(immediate, rotate, &mut carry)
     } else {
+      println!("getting from register");
       self.get_data_processing_register_operand(instr, rn, &mut operand1)
     };
 
@@ -433,7 +435,7 @@ impl CPU {
         self.r[rd as usize]
       };
 
-      println!("storing {value} at {:X}", address);
+      println!("(rd = {rd}) storing {value} at {:X}", address);
 
       if b == 1 {
         self.store_8(address, value as u8, MemoryAccess::NonSequential);
@@ -473,6 +475,8 @@ impl CPU {
     let l = (instr >> 20) & 0b1;
 
     let rn = (instr >> 16) & 0b1111;
+
+    println!("rn = r{rn} = {:X}", self.r[rn as usize]);
 
     let register_list = instr & 0xffff;
 
@@ -752,10 +756,9 @@ impl CPU {
   }
 
   fn subtract_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
-    let (result, carry_result) = operand1.overflowing_sub(operand2);
+    let result = operand1.wrapping_sub(operand2);
 
-    *carry = carry_result;
-
+    *carry = operand1 >= operand2;
 
     let (_, overflow_result) = (operand1 as i32).overflowing_sub(operand2 as i32);
 
@@ -764,18 +767,8 @@ impl CPU {
     result
   }
 
-  fn subtract_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
-    let (result1, carry_result1) = operand1.overflowing_sub(operand2);
-    let (result2, carry_result2) = result1.overflowing_sub(if *carry { 0 } else { 1 });
-
-    *carry = carry_result1 || carry_result2;
-
-    let (overflow_add1, overflow_result1) = (operand1 as i32).overflowing_sub(operand2 as i32);
-    let (_, overflow_result2) = (overflow_add1 as i32).overflowing_sub(if *carry { 0 } else { 1 });
-
-    *overflow = overflow_result1 || overflow_result2;
-
-    result2
+  pub fn subtract_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
+    self.add_carry_arm(operand1, !operand2, carry, overflow)
   }
 
   fn add_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
@@ -791,15 +784,13 @@ impl CPU {
   }
 
   fn add_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
+
     let (result1, carry_result1) = operand1.overflowing_add(operand2);
     let (result2, carry_result2) = result1.overflowing_add(if *carry { 1 } else { 0 });
 
     *carry = carry_result1 || carry_result2;
 
-    let (overflow_add1, overflow_result1) = (operand1 as i32).overflowing_add(operand2 as i32);
-    let (_, overflow_result2) = (overflow_add1 as i32).overflowing_add(if *carry { 1 } else { 0 });
-
-    *overflow = overflow_result1 || overflow_result2;
+    *overflow = (!(operand1 ^ operand2) & (operand2 ^ (result2))) >> 31 == 1;
 
     result2
   }
@@ -868,8 +859,11 @@ impl CPU {
 
       let rs = (instr >> 8) & 0b1111;
 
+      println!("shifting by reg");
+
       self.r[rs as usize] & 0xff
     } else {
+      println!("using the instruction");
       (instr >> 7) & 0b11111
     };
 
@@ -878,6 +872,12 @@ impl CPU {
     let rm = instr & 0b1111;
 
     let shifted_operand = self.get_register(rm as usize);
+
+    println!("register is r{rm}");
+
+    println!("shift type is {shift_type}");
+    println!("operand is {:X}", shifted_operand);
+    println!("shift is {shift}");
 
     match shift_type {
       0 => {

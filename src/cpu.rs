@@ -276,6 +276,7 @@ impl CPU {
   }
 
   pub fn step(&mut self) -> u32 {
+    println!("r0 = {:X}, r3 = {:X}", self.r[0], self.r[3]);
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -463,13 +464,19 @@ impl CPU {
   }
 
   pub fn ror(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
-    let amount = amount % 32;
+    if amount != 0 {
+      let amount = amount % 32;
 
-    let result = immediate.rotate_right(amount as u32);
+      let result = immediate.rotate_right(amount as u32);
 
-    *carry = (result >> 31) & 0b1 == 1;
+      *carry = (result >> 31) & 0b1 == 1;
 
-    result
+      println!("carry is {carry}");
+
+      result
+    } else {
+      immediate
+    }
   }
 
   pub fn get_multiplier_cycles(&self, operand: u32) -> u32 {

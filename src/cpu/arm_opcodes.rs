@@ -782,7 +782,6 @@ impl CPU {
   }
 
   fn add_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
-
     let (result1, carry_result1) = operand1.overflowing_add(operand2);
     let (result2, carry_result2) = result1.overflowing_add(if *carry { 1 } else { 0 });
 
@@ -853,12 +852,15 @@ impl CPU {
 
     let shift = if shift_by_register {
       immediate = false;
+
       if rn == PC_REGISTER as u32 {
         *operand1 += 4;
       }
       self.add_cycles(1);
 
       let rs = (instr >> 8) & 0b1111;
+
+      println!("rs = {rs}");
 
       self.r[rs as usize] & 0xff
     } else {
@@ -869,7 +871,11 @@ impl CPU {
 
     let rm = instr & 0b1111;
 
-    let shifted_operand = self.get_register(rm as usize);
+    let mut shifted_operand = self.get_register(rm as usize);
+
+    if shift_by_register && rm == PC_REGISTER as u32 {
+      shifted_operand += 4;
+    }
 
     match shift_type {
       0 => self.lsl(shifted_operand, shift, carry),

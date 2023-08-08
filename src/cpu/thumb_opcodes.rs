@@ -111,7 +111,7 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
 
-    println!("{rd} = {}", self.r[rd as usize]);
+    println!("r{rd} = {}", self.r[rd as usize]);
 
     let op_name = self.get_move_compare_op_name(op_code);
 
@@ -205,6 +205,8 @@ impl CPU {
     } else {
       self.r[source as usize]
     };
+
+    println!("r{source} = {operand2}");
 
     println!("operand1 = {operand1}, operand2 = {operand2}");
 
@@ -372,6 +374,8 @@ impl CPU {
       result = Some(MemoryAccess::NonSequential);
     } else {
       let value = self.ldr_halfword(address) as u32;
+
+      println!("loaded value {value} to register r{rd}");
 
       self.add_cycles(1);
 
@@ -945,7 +949,7 @@ impl CPU {
       (1, 0) => {
         let value = self.ldr_word(address);
 
-        println!("loaded value {:X}", value);
+        println!("loaded value {:X} to register r{rd}", value);
 
         self.r[rd as usize] = value;
 

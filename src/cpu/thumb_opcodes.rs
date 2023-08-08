@@ -111,7 +111,9 @@ impl CPU {
     let rd = (instr >> 8) & 0b111;
     let offset = instr & 0b11111111;
 
-    println!("op code = {op_code}, r{rd} = {:X}, offset = {offset}", self.r[rd as usize]);
+    println!("{rd} = {}", self.r[rd as usize]);
+
+    let op_name = self.get_move_compare_op_name(op_code);
 
     match op_code {
       0 => self.mov(rd, offset as u32, true),
@@ -120,6 +122,8 @@ impl CPU {
       3 => self.r[rd as usize] = self.subtract(self.r[rd as usize], offset as u32),
       _ => unreachable!("impossible")
     }
+
+    println!("{op_name} r{rd} {offset}");
 
     self.pc = self.pc.wrapping_add(2);
 
@@ -132,7 +136,7 @@ impl CPU {
     let rs = (instr >> 3) & 0b111;
     let rd = instr & 0b111;
 
-    println!("rs = {rs} rd = {rd} op_code = {op_code}");
+    println!("rs = {rs} rd = {rd} op code = {op_code}");
     println!("r{rs} = {:X}, r{rd} = {:X}", self.r[rs as usize], self.r[rd as usize]);
 
     match op_code {
@@ -216,6 +220,8 @@ impl CPU {
 
           should_update_pc = false;
           return_result = None;
+
+          self.reload_pipeline16();
         } else {
           self.r[destination as usize] = result;
         }
@@ -267,9 +273,11 @@ impl CPU {
     let rb = (instr >> 3) & 0b111;
     let ro = (instr >> 6) & 0b111;
 
+    let b = (instr >> 10) & 0b1;
+
     let address = self.r[rb as usize].wrapping_add(self.r[ro as usize]);
 
-    self.load_store_offset(address, instr)
+    self.load_store_offset(address, b, instr)
   }
 
   fn load_store_signed_byte_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
@@ -324,7 +332,6 @@ impl CPU {
   fn load_store_immediate_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store immediate offset");
 
-
     let b = (instr >> 12) & 0b1;
 
     let offset = if b == 1 {
@@ -333,29 +340,34 @@ impl CPU {
       ((instr >> 6) & 0b11111) << 2
     };
 
+    println!("offset is {offset}");
+
     let rb = (instr >> 3) & 0b111;
 
     let address = self.r[rb as usize].wrapping_add(offset as u32);
 
-    self.load_store_offset(address, instr)
+    self.load_store_offset(address, b, instr)
   }
 
   fn load_store_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
     println!("inside load store halfword");
     let l = (instr >> 11) & 0b1;
-    let offset = (instr >> 6) & 0b11111;
+    let offset = (((instr >> 6) & 0b11111) << 1) as i32;
     let rb = (instr >> 3) & 0b111;
     let rd = instr & 0b111;
 
-    let address = self.r[rb as usize].wrapping_add(offset as u32);
+    let address = (self.r[rb as usize] as i32).wrapping_add(offset) as u32;
 
     println!("rd = {rd} and rb = {rb}, address = {:X} and offset = {offset}", address);
 
     let mut result = Some(MemoryAccess::Sequential);
 
     if l == 0 {
-      let value = (self.r[rd as usize] & 0xffff) as u16;
+      let value = self.r[rd as usize] as u16;
+
       self.store_16(address & !(0b1), value, MemoryAccess::NonSequential);
+
+      println!("stored {:X} at address {:X}", value, address & !(0b1));
 
       result = Some(MemoryAccess::NonSequential);
     } else {
@@ -510,22 +522,25 @@ impl CPU {
 
         let mut access = MemoryAccess::NonSequential;
         for r in 0..8 {
-          let val = if r != rb {
-            self.r[r as usize]
-          } else if first {
-            first = false;
-            address
-          } else {
-            address + (rlist.count_ones() - 1) * 4
-          };
+          if (rlist >> r) & 0b1 == 1 {
+            let val = if r != rb {
+              self.r[r as usize]
+            } else if first {
+              first = false;
+              address
+            } else {
+              address + (rlist.count_ones() - 1) * 4
+            };
 
-          self.store_32(address, val, access);
+            self.store_32(address, val, access);
 
-          access = MemoryAccess::Sequential;
+            access = MemoryAccess::Sequential;
 
-          address += 4;
+            address += 4;
+          }
+          self.r[rb as usize] = address + align_preserve;
         }
-        self.r[rb as usize] = address + align_preserve;
+
       } else {
         let mut access = MemoryAccess::NonSequential;
         // load
@@ -539,7 +554,6 @@ impl CPU {
 
           access = MemoryAccess::Sequential;
         }
-
         if (rlist >> rb) & 0b1 == 0 {
           self.r[rb as usize] = address + align_preserve;
         }
@@ -901,8 +915,7 @@ impl CPU {
     Some(MemoryAccess::Sequential)
   }
 
-  fn load_store_offset(&mut self, address: u32, instr: u16) -> Option<MemoryAccess> {
-    let b = (instr >> 10) & 0b1;
+  fn load_store_offset(&mut self, address: u32, b: u16, instr: u16) -> Option<MemoryAccess> {
     let l = (instr >> 11) & 0b1;
     let rd = instr & 0b111;
 
@@ -921,6 +934,7 @@ impl CPU {
         result = Some(MemoryAccess::NonSequential);
       }
       (0, 1) => {
+        println!("storing byte {:X} from r{rd}", self.r[rd as usize] as u8);
         self.store_8(address, self.r[rd as usize] as u8, MemoryAccess::NonSequential);
 
         result = Some(MemoryAccess::NonSequential);
@@ -928,11 +942,14 @@ impl CPU {
       (1, 0) => {
         let value = self.ldr_word(address);
 
+        println!("loaded value {:X}", value);
+
         self.r[rd as usize] = value;
 
         self.add_cycles(1);
       }
       (1, 1) => {
+        println!("loading byte {:X} into r{rd}", self.mem_read_8(address));
         let value = self.load_8(address, MemoryAccess::NonSequential) as u32;
 
         self.r[rd as usize] = value;
@@ -945,5 +962,23 @@ impl CPU {
     self.pc = self.pc.wrapping_add(2);
 
     result
+  }
+
+  /*
+  match op_code {
+      0 => self.mov(rd, offset as u32, true),
+      1 => self.cmp(self.r[rd as usize], offset as u32),
+      2 => self.r[rd as usize] = self.add(self.r[rd as usize], offset as u32),
+      3 => self.r[rd as usize] = self.subtract(self.r[rd as usize], offset as u32),
+      _ => unreachable!("impossible")
+    } */
+  fn get_move_compare_op_name(&self, op_code: u16) -> &'static str {
+    match op_code {
+      0 => "MOV",
+      1 => "CMP",
+      2 => "ADD",
+      3 => "SUB",
+      _ => unreachable!("impossible")
+    }
   }
 }

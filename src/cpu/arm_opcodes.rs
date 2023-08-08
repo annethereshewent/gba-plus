@@ -80,7 +80,7 @@ impl CPU {
       let immediate = instr & 0xff;
       let rotate = (2 * ((instr >> 8) & 0b1111)) as u8;
 
-      self.ror(immediate, rotate, &mut carry)
+      self.ror(immediate, rotate, false, true, &mut carry)
     } else {
       self.get_data_processing_register_operand(instr, rn, &mut operand1, &mut carry)
     };
@@ -91,7 +91,7 @@ impl CPU {
     }
 
     println!("rn = {rn} rd = {rd}");
-    println!("op: {} operand1 = {:X}, operand2 = {:X}", self.get_op_name(op_code as u8), operand1, operand2);
+    println!("{} r{rd}, {operand2}", self.get_op_name(op_code as u8));
 
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = self.execute_alu_op(op_code, operand1, operand2, &mut carry, &mut overflow);
@@ -692,7 +692,7 @@ impl CPU {
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-      let value = self.ror(immediate, rotate as u8, &mut carry);
+      let value = self.ror(immediate, rotate as u8, false, true, &mut carry);
 
       self.cpsr.set(PSRRegister::CARRY, carry);
 
@@ -849,7 +849,10 @@ impl CPU {
   fn get_data_processing_register_operand(&mut self, instr: u32, rn: u32, operand1: &mut u32, carry: &mut bool) -> u32 {
     let shift_by_register = (instr >> 4) & 0b1 == 1;
 
+    let mut immediate = true;
+
     let shift = if shift_by_register {
+      immediate = false;
       if rn == PC_REGISTER as u32 {
         *operand1 += 4;
       }
@@ -870,9 +873,9 @@ impl CPU {
 
     match shift_type {
       0 => self.lsl(shifted_operand, shift, carry),
-      1 => self.lsr(shifted_operand, shift, false, carry),
-      2 => self.asr(shifted_operand, shift, carry),
-      3 => self.ror(shifted_operand, shift as u8, carry),
+      1 => self.lsr(shifted_operand, shift, immediate, carry),
+      2 => self.asr(shifted_operand, shift, immediate, carry),
+      3 => self.ror(shifted_operand, shift as u8, immediate, true, carry),
       _ => unreachable!("can't happen")
     }
   }
@@ -892,7 +895,10 @@ impl CPU {
 
     let shift_by_register = (instr >> 4) & 0b1;
 
+    let mut immediate = true;
+
     let shift = if shift_by_register == 1 {
+      immediate = false;
       let rs = *offset >> 8;
 
       if rs == PC_REGISTER as u32 {
@@ -908,9 +914,9 @@ impl CPU {
 
     *offset = match shift_type {
       0 => self.lsl(shifted_operand, shift, &mut carry),
-      1 => self.lsr(shifted_operand, shift, false, &mut carry),
-      2 => self.asr(shifted_operand, shift, &mut carry),
-      3 => self.ror(shifted_operand, shift as u8, &mut carry),
+      1 => self.lsr(shifted_operand, shift, immediate, &mut carry),
+      2 => self.asr(shifted_operand, shift, immediate, &mut carry),
+      3 => self.ror(shifted_operand, shift as u8, immediate, true, &mut carry),
       _ => unreachable!("can't happen")
     };
   }

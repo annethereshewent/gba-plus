@@ -148,7 +148,7 @@ impl CPU {
       }
       4 => {
         self.add_cycles(1);
-        self.r[rd as usize] = self.asr_thumb(self.r[rd as usize], self.r[rs as usize])
+        self.r[rd as usize] = self.asr_thumb(self.r[rd as usize], self.r[rs as usize], false)
       }
       5 => self.r[rd as usize] = self.adc(self.r[rd as usize], self.r[rs as usize]),
       6 => self.r[rd as usize] = self.sbc(self.r[rd as usize], self.r[rs as usize]),
@@ -771,7 +771,7 @@ impl CPU {
 
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-    let result = self.ror(operand, shift as u8, &mut carry);
+    let result = self.ror(operand, shift as u8, false, true, &mut carry);
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -806,10 +806,10 @@ impl CPU {
     self.cpsr.set(PSRRegister::NEGATIVE, (result >> 31 & 0b1) == 1);
   }
 
-  fn asr_thumb(&mut self, operand: u32, shift: u32) -> u32 {
+  fn asr_thumb(&mut self, operand: u32, shift: u32, immediate: bool) -> u32 {
     let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-    let result = self.asr(operand, shift, &mut carry);
+    let result = self.asr(operand, shift, immediate, &mut carry);
 
     self.set_carry_zero_and_negative_flags(result, carry);
 
@@ -853,7 +853,7 @@ impl CPU {
       32
     };
 
-    let val = self.asr_thumb(self.r[rs as usize], offset.into());
+    let val = self.asr_thumb(self.r[rs as usize], offset.into(), true);
 
     self.r[rd as usize] = val;
   }

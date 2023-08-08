@@ -18,7 +18,7 @@ impl CPU {
     }
   }
 
-  pub fn ror(&mut self, immediate: u32, amount: u8, carry: &mut bool) -> u32 {
+  pub fn ror(&mut self, immediate: u32, amount: u8, is_immediate: bool, rrx: bool, carry: &mut bool) -> u32 {
     if amount != 0 {
       let amount = amount % 32;
 
@@ -27,9 +27,19 @@ impl CPU {
       *carry = (result >> 31) & 0b1 == 1;
 
       result
+    } else if is_immediate && rrx {
+      self.rrx(immediate, carry)
     } else {
       immediate
     }
+  }
+
+  fn rrx(&mut self, operand: u32, carry: &mut bool) -> u32 {
+    let to_carry = if *carry { 1 } else { 0 };
+
+    *carry = operand & 0b1 != 0;
+
+    ((operand >> 1) as i32 | (to_carry << 31)) as u32
   }
 
   pub fn lsr(&mut self, operand: u32, shift: u32, immediate: bool, carry: &mut bool) -> u32 {
@@ -52,7 +62,9 @@ impl CPU {
     }
   }
 
-  pub fn asr(&mut self, operand: u32, shift: u32, carry: &mut bool) -> u32 {
+  pub fn asr(&mut self, operand: u32, shift: u32, immediate: bool, carry: &mut bool) -> u32 {
+    let shift = if immediate && shift == 0 { 32 } else { shift };
+
     match shift  {
       0 => operand,
       x if x < 32 => {

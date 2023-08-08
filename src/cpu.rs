@@ -431,7 +431,7 @@ impl CPU {
       let value = self.load_16(address & !(0b1), MemoryAccess::NonSequential);
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
-      let return_val = self.ror(value as u32, rotation as u8, &mut carry) as u16;
+      let return_val = self.ror(value as u32, rotation as u8, false, false, &mut carry) as u16;
 
       self.cpsr.set(PSRRegister::CARRY, carry);
 
@@ -449,7 +449,7 @@ impl CPU {
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
-      let return_val = self.ror(value, rotation as u8, &mut carry);
+      let return_val = self.ror(value, rotation as u8, false, false, &mut carry);
 
       self.cpsr.set(PSRRegister::CARRY, carry);
 

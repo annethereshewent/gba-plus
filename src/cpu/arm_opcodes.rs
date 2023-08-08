@@ -349,7 +349,7 @@ impl CPU {
       self.add_cycles(1);
     }
 
-    if (l == 0 && rd != rn) && (w == 1 || p == 0) {
+    if (l == 0 || rd != rn) && (w == 1 || p == 0) {
       self.r[rn as usize] = effective_address;
     }
     result

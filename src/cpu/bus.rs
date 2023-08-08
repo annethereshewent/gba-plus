@@ -44,7 +44,7 @@ impl CPU {
           self.rom[(address & 0x01ff_ffff) as usize]
         }
       }
-      0x1000_0000..=0xffff_ffff => panic!("unused memory"),
+      // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
         println!("reading from unsupported address: {:X}", address);
         0

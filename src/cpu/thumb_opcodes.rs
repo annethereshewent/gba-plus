@@ -518,17 +518,20 @@ impl CPU {
     if rlist != 0 {
       if l == 0 {
         // store
-        let mut first = false;
+        let mut first = true;
 
         let mut access = MemoryAccess::NonSequential;
         for r in 0..8 {
           if (rlist >> r) & 0b1 == 1 {
             let val = if r != rb {
+              first = false;
               self.r[r as usize]
             } else if first {
+              println!("huh?");
               first = false;
               address
             } else {
+              println!("this guy is causing issues");
               address + (rlist.count_ones() - 1) * 4
             };
 

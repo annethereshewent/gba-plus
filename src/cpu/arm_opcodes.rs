@@ -783,7 +783,7 @@ impl CPU {
 
   fn add_carry_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
     let (result1, carry_result1) = operand1.overflowing_add(operand2);
-    let (result2, carry_result2) = result1.overflowing_add(if *carry { 1 } else { 0 });
+    let (result2, carry_result2) = result1.overflowing_add(if self.cpsr.contains(PSRRegister::CARRY) { 1 } else { 0 });
 
     *carry = carry_result1 || carry_result2;
 
@@ -794,6 +794,7 @@ impl CPU {
 
   fn transfer_spsr_mode(&mut self) {
     let spsr = self.spsr;
+
     if spsr.mode() as u8 != self.cpsr.mode() as u8 {
       self.set_mode(spsr.mode());
     }

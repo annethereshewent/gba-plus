@@ -424,20 +424,20 @@ impl CPU {
     val
   }
 
-  pub fn ldr_halfword(&mut self, address: u32) -> u16 {
+  pub fn ldr_halfword(&mut self, address: u32) -> u32 {
     if address & 0b1 != 0 {
       let rotation = (address & 0b1) << 3;
 
       let value = self.load_16(address & !(0b1), MemoryAccess::NonSequential);
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
-      let return_val = self.ror(value as u32, rotation as u8, false, false, &mut carry) as u16;
+      let return_val = self.ror(value as u32, rotation as u8, false, false, &mut carry);
 
       self.cpsr.set(PSRRegister::CARRY, carry);
 
       return_val
     } else {
-      self.load_16(address, MemoryAccess::NonSequential)
+      self.load_16(address, MemoryAccess::NonSequential) as u32
     }
   }
 
@@ -456,6 +456,14 @@ impl CPU {
       return_val
     } else {
       self.load_32(address, MemoryAccess::NonSequential)
+    }
+  }
+
+  fn ldr_signed_halfword(&mut self, address: u32) -> u32 {
+    if address & 0b1 != 0 {
+      self.load_8(address, MemoryAccess::NonSequential) as i8 as i32 as u32
+    } else {
+      self.load_16(address, MemoryAccess::NonSequential) as i16 as i32 as u32
     }
   }
 

@@ -24,6 +24,9 @@ impl CPU {
 
       let result = immediate.rotate_right(amount as u32);
 
+
+      println!("immediate = {immediate} result = {result}");
+
       *carry = (result >> 31) & 0b1 == 1;
 
       result

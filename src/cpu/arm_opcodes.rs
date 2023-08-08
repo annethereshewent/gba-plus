@@ -227,7 +227,7 @@ impl CPU {
       self.store_8(base_address, self.get_register(rm as usize) as u8, MemoryAccess::Sequential);
       self.r[rd as usize] = temp as u32;
     } else {
-      let temp = self.load_32(base_address, MemoryAccess::NonSequential);
+      let temp = self.ldr_word(base_address);
       self.store_32(base_address & !(0b11), self.get_register(rm as usize), MemoryAccess::Sequential);
       self.r[rd as usize] = temp;
     }
@@ -332,7 +332,7 @@ impl CPU {
       let value = match sh {
         1 => self.ldr_halfword(address) as u32, // unsigned halfwords
         2 => self.load_8(address, MemoryAccess::NonSequential) as i8 as i32 as u32, // signed byte
-        3 => self.ldr_halfword(address) as i16 as i32 as u32, // signed halfwords,
+        3 => self.ldr_signed_halfword(address) as i32 as u32, // signed halfwords,
         _ => panic!("shouldn't happen")
       };
 
@@ -524,90 +524,116 @@ impl CPU {
 
     let mut access = MemoryAccess::Sequential;
 
-    if l == 0 {
-      // store
-      let mut is_first_register = true;
-      for i in 0..16 {
-        if (register_list >> i) & 0b1 == 1 {
-          let value = if i != rn {
-            if i == PC_REGISTER as u32 {
-              // pc - 8 + 12 = + 4
-              self.pc + 4
+    if register_list != 0 {
+      if l == 0 {
+        // store
+        let mut is_first_register = true;
+        for i in 0..16 {
+          if (register_list >> i) & 0b1 == 1 {
+            let value = if i != rn {
+              if i == PC_REGISTER as u32 {
+                // pc - 8 + 12 = + 4
+                self.pc + 4
+              } else {
+                println!("pushing from register {i}");
+                self.r[i as usize]
+              }
+            } else if is_first_register {
+              println!("using old base");
+              old_base
             } else {
-              println!("pushing from register {i}");
-              self.r[i as usize]
+              println!("using old base +- offset");
+              let offset = num_registers * 4;
+
+              if u == 1 {
+                old_base + offset
+              } else {
+                old_base - offset
+              }
+            };
+
+            is_first_register = false;
+
+            if p == 1 {
+              address += 4;
             }
-          } else if is_first_register {
-            println!("using old base");
-            old_base
-          } else {
-            println!("using old base +- offset");
-            let offset = num_registers * 4;
 
-            if u == 1 {
-              old_base + offset
-            } else {
-              old_base - offset
+            self.store_32(address & !(0b11), value, access);
+
+            access = MemoryAccess::Sequential;
+
+
+            if p == 0 {
+              address += 4;
             }
-          };
-
-          is_first_register = false;
-
-          if p == 1 {
-            address += 4;
-          }
-
-          self.store_32(address & !(0b11), value, access);
-
-          access = MemoryAccess::Sequential;
-
-
-          if p == 0 {
-            address += 4;
           }
         }
+      } else {
+        // load
+        for i in 0..16 {
+          if (register_list >> i) & 0b1 == 1 {
+            if i == rn {
+              w = 0;
+            }
+
+            if p == 1 {
+              address += 4;
+            }
+
+            let value = self.load_32(address & !(0b11), access);
+
+            access = MemoryAccess::Sequential;
+
+            println!("popping {:X} from {:X} to register {i}", value, address);
+
+            if i == PC_REGISTER as u32 {
+              self.pc = value & !(0b11);
+
+              if psr_transfer {
+                self.transfer_spsr_mode();
+              }
+
+              should_increment_pc = false;
+              self.reload_pipeline32();
+
+              result = None;
+
+            } else {
+              self.r[i as usize] = value;
+            }
+
+            if p == 0 {
+              address += 4;
+            }
+          }
+        }
+
+        self.add_cycles(1);
       }
     } else {
-      // load
-      for i in 0..16 {
-        if (register_list >> i) & 0b1 == 1 {
-          if i == rn {
-            w = 0;
-          }
+      // empty rlist edge case
+      if l == 0 {
+        let address = match (u, p) {
+          (0, 0) => address.wrapping_sub(0x3c),
+          (0, 1) => address.wrapping_sub(0x40),
+          (1, 0) => address,
+          (1, 1) => address.wrapping_sub(4),
+          _ => unreachable!("shouldn't happen")
+        };
+        self.store_32(address & !(0b11), self.pc + 4, MemoryAccess::NonSequential);
+      } else {
+        let val = self.ldr_word(address);
+        self.pc = val & !(0b11);
+        self.reload_pipeline32();
 
-          if p == 1 {
-            address += 4;
-          }
-
-          let value = self.load_32(address & !(0b11), access);
-
-          access = MemoryAccess::Sequential;
-
-          println!("popping {:X} from {:X} to register {i}", value, address);
-
-          if i == PC_REGISTER as u32 {
-            self.pc = value & !(0b11);
-
-            if psr_transfer {
-              self.transfer_spsr_mode();
-            }
-
-            should_increment_pc = false;
-            self.reload_pipeline32();
-
-            result = None;
-
-          } else {
-            self.r[i as usize] = value;
-          }
-
-          if p == 0 {
-            address += 4;
-          }
-        }
+        result = None;
       }
 
-      self.add_cycles(1);
+      address = if u == 1 {
+        address.wrapping_add(0x40)
+      } else {
+        address.wrapping_sub(0x40)
+      };
     }
 
     if user_banks_transferred {

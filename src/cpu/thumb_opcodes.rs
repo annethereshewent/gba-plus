@@ -679,7 +679,7 @@ impl CPU {
   }
 
   fn ble(&self) -> bool {
-    self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
+    self.cpsr.contains(PSRRegister::ZERO) || self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn mov(&mut self, rd: u16, val: u32, set_flags: bool) {

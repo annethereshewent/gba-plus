@@ -617,10 +617,12 @@ impl CPU {
           (0, 0) => address.wrapping_sub(0x3c),
           (0, 1) => address.wrapping_sub(0x40),
           (1, 0) => address,
-          (1, 1) => address.wrapping_sub(4),
+          (1, 1) => address.wrapping_add(4),
           _ => unreachable!("shouldn't happen")
         };
         self.store_32(address & !(0b11), self.pc + 4, MemoryAccess::NonSequential);
+
+        // println!("stored pc value {:X} at address {:X}", self.pc + 4, address);
       } else {
         let val = self.ldr_word(address);
         self.pc = val & !(0b11);

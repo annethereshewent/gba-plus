@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::registers::interrupt_enable_register::InterruptEnableRegister};
 
 use super::CPU;
 
@@ -10,6 +10,8 @@ impl CPU {
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
     match address {
       0x400_0000..=0x400_03ff => self.io_read_16(address),
+      // TODO: this is a hack. fix later
+      0xd00_0000 if self.rom.len() <= (16 * 1024 * 1024) => 1,
       _ => self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
     }
   }
@@ -20,8 +22,8 @@ impl CPU {
       0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize],
       0x300_0000..=0x3ff_ffff => self.chip_wram[(address & 0x7fff) as usize],
       0x400_0000..=0x400_03fe => self.io_read_8(address),
-      0x500_0000..=0x500_03ff => self.gpu.palette_ram[(address & 0x3ff) as usize],
-      0x600_0000..=0x601_7fff => {
+      0x500_0000..=0x5ff_ffff => self.gpu.palette_ram[(address & 0x3ff) as usize],
+      0x600_0000..=0x6ff_ffff => {
         let mut offset = address % VRAM_SIZE as u32;
 
         if offset > 0x18000 {
@@ -30,7 +32,7 @@ impl CPU {
 
         self.gpu.vram[offset as usize]
       }
-      0x700_0000..=0x700_03ff => self.gpu.oam_ram[(address & 0x3ff) as usize],
+      0x700_0000..=0x7ff_ffff => self.gpu.oam_ram[(address & 0x3ff) as usize],
       0x800_0000..=0xdff_ffff => {
         let offset = address & 0x01ff_ffff;
         if offset >= self.rom.len() as u32 {
@@ -41,12 +43,12 @@ impl CPU {
               x as u8
           }
         } else {
-          self.rom[(address & 0x01ff_ffff) as usize]
+          self.rom[offset as usize]
         }
       }
       // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
-        // println!("reading from unsupported address: {:X}", address);
+        println!("reading from unsupported address: {:X}", address);
         0
       }
     }
@@ -67,10 +69,16 @@ impl CPU {
       0x400_000a => self.gpu.bgcnt[1].bits(),
       0x400_000c => self.gpu.bgcnt[2].bits(),
       0x400_000e => self.gpu.bgcnt[3].bits(),
+      // TODO
       0x400_0088 => 0x200,
+      // TODO: implement controller
+      0x400_0130 => 0x1ff,
+      0x400_0200 => self.interrupt_enable.bits(),
+      0x400_0202 => self.interrupt_request.get().bits(),
+      0x400_0208 => if self.interrupt_master_enable { 1 } else { 0 },
       0x400_0300 => self.post_flag,
       _ => {
-        // println!("io register not implemented: {:X}", address);
+        println!("io register not implemented: {:X}", address);
         0
       }
     }
@@ -100,7 +108,7 @@ impl CPU {
 
     match address {
       0x400_0000..=0x400_03ff => self.io_write_16(address, val),
-      0x500_0000..=0x500_03ff => {
+      0x500_0000..=0x5ff_ffff => {
         let base_address = address & 0x3fe;
         self.gpu.palette_ram[base_address as usize] = lower;
         self.gpu.palette_ram[(base_address + 1) as usize] = upper;
@@ -115,7 +123,7 @@ impl CPU {
         self.gpu.vram[offset as usize] = lower;
         self.gpu.vram[(offset + 1) as usize] = upper;
       }
-      0x700_0000..=0x700_03ff => {
+      0x700_0000..=0x7ff_ffff => {
         let base_address = address & 0x3fe;
         self.gpu.oam_ram[base_address as usize] = lower;
         self.gpu.oam_ram[(base_address+ 1) as usize] = upper;
@@ -203,16 +211,33 @@ impl CPU {
       0x400_0202 => self.clear_interrupts(value),
       0x400_0208 => self.interrupt_master_enable = value != 0,
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
-      _ => { /* println!("io register not implemented: {:X}", address) */ }
+      _ => { println!("io register not implemented: {:X}", address) }
     }
   }
 
-  pub fn io_write_8(&mut self, address: u32, _value: u8) {
-    let _address = if address & 0xffff == 0x8000 {
+  pub fn io_write_8(&mut self, address: u32, value: u8) {
+    let address = if address & 0xffff == 0x8000 {
       0x400_0800
     } else {
       address
     };
+
+    println!("im being called with address {:X}", address);
+
+    match address {
+      0x0400_00a0..=0x0400_00a7 => (),
+      _ => {
+        let mut temp = self.mem_read_16(address & !(0b1));
+
+        temp = if address & 0b1 == 1 {
+          (temp & 0xff) | (value as u16) << 8
+        } else {
+          (temp & 0xff00) | value as u16
+        };
+
+        self.mem_write_16(address, temp);
+      }
+    }
 
     // todo: implement sound
   }

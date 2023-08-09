@@ -16,7 +16,7 @@ const VBLANK_LINES: u16 = 68;
 pub const SCREEN_WIDTH: u16 = 240;
 pub const SCREEN_HEIGHT: u16 = 160;
 
-pub const VRAM_SIZE: usize = 96 * 1024;
+pub const VRAM_SIZE: usize = 128 * 1024;
 pub const PALETTE_RAM_SIZE: usize = 1024;
 pub const OAM_RAM_SIZE: usize = 1024;
 

@@ -61,7 +61,7 @@ impl CPU {
   }
 
   fn data_processing(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside data processing");
+    println!("inside data processing");
 
     let mut return_val = Some(MemoryAccess::Sequential);
 
@@ -90,8 +90,8 @@ impl CPU {
       s = 0;
     }
 
-    // println!("rn = {rn} rd = {rd}");
-    // println!("{} r{rd}, {operand2}", self.get_op_name(op_code as u8));
+    println!("rn = {rn} rd = {rd}");
+    println!("{} r{rd}, {operand2}", self.get_op_name(op_code as u8));
 
     // finally do the operation on the two operands and store in rd
     let (result, should_update) = self.execute_alu_op(op_code, operand1, operand2, &mut carry, &mut overflow);
@@ -104,11 +104,11 @@ impl CPU {
       if rd == PC_REGISTER as u32 {
         if self.cpsr.contains(PSRRegister::STATE_BIT) {
           self.pc = result & !(0b1);
-          // println!("switched to thumb");
+          println!("switched to thumb");
           self.reload_pipeline16();
         } else {
           self.pc = result & !(0b11);
-          // println!("switched to arm");
+          println!("switched to arm");
           self.reload_pipeline32();
         }
 
@@ -126,7 +126,7 @@ impl CPU {
   }
 
   fn multiply(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside multiply");
+    println!("inside multiply");
 
     let a = (instr >> 21) & 0b1;
     let s = (instr >> 20) & 0b1;
@@ -163,7 +163,7 @@ impl CPU {
   }
 
   fn multiply_long(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside multiply long");
+    println!("inside multiply long");
 
     let u = (instr >> 22) & 0b1;
     let a = (instr >> 21) & 0b1;
@@ -213,7 +213,7 @@ impl CPU {
   }
 
   fn single_data_swap(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside single data swap");
+    println!("inside single data swap");
 
     let b = (instr >> 22) & 0b1;
     let rn = (instr >> 16) & 0b1111;
@@ -237,11 +237,11 @@ impl CPU {
   }
 
   fn branch_and_exchange(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside branch and exchange");
+    println!("inside branch and exchange");
 
     let rn = instr & 0b1111;
 
-    // println!("reading register {rn} with address {:X}", self.r[rn as usize]);
+    println!("reading register {rn} with address {:X}", self.r[rn as usize]);
 
     if rn == PC_REGISTER as u32 {
       panic!("using pc register for branch and exchange");
@@ -269,7 +269,7 @@ impl CPU {
   }
 
   fn halfword_data_transfer_register(&mut self, instr: u32) -> Option<MemoryAccess>  {
-    // println!("inside halfword data transfer register");
+    println!("inside halfword data transfer register");
     let rm = instr & 0b1111;
 
     let offset = self.get_register(rm as usize);
@@ -278,12 +278,10 @@ impl CPU {
   }
 
   fn halfword_data_transfer_immediate(&mut self, instr: u32) -> Option<MemoryAccess>  {
-    // println!("inside halfword data transfer immediate");
+    println!("inside halfword data transfer immediate");
 
     let offset_high = (instr >> 8) & 0b1111;
     let offset_low = instr & 0b1111;
-
-    self.pc = self.pc.wrapping_add(4);
 
     self.halfword_transfer((offset_high << 4) | offset_low, instr)
   }
@@ -305,6 +303,8 @@ impl CPU {
     } else {
       offset
     };
+
+    let mut should_update_pc = true;
 
     let effective_address = (address as i32).wrapping_add(offset as i32) as u32;
 
@@ -341,6 +341,8 @@ impl CPU {
 
         self.reload_pipeline32();
 
+        should_update_pc = false;
+
         result = None;
       } else {
         self.r[rd as usize] = value;
@@ -352,11 +354,16 @@ impl CPU {
     if (l == 0 || rd != rn) && (w == 1 || p == 0) {
       self.r[rn as usize] = effective_address;
     }
+
+    if should_update_pc {
+      self.pc = self.pc.wrapping_add(4);
+    }
+
     result
   }
 
   fn single_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
-    // println!("inside single data transfer");
+    println!("inside single data transfer");
 
     let mut result = Some(MemoryAccess::NonSequential);
 
@@ -373,12 +380,12 @@ impl CPU {
 
     let mut should_update_pc = true;
 
-    // println!("getting address from register {rn}");
+    println!("getting address from register {rn}");
 
     let mut address = self.get_register(rn as usize);
 
     if i == 1 {
-      // println!("offset is a register shifted in some way");
+      println!("offset is a register shifted in some way");
       // offset is a register shifted in some way
       self.update_single_data_transfer_offset(instr, &mut offset);
     }
@@ -389,12 +396,12 @@ impl CPU {
 
     let effective_address = (address as i32).wrapping_add(offset as i32) as u32;
 
-    // println!("offset = {:X} address = {:X} effective = {:X}", offset, address, effective_address);
+    println!("offset = {:X} address = {:X} effective = {:X}", offset, address, effective_address);
 
     let old_mode = self.cpsr.mode();
 
     if p == 0 && w == 1 {
-      // println!("changing mode to user mode in single data transfer");
+      println!("changing mode to user mode in single data transfer");
       self.set_mode(OperatingMode::User);
     }
 
@@ -410,7 +417,7 @@ impl CPU {
         self.ldr_word(address)
       };
 
-      // println!("setting register {rd} to {data} from address {:X}", address);
+      println!("setting register {rd} to {data} from address {:X}", address);
 
       if rd == PC_REGISTER as u32 {
         self.pc = data & !(0b11);
@@ -433,7 +440,7 @@ impl CPU {
         self.r[rd as usize]
       };
 
-      // println!("(rd = {rd}) storing {value} at {:X}", address);
+      println!("(rd = {rd}) storing {value} at {:X}", address);
 
       if b == 1 {
         self.store_8(address, value as u8, MemoryAccess::NonSequential);
@@ -462,7 +469,7 @@ impl CPU {
   }
 
   fn block_data_transfer(&mut self, instr: u32) -> Option<MemoryAccess>  {
-    // println!("inside block data transfer");
+    println!("inside block data transfer");
 
     let mut result = Some(MemoryAccess::NonSequential);
 
@@ -474,7 +481,7 @@ impl CPU {
 
     let rn = (instr >> 16) & 0b1111;
 
-    // println!("rn = r{rn} = {:X}", self.r[rn as usize]);
+    println!("rn = r{rn} = {:X}", self.r[rn as usize]);
 
     let register_list = instr & 0xffff;
 
@@ -535,14 +542,14 @@ impl CPU {
                 // pc - 8 + 12 = + 4
                 self.pc + 4
               } else {
-                // println!("pushing from register {i}");
+                println!("pushing from register {i}");
                 self.r[i as usize]
               }
             } else if is_first_register {
-              // println!("using old base");
+              println!("using old base");
               old_base
             } else {
-              // println!("using old base +- offset");
+              println!("using old base +- offset");
               let offset = num_registers * 4;
 
               if u == 1 {
@@ -584,7 +591,7 @@ impl CPU {
 
             access = MemoryAccess::Sequential;
 
-            // println!("popping {:X} from {:X} to register {i}", value, address);
+            println!("popping {:X} from {:X} to register {i}", value, address);
 
             if i == PC_REGISTER as u32 {
               self.pc = value & !(0b11);
@@ -622,7 +629,7 @@ impl CPU {
         };
         self.store_32(address & !(0b11), self.pc + 4, MemoryAccess::NonSequential);
 
-        // println!("stored pc value {:X} at address {:X}", self.pc + 4, address);
+        println!("stored pc value {:X} at address {:X}", self.pc + 4, address);
       } else {
         let val = self.ldr_word(address);
         self.pc = val & !(0b11);
@@ -654,7 +661,7 @@ impl CPU {
   }
 
   fn branch(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside branch");
+    println!("inside branch");
     let l = (instr >> 24) & 0b1;
     let offset = (((instr & 0xFFFFFF) << 8) as i32) >> 6;
 
@@ -671,7 +678,7 @@ impl CPU {
   }
 
   fn arm_software_interrupt(&mut self, _instr: u32) -> Option<MemoryAccess>  {
-    // println!("inside arm software interrupt");
+    println!("inside arm software interrupt");
 
     self.software_interrupt();
 
@@ -680,7 +687,7 @@ impl CPU {
 
 
   fn transfer_status_to_register(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside psr transfer to register (mrs)");
+    println!("inside psr transfer to register (mrs)");
     let p = (instr >> 22) & 0b1;
 
     let value = if p == 0 {
@@ -703,7 +710,7 @@ impl CPU {
   }
 
   fn transfer_register_to_status(&mut self, instr: u32) -> Option<MemoryAccess> {
-    // println!("inside PSR transfer from register (msr)");
+    println!("inside PSR transfer from register (msr)");
     let i = (instr >> 25) & 0b1;
     let p = (instr >> 22) & 0b1;
 
@@ -728,7 +735,7 @@ impl CPU {
     } else {
       let rm = instr & 0b1111;
 
-      // println!("using register r{rm}");
+      println!("using register r{rm}");
 
       self.r[rm as usize]
     };
@@ -778,7 +785,7 @@ impl CPU {
     self.cpsr.set(PSRRegister::ZERO, result == 0);
     self.cpsr.set(PSRRegister::NEGATIVE, (result as i32) < 0);
 
-    // println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
+    println!("updating carry to {}, overflow to {}, zero to {}, negative to {}", self.cpsr.contains(PSRRegister::CARRY), self.cpsr.contains(PSRRegister::OVERFLOW), self.cpsr.contains(PSRRegister::ZERO), self.cpsr.contains(PSRRegister::NEGATIVE));
   }
 
   fn subtract_arm(&mut self, operand1: u32, operand2: u32, carry: &mut bool, overflow: &mut bool) -> u32 {
@@ -889,7 +896,7 @@ impl CPU {
 
       let rs = (instr >> 8) & 0b1111;
 
-      // println!("rs = {rs}");
+      println!("rs = {rs}");
 
       self.r[rs as usize] & 0xff
     } else {
@@ -924,7 +931,7 @@ impl CPU {
     let shifted_operand = if rm == PC_REGISTER as u32 {
       self.pc + 4
     } else {
-      // println!("using r{rm} = {:X}", self.r[rm as usize]);
+      println!("using r{rm} = {:X}", self.r[rm as usize]);
       self.r[rm as usize]
     };
 

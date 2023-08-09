@@ -268,7 +268,7 @@ impl CPU {
 
     let condition = (instruction >> 28) as u8;
 
-    // println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
+    println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
 
     if self.arm_condition_met(condition) {
       if let Some(access) = self.execute_arm(instruction) {
@@ -281,7 +281,7 @@ impl CPU {
   }
 
   fn arm_condition_met(&self, condition: u8) -> bool {
-    // println!("condition is {condition}");
+    println!("condition is {condition}");
     match condition {
       0 => self.cpsr.contains(PSRRegister::ZERO),
       1 => !self.cpsr.contains(PSRRegister::ZERO),
@@ -303,7 +303,8 @@ impl CPU {
   }
 
   fn check_interrupts(&mut self) {
-    if self.interrupt_master_enable && self.interrupt_request.get().bits() != 0 && self.interrupt_enable.bits() != 0 {
+    if self.interrupt_master_enable && (self.interrupt_enable.bits() & self.interrupt_request.get().bits()) != 0 {
+      println!("interrupt enable bits = {:b} interrupt request = {:b}", self.interrupt_enable.bits(), self.interrupt_request.get().bits());
       self.trigger_irq();
     }
   }
@@ -333,7 +334,7 @@ impl CPU {
     self.pipeline[0] = self.pipeline[1];
     self.pipeline[1] = next_instruction;
 
-    // println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
+    println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
 
     if let Some(fetch) = self.execute_thumb(instruction as u16) {
       self.next_fetch = fetch;
@@ -423,6 +424,7 @@ impl CPU {
 
   pub fn trigger_irq(&mut self) {
     if !self.cpsr.contains(PSRRegister::IRQ_DISABLE) {
+      println!("finally triggering irq!");
       let lr = self.get_irq_return_address();
       self.interrupt(OperatingMode::IRQ, IRQ_VECTOR, lr);
 
@@ -443,6 +445,7 @@ impl CPU {
   pub fn software_interrupt(&mut self) {
     let lr = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
     self.interrupt(OperatingMode::Supervisor, SOFTWARE_INTERRUPT_VECTOR, lr);
+    self.cpsr.insert(PSRRegister::IRQ_DISABLE);
   }
 
   pub fn interrupt(&mut self, mode: OperatingMode, vector: u32, lr: u32) {
@@ -456,8 +459,6 @@ impl CPU {
     // change to ARM state
     self.cpsr.remove(PSRRegister::STATE_BIT);
 
-    self.cpsr.insert(PSRRegister::IRQ_DISABLE);
-
     self.pc = vector;
 
     self.reload_pipeline32();
@@ -466,7 +467,7 @@ impl CPU {
   pub fn push(&mut self, val: u32, access: MemoryAccess) {
     self.r[SP_REGISTER] -= 4;
 
-    // println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
+    println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.store_32(self.r[SP_REGISTER] & !(0b11), val, access);
   }
@@ -474,7 +475,7 @@ impl CPU {
   pub fn pop(&mut self, access: MemoryAccess) -> u32 {
     let val = self.load_32(self.r[SP_REGISTER] & !(0b11), access);
 
-    // println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
+    println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.r[SP_REGISTER] += 4;
 
@@ -532,6 +533,8 @@ impl CPU {
     let mut interrupt_request = self.interrupt_request.get();
 
     interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() & !value);
+
+    println!("new interrupt request is {:b}", interrupt_request.bits());
 
     self.interrupt_request.set(interrupt_request);
   }

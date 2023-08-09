@@ -1,3 +1,7 @@
+use std::{rc::Rc, cell::Cell};
+
+use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU};
+
 use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, picture::Picture};
 
 pub mod registers;
@@ -36,6 +40,7 @@ pub struct GPU {
   pub oam_ram: [u8; OAM_RAM_SIZE],
   pub bgcnt: [BgControlRegister; 4],
   pub bg_props: [BgProps; 2],
+  interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32
 }
 
@@ -72,7 +77,7 @@ impl BgProps {
 }
 
 impl GPU {
-  pub fn new() -> Self {
+  pub fn new(interrupt_request: Rc<Cell<InterruptRequestRegister>>) -> Self {
     Self {
       cycles: 0,
       vcount: 0,
@@ -85,6 +90,7 @@ impl GPU {
       oam_ram: [0; OAM_RAM_SIZE],
       picture: Picture::new(),
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
+      interrupt_request,
       vram_obj_start: 0x1_0000
     }
   }
@@ -110,7 +116,7 @@ impl GPU {
     self.dispstat.set(DisplayStatusRegister::VCOUNTER, self.dispstat.vcount_setting() == self.vcount);
 
     if self.dispstat.contains(DisplayStatusRegister::VCOUNTER_ENABLE) && self.dispstat.contains(DisplayStatusRegister::VCOUNTER) {
-      // trigger vcounter interrupt here
+      CPU::trigger_interrupt(&self.interrupt_request, FLAG_VCOUNTER_MATCH);
     }
   }
 
@@ -131,6 +137,7 @@ impl GPU {
 
       if self.dispstat.contains(DisplayStatusRegister::VBLANK_ENABLE) {
         // send vblank interrupt
+        CPU::trigger_interrupt(&self.interrupt_request, FLAG_VBLANK)
       }
 
       // notify dma that vblank has started
@@ -166,6 +173,7 @@ impl GPU {
 
     if self.dispstat.contains(DisplayStatusRegister::HBLANK_ENABLE) {
       // send hblank interrupt
+      CPU::trigger_interrupt(&self.interrupt_request, FLAG_HBLANK);
     }
 
     if self.vcount <= VISIBLE_LINES {
@@ -286,7 +294,7 @@ impl GPU {
       4 => {
         self.render_mode4();
       }
-      _ => { println!("mode not yet supported: {}", self.dispcnt.bg_mode()) }
+      _ => ()
     }
   }
 

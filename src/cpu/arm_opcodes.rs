@@ -673,7 +673,7 @@ impl CPU {
   fn arm_software_interrupt(&mut self, _instr: u32) -> Option<MemoryAccess>  {
     // println!("inside arm software interrupt");
 
-    self.interrupt();
+    self.software_interrupt();
 
     None
   }

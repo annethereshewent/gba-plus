@@ -627,7 +627,7 @@ impl CPU {
   fn thumb_software_interrupt(&mut self, _instr: u16) -> Option<MemoryAccess> {
     // println!("inside software interrupt");
 
-    self.interrupt();
+    self.software_interrupt();
 
     None
   }

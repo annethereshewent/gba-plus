@@ -5,6 +5,8 @@
 // R15 are zero and bits [31:2] contain the PC. In THUMB state,
 // bit [0] is zero and bits [31:1] contain the PC.
 
+use std::{rc::Rc, cell::Cell};
+
 use crate::gpu::GPU;
 
 use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}};
@@ -21,6 +23,7 @@ pub const LR_REGISTER: usize = 14;
 pub const SP_REGISTER: usize = 13;
 
 pub const SOFTWARE_INTERRUPT_VECTOR: u32 = 0x8;
+pub const IRQ_VECTOR: u32 = 0x18;
 
 #[derive(Clone, Copy)]
 pub enum MemoryAccess {
@@ -61,7 +64,7 @@ pub struct CPU {
   pub gpu: GPU,
   cycles: u32,
   interrupt_enable: InterruptEnableRegister,
-  interrupt_request: InterruptRequestRegister
+  interrupt_request: Rc<Cell<InterruptRequestRegister>>
 }
 
 
@@ -123,6 +126,7 @@ impl PSRRegister {
 
 impl CPU {
   pub fn new() -> Self {
+    let interrupt_request = Rc::new(Cell::new(InterruptRequestRegister::from_bits_retain(0)));
 
     let mut cpu = Self {
       r: [0; 15],
@@ -146,18 +150,26 @@ impl CPU {
       board_wram: [0; 256 * 1024],
       chip_wram: [0; 32 * 1024],
       post_flag: 0,
-      gpu: GPU::new(),
+      gpu: GPU::new(interrupt_request.clone()),
+      interrupt_request,
       cycle_luts: CycleLookupTables::new(),
       cycles: 0,
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
-      interrupt_request: InterruptRequestRegister::from_bits_retain(0)
     };
 
     cpu.populate_thumb_lut();
     cpu.populate_arm_lut();
 
     cpu
+  }
+
+  pub fn trigger_interrupt(interrupt_request_ref: &Rc<Cell<InterruptRequestRegister>>, flags: u16) {
+    let mut interrupt_request = interrupt_request_ref.get();
+
+    interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() | flags);
+
+    interrupt_request_ref.set(interrupt_request);
   }
 
   pub fn set_mode(&mut self, new_mode: OperatingMode) {
@@ -290,7 +302,16 @@ impl CPU {
     }
   }
 
+  fn check_interrupts(&mut self) {
+    if self.interrupt_master_enable && self.interrupt_request.get().bits() != 0 && self.interrupt_enable.bits() != 0 {
+      self.trigger_irq();
+    }
+  }
+
   pub fn step(&mut self) -> u32 {
+    // first check interrupts
+    self.check_interrupts();
+
     if self.cpsr.contains(PSRRegister::STATE_BIT) {
       self.step_thumb();
     } else {
@@ -400,24 +421,46 @@ impl CPU {
     self.pc = self.pc.wrapping_add(4);
   }
 
-  pub fn interrupt(&mut self) {
-    let supervisor_bank = OperatingMode::Supervisor.bank_index();
+  pub fn trigger_irq(&mut self) {
+    if !self.cpsr.contains(PSRRegister::IRQ_DISABLE) {
+      let lr = self.get_irq_return_address();
+      self.interrupt(OperatingMode::IRQ, IRQ_VECTOR, lr);
 
-    self.r14_banks[supervisor_bank] = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
-    self.spsr_banks[supervisor_bank] = self.cpsr;
+      self.cpsr.insert(PSRRegister::IRQ_DISABLE);
+    }
+  }
 
-    self.set_mode( OperatingMode::Supervisor);
+  fn get_irq_return_address(&self) -> u32 {
+    let word_size = if self.cpsr.contains(PSRRegister::STATE_BIT) {
+      2
+    } else {
+      4
+    };
+
+    self.pc + 4 - (2 * word_size)
+  }
+
+  pub fn software_interrupt(&mut self) {
+    let lr = if self.cpsr.contains(PSRRegister::STATE_BIT) { self.pc - 2 } else { self.pc - 4 };
+    self.interrupt(OperatingMode::Supervisor, SOFTWARE_INTERRUPT_VECTOR, lr);
+  }
+
+  pub fn interrupt(&mut self, mode: OperatingMode, vector: u32, lr: u32) {
+    let bank = mode.bank_index();
+
+    self.r14_banks[bank] = lr;
+    self.spsr_banks[bank] = self.cpsr;
+
+    self.set_mode(mode);
 
     // change to ARM state
     self.cpsr.remove(PSRRegister::STATE_BIT);
 
     self.cpsr.insert(PSRRegister::IRQ_DISABLE);
 
-    self.pc = SOFTWARE_INTERRUPT_VECTOR;
+    self.pc = vector;
 
-    // reload pipeline
     self.reload_pipeline32();
-
   }
 
   pub fn push(&mut self, val: u32, access: MemoryAccess) {
@@ -483,6 +526,14 @@ impl CPU {
 
   pub fn load_bios(&mut self, bytes: Vec<u8>) {
     self.bios = bytes;
+  }
+
+  fn clear_interrupts(&mut self, value: u16) {
+    let mut interrupt_request = self.interrupt_request.get();
+
+    interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() & !value);
+
+    self.interrupt_request.set(interrupt_request);
   }
 
   pub fn get_multiplier_cycles(&self, operand: u32) -> u32 {

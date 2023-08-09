@@ -3,7 +3,7 @@ extern crate gba_emulator;
 use std::{fs, env};
 
 use gba_emulator::{cpu::CPU, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}};
-use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode};
+use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode, video};
 
 
 fn main() {
@@ -40,7 +40,7 @@ fn main() {
 
   let creator = canvas.texture_creator();
   let mut texture = creator
-    .create_texture_target(PixelFormatEnum::RGB555, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
+    .create_texture_target(PixelFormatEnum::RGB24, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
     .unwrap();
 
   let mut cycles = 0;

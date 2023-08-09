@@ -221,9 +221,9 @@ impl GPU {
     let mut g = ((value >> 5) & 0b11111) as u8;
     let mut b = ((value >> 10) & 0b11111) as u8;
 
-    // r = (r << 3) | (r >> 2);
-    // g = (g << 2) | (g >> 4);
-    // b = (b << 3) | (b >> 2);
+    r = (r << 3) | (r >> 2);
+    g = (g << 3) | (g >> 2);
+    b = (b << 3) | (b >> 2);
 
     if value == COLOR_TRANSPARENT { None } else {Some((r, g, b)) }
   }

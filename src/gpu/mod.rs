@@ -119,7 +119,7 @@ impl GPU {
 
     self.dispstat.remove(DisplayStatusRegister::HBLANK);
 
-    if self.vcount > VISIBLE_LINES {
+    if self.vcount >= VISIBLE_LINES {
       // entering vblank
       self.dispstat.insert(DisplayStatusRegister::VBLANK);
 

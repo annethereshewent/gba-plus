@@ -213,6 +213,13 @@ impl CPU {
     self.r[13] = 0x0300_7f00;
     self.pc = 0x0800_0000;
     self.cpsr = PSRRegister::from_bits_retain(0x5f);
+
+    for bg_prop in &mut self.gpu.bg_props {
+      bg_prop.dx = 0x100;
+      bg_prop.dmx = 0;
+      bg_prop.dy = 0;
+      bg_prop.dmy = 0x100;
+    }
   }
 
   pub fn load_game(&mut self, rom: Vec<u8>) {
@@ -242,7 +249,7 @@ impl CPU {
 
     let condition = (instruction >> 28) as u8;
 
-    println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
+    // println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
 
     if self.arm_condition_met(condition) {
       if let Some(access) = self.execute_arm(instruction) {
@@ -255,7 +262,7 @@ impl CPU {
   }
 
   fn arm_condition_met(&self, condition: u8) -> bool {
-    println!("condition is {condition}");
+    // println!("condition is {condition}");
     match condition {
       0 => self.cpsr.contains(PSRRegister::ZERO),
       1 => !self.cpsr.contains(PSRRegister::ZERO),
@@ -298,7 +305,7 @@ impl CPU {
     self.pipeline[0] = self.pipeline[1];
     self.pipeline[1] = next_instruction;
 
-    println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
+    // println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
 
     if let Some(fetch) = self.execute_thumb(instruction as u16) {
       self.next_fetch = fetch;
@@ -409,7 +416,7 @@ impl CPU {
   pub fn push(&mut self, val: u32, access: MemoryAccess) {
     self.r[SP_REGISTER] -= 4;
 
-    println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
+    // println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.store_32(self.r[SP_REGISTER] & !(0b11), val, access);
   }
@@ -417,7 +424,7 @@ impl CPU {
   pub fn pop(&mut self, access: MemoryAccess) -> u32 {
     let val = self.load_32(self.r[SP_REGISTER] & !(0b11), access);
 
-    println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
+    // println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.r[SP_REGISTER] += 4;
 

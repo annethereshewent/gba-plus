@@ -46,7 +46,7 @@ impl CPU {
       }
       // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
-        println!("reading from unsupported address: {:X}", address);
+        // println!("reading from unsupported address: {:X}", address);
         0
       }
     }
@@ -70,7 +70,7 @@ impl CPU {
       0x400_0088 => 0x200,
       0x400_0300 => self.post_flag,
       _ => {
-        println!("io register not implemented: {:X}", address);
+        // println!("io register not implemented: {:X}", address);
         0
       }
     }
@@ -182,10 +182,22 @@ impl CPU {
       0x400_000a => self.gpu.bgcnt[1] = BgControlRegister::from_bits_retain(value),
       0x400_000c => self.gpu.bgcnt[2] = BgControlRegister::from_bits_retain(value),
       0x400_000e => self.gpu.bgcnt[3] = BgControlRegister::from_bits_retain(value),
-      0x400_0020 => self.gpu.bg_props[0].dx = value as i16,
-      0x400_0022 => self.gpu.bg_props[0].dmx = value as i16,
-      0x400_0024 => self.gpu.bg_props[0].dy = value as i16,
-      0x400_0026 => self.gpu.bg_props[0].dmy = value as i16,
+      0x400_0020 => {
+        println!("test 1");
+        self.gpu.bg_props[0].dx = value as i16
+      },
+      0x400_0022 => {
+        println!("test 2");
+        self.gpu.bg_props[0].dmx = value as i16
+      },
+      0x400_0024 => {
+        println!("test 3");
+        self.gpu.bg_props[0].dy = value as i16
+      },
+      0x400_0026 => {
+        println!("test 4");
+        self.gpu.bg_props[0].dmy = value as i16
+      },
       0x400_0028 => write_bg_reference_point!(low x internal_x 0),
       0x400_002a => write_bg_reference_point!(high x internal_x 0),
       0x400_002c => write_bg_reference_point!(low y internal_y 0),
@@ -200,7 +212,7 @@ impl CPU {
       0x400_003e => write_bg_reference_point!(high y internal_y 1),
       0x400_0088 => (),
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
-      _ => println!("io register not implemented: {:X}", address)
+      _ => { /* println!("io register not implemented: {:X}", address) */}
     }
   }
 

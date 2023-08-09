@@ -40,9 +40,8 @@ fn main() {
 
   let creator = canvas.texture_creator();
   let mut texture = creator
-      .create_texture_target(PixelFormatEnum::RGB888, 256, 240)
-      .unwrap();
-
+    .create_texture_target(PixelFormatEnum::RGB555, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
+    .unwrap();
 
   let mut cycles = 0;
   loop {
@@ -52,8 +51,7 @@ fn main() {
 
     cycles = 0;
 
-
-    texture.update(None, &cpu.gpu.picture.data, 256 * 3).unwrap();
+    texture.update(None, &cpu.gpu.picture.data, SCREEN_WIDTH as usize * 3).unwrap();
 
     canvas.copy(&texture, None, None).unwrap();
 

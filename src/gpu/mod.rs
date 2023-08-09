@@ -206,7 +206,7 @@ impl GPU {
     b_8 = (b << 3) | (b >> 2)
   */
   // todo: add offsets
-  fn get_palette_color(&self, index: u32) -> (u8, u8, u8) {
+  fn get_palette_color(&self, index: u32) -> Option<(u8, u8, u8)> {
     let value = if index == 0 {
       COLOR_TRANSPARENT
     } else {
@@ -221,11 +221,11 @@ impl GPU {
     let mut g = ((value >> 5) & 0b11111) as u8;
     let mut b = ((value >> 10) & 0b11111) as u8;
 
-    r = (r << 3) | (r >> 2);
-    g = (g << 2) | (g >> 4);
-    b = (b << 3) | (b >> 2);
+    // r = (r << 3) | (r >> 2);
+    // g = (g << 2) | (g >> 4);
+    // b = (b << 3) | (b >> 2);
 
-    (r, g, b)
+    if value == COLOR_TRANSPARENT { None } else {Some((r, g, b)) }
   }
 
   fn render_objects(&mut self) {
@@ -236,9 +236,9 @@ impl GPU {
     let bg2_index = 2;
 
     let page: u32 = if self.dispcnt.contains(DisplayControlRegister::DISPLAY_FRAME_SELECT) {
-      0
-    } else {
       0xa000
+    } else {
+      0
     };
 
     let y = self.vcount;
@@ -258,13 +258,13 @@ impl GPU {
         }
       }
 
-      let vram_index = ((transformed_x + transformed_y * SCREEN_WIDTH as i32) + page as i32) as usize;
+      let vram_index = ((transformed_x as u32 + transformed_y as u32 * SCREEN_WIDTH as u32) + page as u32) as usize;
 
       let color_index = self.vram[vram_index];
 
-      let color = self.get_palette_color(color_index as u32);
-
-      self.picture.set_pixel(x as usize, y as usize, color);
+      if let Some(color) = self.get_palette_color(color_index as u32) {
+        self.picture.set_pixel(x as usize, y as usize, color);
+      }
     }
 
   }
@@ -286,7 +286,7 @@ impl GPU {
       4 => {
         self.render_mode4();
       }
-      _ => println!("mode not yet supported: {}", self.dispcnt.bg_mode())
+      _ => { println!("mode not yet supported: {}", self.dispcnt.bg_mode()) }
     }
   }
 

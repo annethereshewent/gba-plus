@@ -7,13 +7,14 @@
 
 use crate::gpu::GPU;
 
-use self::cycle_lookup_tables::CycleLookupTables;
+use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}};
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
 pub mod cycle_lookup_tables;
 pub mod bus;
 pub mod rotations_shifts;
+pub mod registers;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;
@@ -44,6 +45,7 @@ pub struct CPU {
   r13_banks: [u32; 6],
   r14_banks: [u32; 6],
   post_flag: u16,
+  interrupt_master_enable: bool,
   spsr: PSRRegister,
   cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
@@ -57,7 +59,9 @@ pub struct CPU {
   next_fetch: MemoryAccess,
   cycle_luts: CycleLookupTables,
   pub gpu: GPU,
-  cycles: u32
+  cycles: u32,
+  interrupt_enable: InterruptEnableRegister,
+  interrupt_request: InterruptRequestRegister
 }
 
 
@@ -144,7 +148,10 @@ impl CPU {
       post_flag: 0,
       gpu: GPU::new(),
       cycle_luts: CycleLookupTables::new(),
-      cycles: 0
+      cycles: 0,
+      interrupt_master_enable: false,
+      interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
+      interrupt_request: InterruptRequestRegister::from_bits_retain(0)
     };
 
     cpu.populate_thumb_lut();

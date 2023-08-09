@@ -1,4 +1,4 @@
-use crate::gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}};
 
 use super::CPU;
 
@@ -199,6 +199,9 @@ impl CPU {
       0x400_003c => write_bg_reference_point!(low y internal_y 1),
       0x400_003e => write_bg_reference_point!(high y internal_y 1),
       0x400_0088 => (),
+      0x400_0200 => self.interrupt_enable = InterruptEnableRegister::from_bits_retain(value),
+      0x400_0202 => self.interrupt_request = InterruptRequestRegister::from_bits_retain(value),
+      0x400_0208 => self.interrupt_master_enable = value != 0,
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
       _ => { println!("io register not implemented: {:X}", address) }
     }

@@ -20,4 +20,14 @@ impl DisplayControlRegister {
   pub fn bg_mode(&self) -> u16 {
     self.bits() & 0b111
   }
+
+  pub fn bg_enabled(&self, bg_index: usize) -> bool {
+    match bg_index {
+      0 => self.contains(Self::DISPLAY_BG0),
+      1 => self.contains(Self::DISPLAY_BG1),
+      2 => self.contains(Self::DISPLAY_BG2),
+      3 => self.contains(Self::DISPLAY_BG3),
+      _ => panic!("invalid bg provided")
+    }
+  }
 }

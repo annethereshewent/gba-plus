@@ -45,7 +45,8 @@ pub struct GPU {
   pub bgcnt: [BgControlRegister; 4],
   pub bg_props: [BgProps; 2],
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
-  vram_obj_start: u32
+  vram_obj_start: u32,
+  bg_lines: [[(i16,i16,i16); SCREEN_WIDTH as usize]; 4]
 }
 
 enum GpuMode {
@@ -95,7 +96,8 @@ impl GPU {
       picture: Picture::new(),
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
       interrupt_request,
-      vram_obj_start: 0x1_0000
+      vram_obj_start: 0x1_0000,
+      bg_lines: [[(0,0,0); SCREEN_WIDTH as usize]; 4]
     }
   }
 
@@ -249,6 +251,45 @@ impl GPU {
 
   }
 
+  fn finalize_scanline(&mut self, start: usize, end: usize) {
+    let mut sorted: Vec<usize> = Vec::new();
+
+    for _ in start..=end {
+      sorted.push(start);
+    }
+
+    sorted.sort_by_key(|key| (self.bgcnt[*key].bg_priority(), *key));
+
+    for x in 0..SCREEN_WIDTH {
+      self.finalize_pixel(x as usize, &sorted)
+    }
+  }
+
+  fn finalize_pixel(&mut self, x: usize, sorted: &Vec<usize>) {
+    let default_color = self.translate_to_rgb((self.palette_ram[0] as u16) | (self.palette_ram[1] as u16) << 8);
+
+    // disregard blending effects for now so we can just draw the top layer.
+    let mut top_layer: isize = -1;
+
+    let y = self.vcount;
+
+    for index in sorted {
+      // if the pixel isn't transparent
+      if self.bg_lines[*index][x].0 != -1 {
+        top_layer = *index as isize;
+        break;
+      }
+    }
+
+    if top_layer != -1 {
+      let color = self.bg_lines[top_layer as usize][x];
+
+      self.picture.set_pixel(x, y as usize, (color.0 as u8, color.1 as u8, color.2 as u8));
+    } else {
+      self.picture.set_pixel(x, y as usize, default_color.unwrap());
+    }
+  }
+
   fn render_scanline(&mut self) {
     if self.dispcnt.contains(DisplayControlRegister::FORCED_BLANK) {
       for i in 0..SCREEN_WIDTH {
@@ -263,6 +304,15 @@ impl GPU {
     }
 
     match self.dispcnt.bg_mode() {
+      2 => {
+        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG2) {
+          self.render_affine_background(2);
+        }
+        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG3) {
+          self.render_affine_background(3);
+        }
+        self.finalize_scanline(2, 3);
+      }
       3=> {
         self.render_mode3();
       }
@@ -273,7 +323,7 @@ impl GPU {
         self.render_mode5();
       }
       _ => {
-        println!("mode not implemented: {}", self.dispcnt.bg_mode())
+        // println!("mode not implemented: {}", self.dispcnt.bg_mode())
       }
     }
   }

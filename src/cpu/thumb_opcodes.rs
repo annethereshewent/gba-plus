@@ -927,7 +927,7 @@ impl CPU {
     let rd = instr & 0b111;
 
     if l == 0 {
-      println!("writing to address {:X}", address);
+      println!("writing to address {:X} value {:X}", address, self.r[rd as usize]);
     } else {
       println!("reading from address {:X}", address);
     }

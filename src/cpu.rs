@@ -304,7 +304,6 @@ impl CPU {
 
   fn check_interrupts(&mut self) {
     if self.interrupt_master_enable && (self.interrupt_enable.bits() & self.interrupt_request.get().bits()) != 0 {
-      println!("interrupt enable bits = {:b} interrupt request = {:b}", self.interrupt_enable.bits(), self.interrupt_request.get().bits());
       self.trigger_irq();
     }
   }

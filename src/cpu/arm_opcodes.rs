@@ -82,6 +82,7 @@ impl CPU {
 
       self.ror(immediate, rotate, false, true, &mut carry)
     } else {
+      println!("using register for 2nd operand");
       self.get_data_processing_register_operand(instr, rn, &mut operand1, &mut carry)
     };
 
@@ -90,6 +91,7 @@ impl CPU {
       s = 0;
     }
 
+    println!("operand1 = {operand1} operand2 = {operand2}");
     println!("rn = {rn} rd = {rd}");
     println!("{} r{rd}, {operand2}", self.get_op_name(op_code as u8));
 
@@ -283,7 +285,11 @@ impl CPU {
     let offset_high = (instr >> 8) & 0b1111;
     let offset_low = instr & 0b1111;
 
-    self.halfword_transfer((offset_high << 4) | offset_low, instr)
+    let offset = offset_high << 4 | offset_low;
+
+    println!("offset = {offset}");
+
+    self.halfword_transfer(offset, instr)
   }
 
   fn halfword_transfer(&mut self, offset: u32, instr: u32) -> Option<MemoryAccess> {
@@ -296,7 +302,11 @@ impl CPU {
     let u = (instr >> 23) & 0b1;
     let p = (instr >> 24) & 0b1;
 
+    println!("using register r{rn} for the base address");
+
     let mut address = self.get_register(rn as usize);
+
+    println!("base = {:X}", address);
 
     let offset = if u == 0 {
       -(offset as i32) as u32
@@ -347,6 +357,8 @@ impl CPU {
       } else {
         self.r[rd as usize] = value;
       }
+
+      println!("loaded value {value} from address {:X}", address);
 
       self.add_cycles(1);
     }
@@ -907,11 +919,15 @@ impl CPU {
 
     let rm = instr & 0b1111;
 
+    println!("rm = {rm}");
+
     let mut shifted_operand = self.get_register(rm as usize);
 
     if shift_by_register && rm == PC_REGISTER as u32 {
       shifted_operand += 4;
     }
+
+    println!("shifted_operand = {shifted_operand} shift is {shift} shift type is {shift_type}");
 
     match shift_type {
       0 => self.lsl(shifted_operand, shift, carry),

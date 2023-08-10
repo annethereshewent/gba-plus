@@ -211,7 +211,9 @@ impl CPU {
       0x400_0202 => self.clear_interrupts(value),
       0x400_0208 => self.interrupt_master_enable = value != 0,
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
-      _ => { println!("io register not implemented: {:X}", address) }
+      _ => {
+        println!("io register not implemented: {:X}", address)
+      }
     }
   }
 

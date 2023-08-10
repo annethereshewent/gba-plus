@@ -246,6 +246,16 @@ impl GPU {
     if value == COLOR_TRANSPARENT { None } else {Some((r, g, b)) }
   }
 
+  fn enabled(&self, bg_index: usize) -> bool {
+    match bg_index {
+      0 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG0),
+      1 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG1),
+      2 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG2),
+      3 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG3),
+      _ => panic!("shouldn't happen")
+    }
+  }
+
 
   fn render_objects(&mut self) {
 
@@ -254,8 +264,10 @@ impl GPU {
   fn finalize_scanline(&mut self, start: usize, end: usize) {
     let mut sorted: Vec<usize> = Vec::new();
 
-    for _ in start..=end {
-      sorted.push(start);
+    for i in start..=end {
+      if self.enabled(i) {
+        sorted.push(i);
+      }
     }
 
     sorted.sort_by_key(|key| (self.bgcnt[*key].bg_priority(), *key));
@@ -283,7 +295,6 @@ impl GPU {
 
     if top_layer != -1 {
       let color = self.bg_lines[top_layer as usize][x];
-
       self.picture.set_pixel(x, y as usize, (color.0 as u8, color.1 as u8, color.2 as u8));
     } else {
       self.picture.set_pixel(x, y as usize, default_color.unwrap());
@@ -305,11 +316,11 @@ impl GPU {
 
     match self.dispcnt.bg_mode() {
       2 => {
-        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG2) {
-          self.render_affine_background(2);
-        }
         if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG3) {
           self.render_affine_background(3);
+        }
+        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG2) {
+          self.render_affine_background(2);
         }
         self.finalize_scanline(2, 3);
       }

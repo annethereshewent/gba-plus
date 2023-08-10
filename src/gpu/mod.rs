@@ -224,7 +224,11 @@ impl GPU {
       ((lower as u16) | (upper as u16) << 8) & 0x7fff
     };
 
-    // now turn this into an rgb format that sdl can use
+    self.translate_to_rgb(value)
+  }
+
+  fn translate_to_rgb(&self, value: u16) -> Option<(u8, u8, u8)> {
+    // turn this into an rgb format that sdl can use
     let mut r = (value & 0b11111) as u8;
     let mut g = ((value >> 5) & 0b11111) as u8;
     let mut b = ((value >> 10) & 0b11111) as u8;
@@ -236,8 +240,40 @@ impl GPU {
     if value == COLOR_TRANSPARENT { None } else {Some((r, g, b)) }
   }
 
+
   fn render_objects(&mut self) {
 
+  }
+
+  fn render_mode3(&mut self) {
+    let bg2_index = 2;
+
+    let y = self.vcount;
+    let (ref_x, ref_y) = (self.bg_props[bg2_index-2].internal_x, self.bg_props[bg2_index - 2].internal_y);
+
+    let dx = self.bg_props[bg2_index-2].dx;
+    let dy = self.bg_props[bg2_index-2].dy;
+
+    for x in 0..SCREEN_WIDTH {
+      let (mut transformed_x, mut transformed_y) = self.bg_transform(ref_x, ref_y, x as i32, dx as i32, dy as i32);
+
+      if transformed_x < 0 || transformed_x >= SCREEN_WIDTH as i32 || transformed_y < 0 || transformed_y >= SCREEN_HEIGHT as i32 {
+        if self.bgcnt[bg2_index].contains(BgControlRegister::DISPLAY_AREA_OVERFLOW) {
+          transformed_x %= SCREEN_WIDTH as i32;
+          transformed_y %= SCREEN_HEIGHT as i32;
+        } else {
+          continue;
+        }
+      }
+
+      let vram_index = 2 * (transformed_x as usize + transformed_y as usize * SCREEN_WIDTH as usize);
+
+      let color_val = (self.vram[vram_index] as u16) | (self.vram[vram_index + 1] as u16) << 8;
+
+      if let Some(color) = self.translate_to_rgb(color_val) {
+        self.picture.set_pixel(x as usize, y as usize, color);
+      }
+    }
   }
 
   fn render_mode4(&mut self) {
@@ -291,10 +327,13 @@ impl GPU {
     }
 
     match self.dispcnt.bg_mode() {
+      3=> {
+        self.render_mode3();
+      }
       4 => {
         self.render_mode4();
       }
-      _ => ()
+      _ => println!("mode not implemented: {}", self.dispcnt.bg_mode())
     }
   }
 

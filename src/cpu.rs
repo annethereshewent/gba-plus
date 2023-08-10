@@ -64,7 +64,8 @@ pub struct CPU {
   pub gpu: GPU,
   cycles: u32,
   interrupt_enable: InterruptEnableRegister,
-  interrupt_request: Rc<Cell<InterruptRequestRegister>>
+  interrupt_request: Rc<Cell<InterruptRequestRegister>>,
+  is_halted: bool
 }
 
 
@@ -156,6 +157,7 @@ impl CPU {
       cycles: 0,
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
+      is_halted: false
     };
 
     cpu.populate_thumb_lut();
@@ -268,7 +270,7 @@ impl CPU {
 
     let condition = (instruction >> 28) as u8;
 
-    println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
+    // println!("attempting to execute instruction {:032b} at address {:X}", instruction, pc.wrapping_sub(8));
 
     if self.arm_condition_met(condition) {
       if let Some(access) = self.execute_arm(instruction) {
@@ -281,7 +283,7 @@ impl CPU {
   }
 
   fn arm_condition_met(&self, condition: u8) -> bool {
-    println!("condition is {condition}");
+    // println!("condition is {condition}");
     match condition {
       0 => self.cpsr.contains(PSRRegister::ZERO),
       1 => !self.cpsr.contains(PSRRegister::ZERO),
@@ -305,6 +307,8 @@ impl CPU {
   fn check_interrupts(&mut self) {
     if self.interrupt_master_enable && (self.interrupt_enable.bits() & self.interrupt_request.get().bits()) != 0 {
       self.trigger_irq();
+
+      self.is_halted = false;
     }
   }
 
@@ -312,10 +316,15 @@ impl CPU {
     // first check interrupts
     self.check_interrupts();
 
-    if self.cpsr.contains(PSRRegister::STATE_BIT) {
-      self.step_thumb();
+    if !self.is_halted {
+      if self.cpsr.contains(PSRRegister::STATE_BIT) {
+        self.step_thumb();
+      } else {
+        self.step_arm();
+      }
     } else {
-      self.step_arm();
+      // just keep cycling until an interrupt is triggered
+      self.add_cycles(1);
     }
 
     let return_cycles = self.cycles;
@@ -333,7 +342,7 @@ impl CPU {
     self.pipeline[0] = self.pipeline[1];
     self.pipeline[1] = next_instruction;
 
-    println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
+    // println!("executing instruction {:016b} at address {:X}", instruction, pc.wrapping_sub(4));
 
     if let Some(fetch) = self.execute_thumb(instruction as u16) {
       self.next_fetch = fetch;
@@ -423,7 +432,7 @@ impl CPU {
 
   pub fn trigger_irq(&mut self) {
     if !self.cpsr.contains(PSRRegister::IRQ_DISABLE) {
-      println!("finally triggering irq!");
+      // println!("finally triggering irq!");
       let lr = self.get_irq_return_address();
       self.interrupt(OperatingMode::IRQ, IRQ_VECTOR, lr);
 
@@ -466,7 +475,7 @@ impl CPU {
   pub fn push(&mut self, val: u32, access: MemoryAccess) {
     self.r[SP_REGISTER] -= 4;
 
-    println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
+    // println!("pushing {val} to address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.store_32(self.r[SP_REGISTER] & !(0b11), val, access);
   }
@@ -474,7 +483,7 @@ impl CPU {
   pub fn pop(&mut self, access: MemoryAccess) -> u32 {
     let val = self.load_32(self.r[SP_REGISTER] & !(0b11), access);
 
-    println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
+    // println!("popping {val} from address {:X}", self.r[SP_REGISTER] & !(0b11));
 
     self.r[SP_REGISTER] += 4;
 
@@ -533,7 +542,7 @@ impl CPU {
 
     interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() & !value);
 
-    println!("new interrupt request is {:b}", interrupt_request.bits());
+    // println!("new interrupt request is {:b}", interrupt_request.bits());
 
     self.interrupt_request.set(interrupt_request);
   }

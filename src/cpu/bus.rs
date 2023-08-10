@@ -50,7 +50,7 @@ impl CPU {
       }
       // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
-        println!("reading from unsupported address: {:X}", address);
+        // println!("reading from unsupported address: {:X}", address);
         0
       }
     }
@@ -80,7 +80,7 @@ impl CPU {
       0x400_0208 => if self.interrupt_master_enable { 1 } else { 0 },
       0x400_0300 => self.post_flag,
       _ => {
-        println!("io register not implemented: {:X}", address);
+        // println!("io register not implemented: {:X}", address);
         0
       }
     }
@@ -153,7 +153,7 @@ impl CPU {
         self.mem_write_16(offset, (val as u16) * 0x101);
       }
       _ => {
-        println!("writing go unsupported address: {:X}", address);
+        // println!("writing go unsupported address: {:X}", address);
       }
     }
   }
@@ -215,8 +215,15 @@ impl CPU {
       0x400_0202 => self.clear_interrupts(value),
       0x400_0208 => self.interrupt_master_enable = value != 0,
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
+      0x400_0301 => {
+        if value >> 7 & 0b1 == 0 {
+          self.is_halted = true;
+        } else {
+          panic!("STOP not implemented");
+        }
+      }
       _ => {
-        println!("io register not implemented: {:X}", address)
+        // println!("io register not implemented: {:X}", address)
       }
     }
   }
@@ -228,7 +235,7 @@ impl CPU {
       address
     };
 
-    println!("im being called with address {:X}", address);
+    // println!("im being called with address {:X}", address);
 
     match address {
       0x0400_00a0..=0x0400_00a7 => (),

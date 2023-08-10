@@ -141,7 +141,7 @@ impl CPU {
       r14_banks: [0; 6],
       spsr: PSRRegister::from_bits_retain(0xd3),
       cpsr: PSRRegister::from_bits_retain(0xd3),
-      spsr_banks: [PSRRegister::new(); 6],
+      spsr_banks: [PSRRegister::from_bits_retain(0xd3); 6],
       thumb_lut: Vec::new(),
       arm_lut: Vec::new(),
       pipeline: [0; 2],

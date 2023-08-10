@@ -18,8 +18,8 @@ impl GPU {
 
       if transformed_x < 0 || transformed_x >= texture_size as i32 || transformed_y < 0 || transformed_y > texture_size as i32 {
         if self.bgcnt[background_id].contains(BgControlRegister::DISPLAY_AREA_OVERFLOW) {
-          transformed_x %= SCREEN_WIDTH as i32;
-          transformed_y %= SCREEN_HEIGHT as i32;
+          transformed_x = transformed_x.rem_euclid(texture_size.into());
+          transformed_y = transformed_y.rem_euclid(texture_size.into());
         } else {
           // -1 means transparent
           self.bg_lines[background_id][x as usize] = (-1, -1, -1);
@@ -36,7 +36,8 @@ impl GPU {
       let x_pos_in_tile = transformed_x % 8;
       let y_pos_in_tile = transformed_y % 8;
 
-      let palette_index = tile_address + x_pos_in_tile as u32 + (y_pos_in_tile as u32 * 8);
+
+      let palette_index = tile_address + x_pos_in_tile as u32 + ((y_pos_in_tile as u32) * 8);
 
       if let Some(color) = self.get_palette_color(palette_index) {
         self.bg_lines[background_id][x as usize] = (color.0 as i16, color.1 as i16, color.2 as i16);

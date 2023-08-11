@@ -42,7 +42,8 @@ impl GPU {
 
     // finally render the background
     while x < SCREEN_WIDTH {
-      let mut tilemap_address = tilemap_base + SCREEN_BLOCK_SIZE * screen_index as u32 + tile_num_horizontal as u32 + (tile_num_vertical as u32) * 32;
+      let tile_number = tile_num_horizontal as u32 + (tile_num_vertical as u32) * 32;
+      let mut tilemap_address = tilemap_base + SCREEN_BLOCK_SIZE * screen_index as u32  + 2 * tile_number;
 
       'outer: for _ in tile_num_horizontal..32 {
         let attributes = (self.vram[tilemap_address as usize] as u16) | (self.vram[(tilemap_address + 1) as usize] as u16) << 8;

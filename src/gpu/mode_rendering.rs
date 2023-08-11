@@ -1,6 +1,95 @@
 use super::{GPU, SCREEN_WIDTH, SCREEN_HEIGHT, registers::{bg_control_register::BgControlRegister, display_control_register::DisplayControlRegister}, MODE5_WIDTH, MODE5_HEIGHT};
 
+// 2 bytes per tile
+const SCREEN_BLOCK_SIZE: u32 = 32 * 32 * 2;
+
 impl GPU {
+  pub fn render_normal_background(&mut self, background_id: usize) {
+    let (x_offset, y_offset) = (self.bgxofs[background_id], self.bgyofs[background_id]);
+
+    let tilemap_base = (self.bgcnt[background_id].screen_base_block() as u32) * 2048;
+    let tile_base = (self.bgcnt[background_id].character_base_block() as u32) * 16 * 1024;
+
+    let (background_width, background_height) = self.bgcnt[background_id].get_screen_dimensions();
+
+    let mut x = 0;
+    let y = self.vcount;
+
+    let x_in_bg = (x + x_offset) % background_width;
+    let y_in_bg = (y + y_offset) % background_height;
+
+    let mut screen_index = match self.bgcnt[background_id].screen_size() {
+      0 => 0,
+      1 => x_in_bg / 256, // 512 x 256
+      2 => y_in_bg / 256, // 256 x 512
+      3 => (x_in_bg / 256) + ((y_in_bg / 256) * 2), // 512 x 512
+      _ => unreachable!("not possible")
+    };
+
+    let tile_size: u32 = if self.bgcnt[background_id].contains(BgControlRegister::PALETTES) {
+      64
+    } else {
+      32
+    };
+
+    // 32 x 32 tilemap
+    let mut tile_num_horizontal = (x_in_bg / 8) % 32;
+    let tile_num_vertical = (y_in_bg / 8 ) % 32;
+
+    // initial x pos in tile
+    let mut x_pos_in_tile = x_in_bg % 8;
+    let tile_y = y_in_bg % 8;
+
+    // finally render the background
+    while x < SCREEN_WIDTH {
+      let mut tilemap_address = tilemap_base + SCREEN_BLOCK_SIZE * screen_index as u32 + tile_num_horizontal as u32 + (tile_num_vertical as u32) * 32;
+
+      'outer: for _ in tile_num_horizontal..32 {
+        let attributes = (self.vram[tilemap_address as usize] as u16) | (self.vram[(tilemap_address + 1) as usize] as u16) << 8;
+
+        let x_flip = (attributes >> 10) & 0b1 == 1;
+        let y_flip =  (attributes >> 11) & 0b1 == 1;
+        let palette_number = (attributes >> 12) & 0b1111;
+        let tile_number = attributes & 0b1111111111;
+
+        let tile_address = tile_base + tile_number as u32 * tile_size as u32;
+
+        for tile_x in x_pos_in_tile..8 {
+          let palette_index = if tile_size == 64 {
+            self.get_pixel_index_bpp8(tile_address, tile_x, tile_y, x_flip, y_flip)
+          } else {
+            self.get_pixel_index_bpp4(tile_address, tile_x, tile_y, x_flip, y_flip)
+          };
+
+          let palette_bank = if tile_size == 64 {
+            0
+          } else {
+            palette_number
+          };
+
+          if  let Some(color) = self.get_palette_color(palette_index as u32, palette_bank as usize) {
+            // todo: fix this casting
+            self.bg_lines[background_id][x as usize] = (color.0 as i16, color.1 as i16, color.2 as i16);
+          } else {
+            self.bg_lines[background_id][x as usize] = (-1, -1, -1);
+          }
+
+          x += 1;
+
+          if x == SCREEN_WIDTH {
+            break 'outer;
+          }
+        }
+        x_pos_in_tile = 0;
+        tilemap_address += 2;
+      }
+      tile_num_horizontal = 0;
+      if background_width == 512 {
+        screen_index ^= 1;
+      }
+    }
+
+  }
 
   pub fn render_affine_background(&mut self, background_id: usize) {
     let texture_size = 128 << self.bgcnt[background_id].screen_size();
@@ -40,7 +129,8 @@ impl GPU {
 
       let palette_index = self.vram[tile_address];
 
-      if let Some(color) = self.get_palette_color(palette_index as u32) {
+      if let Some(color) = self.get_palette_color(palette_index as u32, 0) {
+        // todo: fix these castings
         self.bg_lines[background_id][x as usize] = (color.0 as i16, color.1 as i16, color.2 as i16);
       } else {
         self.bg_lines[background_id][x as usize] = (-1, -1, -1);
@@ -109,7 +199,7 @@ impl GPU {
 
       let color_index = self.vram[vram_index];
 
-      if let Some(color) = self.get_palette_color(color_index as u32) {
+      if let Some(color) = self.get_palette_color(color_index as u32, 0) {
         self.picture.set_pixel(x as usize, y as usize, color);
       }
     }

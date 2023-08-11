@@ -43,6 +43,8 @@ pub struct GPU {
   pub palette_ram: [u8; PALETTE_RAM_SIZE],
   pub oam_ram: [u8; OAM_RAM_SIZE],
   pub bgcnt: [BgControlRegister; 4],
+  pub bgxofs: [u16; 4],
+  pub bgyofs: [u16; 4],
   pub bg_props: [BgProps; 2],
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
@@ -97,7 +99,9 @@ impl GPU {
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
       interrupt_request,
       vram_obj_start: 0x1_0000,
-      bg_lines: [[(0,0,0); SCREEN_WIDTH as usize]; 4]
+      bg_lines: [[(0,0,0); SCREEN_WIDTH as usize]; 4],
+      bgxofs: [0; 4],
+      bgyofs: [0; 4]
     }
   }
 
@@ -220,8 +224,8 @@ impl GPU {
     b_8 = (b << 3) | (b >> 2)
   */
   // todo: add offsets
-  fn get_palette_color(&self, index: u32) -> Option<(u8, u8, u8)> {
-    let value = if index == 0 {
+  fn get_palette_color(&self, index: u32, palette_bank: usize) -> Option<(u8, u8, u8)> {
+    let value = if index == 0 || (palette_bank != 0 && index % 16 == 0) {
       COLOR_TRANSPARENT
     } else {
       let lower = self.palette_ram[index as usize];
@@ -231,6 +235,28 @@ impl GPU {
     };
 
     self.translate_to_rgb(value)
+  }
+
+  fn get_pixel_index_bpp8(&self, address: u32, tile_x: u16, tile_y: u16, x_flip: bool, y_flip: bool) -> u8 {
+    let tile_x = if x_flip { 7 - tile_x } else { tile_x };
+    let tile_y = if y_flip { 7 - tile_y } else { tile_y };
+
+    self.vram[(address + tile_x as u32 + (tile_y as u32) * 8) as usize]
+  }
+
+  fn get_pixel_index_bpp4(&self, address: u32, tile_x: u16, tile_y: u16, x_flip: bool, y_flip: bool) -> u8 {
+    let tile_x = if x_flip { 7 - tile_x } else { tile_x };
+    let tile_y = if y_flip { 7 - tile_y } else { tile_y };
+
+    let address = address + (tile_x / 2) as u32 + (tile_y as u32) * 4;
+
+    let byte = self.vram[address as usize];
+
+    if tile_x & 0b1 == 1 {
+      byte >> 4
+    } else {
+      byte & 0xf
+    }
   }
 
   fn translate_to_rgb(&self, value: u16) -> Option<(u8, u8, u8)> {
@@ -246,7 +272,7 @@ impl GPU {
     if value == COLOR_TRANSPARENT { None } else {Some((r, g, b)) }
   }
 
-  fn enabled(&self, bg_index: usize) -> bool {
+  fn bg_enabled(&self, bg_index: usize) -> bool {
     match bg_index {
       0 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG0),
       1 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG1),
@@ -265,7 +291,7 @@ impl GPU {
     let mut sorted: Vec<usize> = Vec::new();
 
     for i in start..=end {
-      if self.enabled(i) {
+      if self.bg_enabled(i) {
         sorted.push(i);
       }
     }
@@ -315,6 +341,26 @@ impl GPU {
     }
 
     match self.dispcnt.bg_mode() {
+      0 => {
+        for i in 0..4 {
+          if self.bg_enabled(i) {
+            self.render_normal_background(i);
+          }
+        }
+        self.finalize_scanline(0, 3);
+      }
+      1 => {
+        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG2) {
+          self.render_affine_background(2);
+        }
+        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG1) {
+          self.render_normal_background(1);
+        }
+        if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG0) {
+          self.render_normal_background(0);
+        }
+        self.finalize_scanline(0, 2);
+      }
       2 => {
         if self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG3) {
           self.render_affine_background(3);
@@ -334,7 +380,7 @@ impl GPU {
         self.render_mode5();
       }
       _ => {
-        // println!("mode not implemented: {}", self.dispcnt.bg_mode())
+        println!("mode not implemented: {}", self.dispcnt.bg_mode())
       }
     }
   }

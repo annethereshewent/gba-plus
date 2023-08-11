@@ -23,4 +23,16 @@ impl BgControlRegister {
   pub fn screen_size(&self) -> u16 {
     (self.bits() >> 14) & 0b11
   }
+
+  pub fn get_screen_dimensions(&self) -> (u16, u16) {
+    let size = (self.bits() >> 14) & 0b11;
+
+    match size {
+      0 => (256, 256),
+      1 => (512, 256),
+      2 => (256, 512),
+      3 => (512, 512),
+      _ => unreachable!("impossible")
+    }
+  }
 }

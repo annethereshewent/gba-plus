@@ -313,7 +313,7 @@ impl GPU {
 
     for index in sorted {
       // if the pixel isn't transparent
-      if let Some(color) = self.bg_lines[*index][x] {
+      if let Some(_) = self.bg_lines[*index][x] {
         top_layer = *index as isize;
         break;
       }
@@ -373,12 +373,15 @@ impl GPU {
       }
       3=> {
         self.render_mode3();
+        self.finalize_scanline(2, 2);
       }
       4 => {
         self.render_mode4();
+        self.finalize_scanline(2, 2);
       }
       5 => {
         self.render_mode5();
+        self.finalize_scanline(2, 2);
       }
       _ => {
         println!("mode not implemented: {}", self.dispcnt.bg_mode())

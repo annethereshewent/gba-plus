@@ -132,7 +132,6 @@ impl GPU {
   pub fn render_mode3(&mut self) {
     let bg2_index = 2;
 
-    let y = self.vcount;
     let (ref_x, ref_y) = (self.bg_props[bg2_index-2].internal_x, self.bg_props[bg2_index - 2].internal_y);
 
     let dx = self.bg_props[bg2_index-2].dx;
@@ -146,6 +145,7 @@ impl GPU {
           transformed_x %= SCREEN_WIDTH as i32;
           transformed_y %= SCREEN_HEIGHT as i32;
         } else {
+          self.bg_lines[bg2_index][x as usize] = None;
           continue;
         }
       }
@@ -154,9 +154,7 @@ impl GPU {
 
       let color_val = (self.vram[vram_index] as u16) | (self.vram[vram_index + 1] as u16) << 8;
 
-      if let Some(color) = self.translate_to_rgb(color_val) {
-        self.picture.set_pixel(x as usize, y as usize, color);
-      }
+      self.bg_lines[bg2_index][x as usize] = self.translate_to_rgb(color_val);
     }
   }
 
@@ -169,7 +167,6 @@ impl GPU {
       0
     };
 
-    let y = self.vcount;
     let (ref_x, ref_y) = (self.bg_props[bg2_index-2].internal_x, self.bg_props[bg2_index-2].internal_y);
     let dx = self.bg_props[bg2_index-2].dx;
     let dy = self.bg_props[bg2_index-2].dy;
@@ -190,9 +187,7 @@ impl GPU {
 
       let color_index = self.vram[vram_index];
 
-      if let Some(color) = self.get_palette_color(color_index as u32, 0) {
-        self.picture.set_pixel(x as usize, y as usize, color);
-      }
+      self.bg_lines[bg2_index][x as usize] = self.get_palette_color(color_index as u32, 0);
     }
   }
 

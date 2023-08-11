@@ -16,7 +16,7 @@ impl CPU {
     }
   }
 
-  pub fn  mem_read_8(&mut self, address: u32) -> u8 {
+  pub fn mem_read_8(&mut self, address: u32) -> u8 {
     match address {
       0..=0x3fff => self.bios[address as usize],
       0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize],

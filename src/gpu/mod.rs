@@ -221,7 +221,7 @@ impl GPU {
     let value = if index == 0 || (palette_bank != 0 && index % 16 == 0) {
       COLOR_TRANSPARENT
     } else {
-      let index = 2 * index + 0x20 * palette_bank;
+      let index = 2 * index + 32 * palette_bank;
 
       let lower = self.palette_ram[index];
       let upper = self.palette_ram[index + 1];

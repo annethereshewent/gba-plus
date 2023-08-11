@@ -68,7 +68,7 @@ impl GPU {
             palette_number
           };
 
-          self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as u32, palette_bank as usize);
+          self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, palette_bank as usize);
 
           x += 1;
 
@@ -125,7 +125,7 @@ impl GPU {
 
       let palette_index = self.vram[tile_address];
 
-      self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as u32, 0);
+      self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, 0);
     }
   }
 
@@ -187,7 +187,7 @@ impl GPU {
 
       let color_index = self.vram[vram_index];
 
-      self.bg_lines[bg2_index][x as usize] = self.get_palette_color(color_index as u32, 0);
+      self.bg_lines[bg2_index][x as usize] = self.get_palette_color(color_index as usize, 0);
     }
   }
 

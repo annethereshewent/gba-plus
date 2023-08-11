@@ -217,19 +217,14 @@ impl GPU {
     }
   }
 
-
-  /* to convert to rgb888
-    r_8 = (r << 3) | (r >> 2)
-    g_8 = (g << 2) | (g >> 4)
-    b_8 = (b << 3) | (b >> 2)
-  */
-  // todo: add offsets
-  fn get_palette_color(&self, index: u32, palette_bank: usize) -> Option<(u8, u8, u8)> {
+  fn get_palette_color(&self, index: usize, palette_bank: usize) -> Option<(u8, u8, u8)> {
     let value = if index == 0 || (palette_bank != 0 && index % 16 == 0) {
       COLOR_TRANSPARENT
     } else {
-      let lower = self.palette_ram[index as usize];
-      let upper = self.palette_ram[(index + 1) as usize];
+      let index = 2 * index + 0x20 * palette_bank;
+
+      let lower = self.palette_ram[index];
+      let upper = self.palette_ram[index + 1];
 
       ((lower as u16) | (upper as u16) << 8) & 0x7fff
     };
@@ -259,6 +254,11 @@ impl GPU {
     }
   }
 
+  /* to convert to rgb888
+    r_8 = (r << 3) | (r >> 2)
+    g_8 = (g << 2) | (g >> 4)
+    b_8 = (b << 3) | (b >> 2)
+  */
   fn translate_to_rgb(&self, value: u16) -> Option<(u8, u8, u8)> {
     // turn this into an rgb format that sdl can use
     let mut r = (value & 0b11111) as u8;

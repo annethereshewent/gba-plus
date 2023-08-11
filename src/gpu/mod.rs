@@ -48,7 +48,7 @@ pub struct GPU {
   pub bg_props: [BgProps; 2],
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
-  bg_lines: [[(i16,i16,i16); SCREEN_WIDTH as usize]; 4]
+  bg_lines: [[Option<(u8,u8,u8)>; SCREEN_WIDTH as usize]; 4]
 }
 
 enum GpuMode {
@@ -99,7 +99,7 @@ impl GPU {
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
       interrupt_request,
       vram_obj_start: 0x1_0000,
-      bg_lines: [[(0,0,0); SCREEN_WIDTH as usize]; 4],
+      bg_lines: [[None; SCREEN_WIDTH as usize]; 4],
       bgxofs: [0; 4],
       bgyofs: [0; 4]
     }
@@ -313,15 +313,16 @@ impl GPU {
 
     for index in sorted {
       // if the pixel isn't transparent
-      if self.bg_lines[*index][x].0 != -1 {
+      if let Some(color) = self.bg_lines[*index][x] {
         top_layer = *index as isize;
         break;
       }
     }
 
     if top_layer != -1 {
-      let color = self.bg_lines[top_layer as usize][x];
-      self.picture.set_pixel(x, y as usize, (color.0 as u8, color.1 as u8, color.2 as u8));
+      // safe to unwrap at this point since we have verified above the color exists
+      let color = self.bg_lines[top_layer as usize][x as usize].unwrap();
+      self.picture.set_pixel(x, y as usize, color);
     } else {
       self.picture.set_pixel(x, y as usize, default_color.unwrap());
     }

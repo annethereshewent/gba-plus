@@ -68,12 +68,7 @@ impl GPU {
             palette_number
           };
 
-          if  let Some(color) = self.get_palette_color(palette_index as u32, palette_bank as usize) {
-            // todo: fix this casting
-            self.bg_lines[background_id][x as usize] = (color.0 as i16, color.1 as i16, color.2 as i16);
-          } else {
-            self.bg_lines[background_id][x as usize] = (-1, -1, -1);
-          }
+          self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as u32, palette_bank as usize);
 
           x += 1;
 
@@ -100,8 +95,8 @@ impl GPU {
     let dx = self.bg_props[background_id - 2].dx;
     let dy = self.bg_props[background_id - 2].dy;
 
-    let screen_base = self.bgcnt[background_id].screen_base_block() * 0x800;
-    let character_base = self.bgcnt[background_id].character_base_block() * 0x4000;
+    let screen_base = self.bgcnt[background_id].screen_base_block() * 2048;
+    let character_base = self.bgcnt[background_id].character_base_block() * 16 * 1024;
 
     for x in 0..SCREEN_WIDTH {
       let (mut transformed_x, mut transformed_y) = self.bg_transform(ref_x, ref_y, x as i32, dx as i32, dy as i32);
@@ -112,7 +107,7 @@ impl GPU {
           transformed_y = transformed_y.rem_euclid(texture_size.into());
         } else {
           // -1 means transparent
-          self.bg_lines[background_id][x as usize] = (-1, -1, -1);
+          self.bg_lines[background_id][x as usize] = None;
           continue;
         }
       }
@@ -130,12 +125,7 @@ impl GPU {
 
       let palette_index = self.vram[tile_address];
 
-      if let Some(color) = self.get_palette_color(palette_index as u32, 0) {
-        // todo: fix these castings
-        self.bg_lines[background_id][x as usize] = (color.0 as i16, color.1 as i16, color.2 as i16);
-      } else {
-        self.bg_lines[background_id][x as usize] = (-1, -1, -1);
-      }
+      self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as u32, 0);
     }
   }
 

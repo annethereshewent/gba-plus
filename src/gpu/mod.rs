@@ -6,7 +6,7 @@ use self::{registers::{display_status_register::DisplayStatusRegister, display_c
 
 pub mod registers;
 pub mod picture;
-pub mod mode_rendering;
+pub mod rendering;
 
 const HDRAW_CYCLES: u32 = 960;
 const HBLANK_CYCLES: u32 = 272;
@@ -32,6 +32,21 @@ const VRAM_OBJECT_START_TILE: u32 = 0x1_0000;
 const VRAM_OBJECT_START_BITMAP: u32 = 0x1_4000;
 const COLOR_TRANSPARENT: u16 = 0x8000;
 
+#[derive(Copy, Clone)]
+pub struct ObjectPixel {
+  pub priority: u16,
+  pub color: Option<(u8, u8, u8)>
+}
+
+impl ObjectPixel {
+  pub fn new() -> Self {
+    Self {
+      priority: 3,
+      color: None
+    }
+  }
+}
+
 pub struct GPU {
   cycles: u32,
   mode: GpuMode,
@@ -49,6 +64,7 @@ pub struct GPU {
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
   bg_lines: [[Option<(u8,u8,u8)>; SCREEN_WIDTH as usize]; 4],
+  obj_lines: [ObjectPixel; (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
   dma_channels: Rc<Cell<DmaChannels>>
 }
 
@@ -103,7 +119,8 @@ impl GPU {
       bg_lines: [[None; SCREEN_WIDTH as usize]; 4],
       bgxofs: [0; 4],
       bgyofs: [0; 4],
-      dma_channels
+      dma_channels,
+      obj_lines: [ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize]
     }
   }
 
@@ -129,6 +146,12 @@ impl GPU {
 
     if self.dispstat.contains(DisplayStatusRegister::VCOUNTER_ENABLE) && self.dispstat.contains(DisplayStatusRegister::VCOUNTER) {
       CPU::trigger_interrupt(&self.interrupt_request, FLAG_VCOUNTER_MATCH);
+    }
+  }
+
+  fn clear_obj_line(&mut self) {
+    for x in &mut self.obj_lines {
+      *x = ObjectPixel::new();
     }
   }
 
@@ -159,7 +182,7 @@ impl GPU {
 
       self.dma_channels.set(dma);
 
-      // reset object buffer
+      self.clear_obj_line();
     } else {
       // render scanline here
       self.render_scanline();
@@ -229,11 +252,11 @@ impl GPU {
     }
   }
 
-  fn get_palette_color(&self, index: usize, palette_bank: usize) -> Option<(u8, u8, u8)> {
+  fn get_palette_color(&self, index: usize, palette_bank: usize, offset: usize) -> Option<(u8, u8, u8)> {
     let value = if index == 0 || (palette_bank != 0 && index % 16 == 0) {
       COLOR_TRANSPARENT
     } else {
-      let index = 2 * index + 32 * palette_bank;
+      let index = offset + 2 * index + 32 * palette_bank;
 
       let lower = self.palette_ram[index];
       let upper = self.palette_ram[index + 1];
@@ -244,6 +267,7 @@ impl GPU {
     self.translate_to_rgb(value)
   }
 
+  // TODO: refactor this and get rid of x_flip and y_flip
   fn get_pixel_index_bpp8(&self, address: u32, tile_x: u16, tile_y: u16, x_flip: bool, y_flip: bool) -> u8 {
     let tile_x = if x_flip { 7 - tile_x } else { tile_x };
     let tile_y = if y_flip { 7 - tile_y } else { tile_y };
@@ -294,11 +318,6 @@ impl GPU {
     }
   }
 
-
-  fn render_objects(&mut self) {
-
-  }
-
   fn finalize_scanline(&mut self, start: usize, end: usize) {
     let mut sorted: Vec<usize> = Vec::new();
 
@@ -310,6 +329,7 @@ impl GPU {
 
     sorted.sort_by_key(|key| (self.bgcnt[*key].bg_priority(), *key));
 
+
     for x in 0..SCREEN_WIDTH {
       self.finalize_pixel(x as usize, &sorted)
     }
@@ -320,22 +340,51 @@ impl GPU {
 
     // disregard blending effects for now so we can just draw the top layer.
     let mut top_layer: isize = -1;
+    let mut top_layer_priority: isize = -1;
+
+    let mut bottom_layer: isize = -1;
+    let mut bottom_layer_priority: isize = -1;
 
     let y = self.vcount;
+
+    let obj_line_index = x + y as usize * SCREEN_WIDTH as usize;
 
     for index in sorted {
       // if the pixel isn't transparent
       if let Some(_) = self.bg_lines[*index][x] {
-        top_layer = *index as isize;
-        break;
+
+        if bottom_layer == -1 {
+          top_layer = *index as isize;
+          top_layer_priority = self.bgcnt[*index].bg_priority() as isize;
+        } else {
+          bottom_layer = *index as isize;
+          bottom_layer_priority = self.bgcnt[*index].bg_priority() as isize;
+
+          break;
+        }
       }
     }
 
-    if top_layer != -1 {
+    // check to see if object layer has higher priority
+    if top_layer_priority == -1 || (self.obj_lines[obj_line_index].priority <= top_layer_priority as u16) {
+      bottom_layer = top_layer;
+      top_layer = 4;
+    } else if bottom_layer_priority == -1 ||  (self.obj_lines[obj_line_index].priority <= bottom_layer_priority as u16) {
+      bottom_layer = 4;
+    }
+
+    if top_layer < 4 {
       // safe to unwrap at this point since we have verified above the color exists
       let color = self.bg_lines[top_layer as usize][x as usize].unwrap();
       self.picture.set_pixel(x, y as usize, color);
-    } else {
+    } else if let Some(color) = self.obj_lines[obj_line_index].color {
+      // render object pixel
+      self.picture.set_pixel(x, y as usize, color);
+    } else if bottom_layer != -1 {
+      let color = self.bg_lines[bottom_layer as usize][x as usize].unwrap();
+      self.picture.set_pixel(x, y as usize, color);
+    }
+    else {
       self.picture.set_pixel(x, y as usize, default_color.unwrap());
     }
   }

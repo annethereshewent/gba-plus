@@ -1,7 +1,28 @@
-use super::{GPU, SCREEN_WIDTH, SCREEN_HEIGHT, registers::{bg_control_register::BgControlRegister, display_control_register::DisplayControlRegister}, MODE5_WIDTH, MODE5_HEIGHT};
+use super::{GPU, SCREEN_WIDTH, SCREEN_HEIGHT, registers::{bg_control_register::BgControlRegister, display_control_register::DisplayControlRegister}, MODE5_WIDTH, MODE5_HEIGHT, ObjectPixel};
 
 // 2 bytes per tile
 const SCREEN_BLOCK_SIZE: u32 = 32 * 32 * 2;
+const ATTRIBUTE_SIZE: usize = 8; // 6 bytes (3 16 bit attributes) + 2 empty bytes in between
+
+#[derive(Debug)]
+struct OamAttributes {
+  x_coordinate: u16,
+  y_coordinate: u16,
+  rotation_flag: bool,
+  double_sized_flag: bool,
+  obj_disable: bool,
+  obj_mode: u16,
+  obj_mosaic: bool,
+  palette_flag: bool,
+  obj_shape: u16,
+  obj_size: u16,
+  rotation_param_selection: u16,
+  horizontal_flip: bool,
+  vertical_flip: bool,
+  tile_number: u16,
+  priority: u16,
+  palette_number: u16
+}
 
 impl GPU {
   pub fn render_normal_background(&mut self, background_id: usize) {
@@ -69,7 +90,7 @@ impl GPU {
             palette_number
           };
 
-          self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, palette_bank as usize);
+          self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, palette_bank as usize, 0);
 
           x += 1;
 
@@ -85,7 +106,6 @@ impl GPU {
         screen_index ^= 1;
       }
     }
-
   }
 
   pub fn render_affine_background(&mut self, background_id: usize) {
@@ -126,7 +146,7 @@ impl GPU {
 
       let palette_index = self.vram[tile_address];
 
-      self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, 0);
+      self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, 0, 0);
     }
   }
 
@@ -188,7 +208,7 @@ impl GPU {
 
       let color_index = self.vram[vram_index];
 
-      self.bg_lines[bg2_index][x as usize] = self.get_palette_color(color_index as usize, 0);
+      self.bg_lines[bg2_index][x as usize] = self.get_palette_color(color_index as usize, 0, 0);
     }
   }
 
@@ -223,9 +243,201 @@ impl GPU {
 
       let color_val = (self.vram[vram_index] as u16) | (self.vram[vram_index + 1] as u16) << 8;
 
-      if let Some(color) = self.translate_to_rgb(color_val) {
-        self.picture.set_pixel(x as usize, y as usize, color);
+      self.bg_lines[bg2_index][x as usize] = self.translate_to_rgb(color_val);
+    }
+  }
+
+  pub fn render_objects(&mut self) {
+    for i in 0..128 {
+      let obj_attributes = self.get_attributes(i);
+
+      if obj_attributes.obj_disable {
+        continue;
+      }
+      if obj_attributes.rotation_flag {
+        self.render_affine_object(obj_attributes);
+      } else {
+        // render object normally
+        self.render_normal_object(obj_attributes);
       }
     }
+  }
+
+  fn render_normal_object(&mut self, obj_attributes: OamAttributes) {
+    let y = self.vcount;
+
+    let (obj_width, obj_height) = match (obj_attributes.obj_size, obj_attributes.obj_shape) {
+      (0, 0) => (8, 8),
+      (1, 0) => (16, 16),
+      (2, 0) => (32, 32),
+      (3, 0) => (64, 64),
+      (0, 1) => (16, 8),
+      (1, 1) => (32, 8),
+      (2, 1) => (32, 16),
+      (3, 1) => (64, 32),
+      (0, 2) => (8, 16),
+      (1, 2) => (8, 32),
+      (2, 2) => (16, 32),
+      (3, 2) => (32, 64),
+      _ => panic!("object shape of 3 not allowed")
+    };
+
+    let (x_coordinate, y_coordinate) = self.get_obj_coordinates(obj_attributes.x_coordinate, obj_attributes.y_coordinate);
+
+    let y_pos_in_sprite: i16 = y as i16 - y_coordinate;
+
+    if y_pos_in_sprite < 0 || y_pos_in_sprite >= obj_height || obj_attributes.obj_mode == 3 {
+      return;
+    }
+
+    let tile_number = obj_attributes.tile_number;
+    let tile_base: u32 = 0x1_0000 + tile_number as u32 * 32;
+
+    if tile_base < self.vram_obj_start {
+      return;
+    }
+
+    let tile_size = if obj_attributes.palette_flag {
+      64
+    } else {
+      32
+    };
+
+    let tile_width = if self.dispcnt.contains(DisplayControlRegister::OBJ_CHARACTER_MAPPING) {
+      obj_width / 8
+    } else {
+      if obj_attributes.palette_flag {
+        16
+      } else {
+        32
+      }
+    };
+
+    let palette_bank = if !obj_attributes.palette_flag {
+      obj_attributes.palette_number
+    } else {
+      0
+    };
+
+    for x in 0..obj_width {
+      let screen_x = x as i16 + x_coordinate;
+
+      if screen_x < 0 {
+        continue;
+      }
+
+      if screen_x >= SCREEN_WIDTH as i16 {
+        break;
+      }
+
+      let obj_line_index = (screen_x as u16 + y * SCREEN_WIDTH) as usize;
+
+      if self.obj_lines[obj_line_index].priority <= obj_attributes.priority && obj_attributes.obj_mode != 2 {
+        continue;
+      }
+
+      let x_pos_in_sprite = if obj_attributes.horizontal_flip {
+        obj_width - x - 1
+      } else {
+        x
+      };
+
+      let y_pos_in_sprite = if obj_attributes.vertical_flip {
+        (obj_height - y_pos_in_sprite - 1) as u16
+      } else {
+        y_pos_in_sprite as u16
+      };
+
+      let x_pos_in_tile = x_pos_in_sprite % 8;
+      let y_pos_in_tile = y_pos_in_sprite % 8;
+
+      let tile_address = tile_base + (x_pos_in_sprite / 8 + (y_pos_in_sprite as u32 / 8) * tile_width) * tile_size;
+
+      let palette_index = if obj_attributes.palette_flag {
+        self.get_pixel_index_bpp8(tile_address, x_pos_in_tile as u16, y_pos_in_tile, false, false)
+      } else {
+        self.get_pixel_index_bpp4(tile_address, x_pos_in_tile as u16, y_pos_in_tile, false, false)
+      };
+
+      self.obj_lines[obj_line_index] = ObjectPixel {
+        priority: obj_attributes.priority,
+        color: self.get_palette_color(palette_index as usize, palette_bank as usize, 0x200)
+      };
+    }
+  }
+
+  fn render_affine_object(&mut self, obj_attributes: OamAttributes) {
+
+  }
+
+  fn get_obj_coordinates(&mut self, x: u16, y: u16) -> (i16, i16) {
+    let return_x: i16 = if x >= SCREEN_WIDTH {
+      x as i16 - 512
+    } else {
+      x as i16
+    };
+
+    let return_y: i16 = if y >= SCREEN_HEIGHT {
+      y as i16 - 256
+    } else {
+      y as i16
+    };
+
+    (return_x, return_y)
+  }
+
+  fn get_attributes(&self, i: usize) -> OamAttributes {
+    let oam_address = i * ATTRIBUTE_SIZE;
+
+    let attribute1 = self.oam_read_16(oam_address);
+    let attribute2 = self.oam_read_16(oam_address + 2);
+    let attribute3 = self.oam_read_16(oam_address + 4);
+
+    let y_coordinate = attribute1 & 0xff;
+    let rotation_flag = (attribute1 >> 8) & 0b1 == 1;
+    let double_sized_flag = rotation_flag && (attribute1 >> 9) & 0b1 == 1;
+    let obj_disable = !rotation_flag && (attribute1 >> 9) & 0b1 == 1;
+    let obj_mode = (attribute1 >> 10) & 0b11;
+    let obj_mosaic = (attribute1 >> 12) & 0b1 == 1;
+    let palette_flag = (attribute1 >> 13) & 0b1 == 1;
+    let obj_shape = (attribute1 >> 14) & 0b11;
+
+    let x_coordinate = attribute2 & 0x1ff;
+    let rotation_param_selection = if rotation_flag {
+      (attribute2 >> 9) & 0b11111
+    } else {
+      0
+    };
+    let horizontal_flip = !rotation_flag && (attribute2 >> 12) & 0b1 == 1;
+    let vertical_flip = !rotation_flag && (attribute2 >> 13) & 0b1 == 1;
+    let obj_size = (attribute2 >> 14) & 0b11;
+
+    let tile_number = attribute3 & 0b1111111111;
+    let priority = (attribute3 >> 10) & 0b11;
+    let palette_number = (attribute3 >> 12) & 0xf;
+
+    OamAttributes {
+      y_coordinate,
+      rotation_flag,
+      double_sized_flag,
+      obj_disable,
+      obj_mode,
+      obj_mosaic,
+      palette_flag,
+      obj_shape,
+      x_coordinate,
+      rotation_param_selection,
+      horizontal_flip,
+      vertical_flip,
+      obj_size,
+      tile_number,
+      priority,
+      palette_number
+    }
+
+  }
+
+  fn oam_read_16(&self, address: usize) -> u16 {
+    (self.oam_ram[address] as u16) | (self.oam_ram[address + 1] as u16) << 8
   }
 }

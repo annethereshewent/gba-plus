@@ -36,7 +36,6 @@ impl DmaChannels {
   }
 
   pub fn do_transfers(&mut self, cpu: &mut CPU) -> Vec<bool> {
-
     let mut trigger_irqs = Vec::new();
     for channel in &mut self.channels {
       if channel.pending {

@@ -359,10 +359,12 @@ impl GPU {
         self.get_pixel_index_bpp4(tile_address, x_pos_in_tile as u16, y_pos_in_tile, false, false)
       };
 
-      self.obj_lines[obj_line_index] = ObjectPixel {
-        priority: obj_attributes.priority,
-        color: self.get_palette_color(palette_index as usize, palette_bank as usize, 0x200)
-      };
+      if palette_index != 0 {
+        self.obj_lines[obj_line_index] = ObjectPixel {
+          priority: obj_attributes.priority,
+          color: self.get_palette_color(palette_index as usize, palette_bank as usize, 0x200)
+        };
+      }
     }
   }
 

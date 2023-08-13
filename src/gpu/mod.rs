@@ -41,7 +41,7 @@ pub struct ObjectPixel {
 impl ObjectPixel {
   pub fn new() -> Self {
     Self {
-      priority: 3,
+      priority: 4,
       color: None
     }
   }
@@ -149,7 +149,7 @@ impl GPU {
     }
   }
 
-  fn clear_obj_line(&mut self) {
+  fn clear_obj_lines(&mut self) {
     for x in &mut self.obj_lines {
       *x = ObjectPixel::new();
     }
@@ -182,7 +182,7 @@ impl GPU {
 
       self.dma_channels.set(dma);
 
-      self.clear_obj_line();
+      self.clear_obj_lines();
     } else {
       // render scanline here
       self.render_scanline();

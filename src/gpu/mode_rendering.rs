@@ -42,47 +42,49 @@ impl GPU {
 
     // finally render the background
     let tile_number = tile_num_horizontal as u32 + (tile_num_vertical as u32) * 32;
-    let mut tilemap_address = tilemap_base + SCREEN_BLOCK_SIZE * screen_index as u32  + 2 * tile_number;
 
-    'outer: for _ in tile_num_horizontal..32 {
-      let attributes = (self.vram[tilemap_address as usize] as u16) | (self.vram[(tilemap_address + 1) as usize] as u16) << 8;
 
-      let x_flip = (attributes >> 10) & 0b1 == 1;
-      let y_flip =  (attributes >> 11) & 0b1 == 1;
-      let palette_number = (attributes >> 12) & 0b1111;
-      let tile_number = attributes & 0b1111111111;
+    while x < SCREEN_WIDTH {
+      let mut tilemap_address = tilemap_base + SCREEN_BLOCK_SIZE * screen_index as u32  + 2 * tile_number;
+      'outer: for _ in tile_num_horizontal..32 {
+        let attributes = (self.vram[tilemap_address as usize] as u16) | (self.vram[(tilemap_address + 1) as usize] as u16) << 8;
 
-      let tile_address = tile_base + tile_number as u32 * tile_size as u32;
+        let x_flip = (attributes >> 10) & 0b1 == 1;
+        let y_flip =  (attributes >> 11) & 0b1 == 1;
+        let palette_number = (attributes >> 12) & 0b1111;
+        let tile_number = attributes & 0b1111111111;
 
-      for tile_x in x_pos_in_tile..8 {
-        let palette_index = if tile_size == 64 {
-          self.get_pixel_index_bpp8(tile_address, tile_x, tile_y, x_flip, y_flip)
-        } else {
-          self.get_pixel_index_bpp4(tile_address, tile_x, tile_y, x_flip, y_flip)
-        };
+        let tile_address = tile_base + tile_number as u32 * tile_size as u32;
 
-        let palette_bank = if tile_size == 64 {
-          0
-        } else {
-          palette_number
-        };
+        for tile_x in x_pos_in_tile..8 {
+          let palette_index = if tile_size == 64 {
+            self.get_pixel_index_bpp8(tile_address, tile_x, tile_y, x_flip, y_flip)
+          } else {
+            self.get_pixel_index_bpp4(tile_address, tile_x, tile_y, x_flip, y_flip)
+          };
 
-        self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, palette_bank as usize);
+          let palette_bank = if tile_size == 64 {
+            0
+          } else {
+            palette_number
+          };
 
-        x += 1;
+          self.bg_lines[background_id][x as usize] = self.get_palette_color(palette_index as usize, palette_bank as usize);
 
-        if x == SCREEN_WIDTH {
-          break 'outer;
+          x += 1;
+
+          if x == SCREEN_WIDTH {
+            break 'outer;
+          }
         }
+        x_pos_in_tile = 0;
+        tilemap_address += 2;
       }
-      x_pos_in_tile = 0;
-      tilemap_address += 2;
+      tile_num_horizontal = 0;
+      if background_width == 512 {
+        screen_index ^= 1;
+      }
     }
-    tile_num_horizontal = 0;
-    if background_width == 512 {
-      screen_index ^= 1;
-    }
-
 
   }
 

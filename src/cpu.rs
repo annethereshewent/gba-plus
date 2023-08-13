@@ -9,7 +9,7 @@ use std::{rc::Rc, cell::Cell};
 
 use crate::gpu::GPU;
 
-use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}};
+use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}, dma::dma_channels::DmaChannels};
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
@@ -17,6 +17,7 @@ pub mod cycle_lookup_tables;
 pub mod bus;
 pub mod rotations_shifts;
 pub mod registers;
+pub mod dma;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;
@@ -65,7 +66,8 @@ pub struct CPU {
   cycles: u32,
   interrupt_enable: InterruptEnableRegister,
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
-  is_halted: bool
+  is_halted: bool,
+  dma_channels: Rc<Cell<DmaChannels>>
 }
 
 
@@ -128,6 +130,7 @@ impl PSRRegister {
 impl CPU {
   pub fn new() -> Self {
     let interrupt_request = Rc::new(Cell::new(InterruptRequestRegister::from_bits_retain(0)));
+    let dma_channels = Rc::new(Cell::new(DmaChannels::new()));
 
     let mut cpu = Self {
       r: [0; 15],
@@ -151,12 +154,13 @@ impl CPU {
       board_wram: [0; 256 * 1024],
       chip_wram: [0; 32 * 1024],
       post_flag: 0,
-      gpu: GPU::new(interrupt_request.clone()),
+      gpu: GPU::new(interrupt_request.clone(), dma_channels.clone()),
       interrupt_request,
       cycle_luts: CycleLookupTables::new(),
       cycles: 0,
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
+      dma_channels,
       is_halted: false
     };
 

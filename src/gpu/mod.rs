@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell};
 
-use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU};
+use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::DmaChannels};
 
 use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, picture::Picture};
 
@@ -48,7 +48,8 @@ pub struct GPU {
   pub bg_props: [BgProps; 2],
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
-  bg_lines: [[Option<(u8,u8,u8)>; SCREEN_WIDTH as usize]; 4]
+  bg_lines: [[Option<(u8,u8,u8)>; SCREEN_WIDTH as usize]; 4],
+  dma_channels: Rc<Cell<DmaChannels>>
 }
 
 enum GpuMode {
@@ -84,7 +85,7 @@ impl BgProps {
 }
 
 impl GPU {
-  pub fn new(interrupt_request: Rc<Cell<InterruptRequestRegister>>) -> Self {
+  pub fn new(interrupt_request: Rc<Cell<InterruptRequestRegister>>, dma_channels: Rc<Cell<DmaChannels>>) -> Self {
     Self {
       cycles: 0,
       vcount: 0,
@@ -101,7 +102,8 @@ impl GPU {
       vram_obj_start: 0x1_0000,
       bg_lines: [[None; SCREEN_WIDTH as usize]; 4],
       bgxofs: [0; 4],
-      bgyofs: [0; 4]
+      bgyofs: [0; 4],
+      dma_channels
     }
   }
 

@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::registers::interrupt_enable_register::InterruptEnableRegister};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::{dma_channels::AddressType, dma_channel::registers::dma_control_register::DmaControlRegister}}};
 
 use super::CPU;
 
@@ -219,6 +219,174 @@ impl CPU {
       0x400_003c => write_bg_reference_point!(low y internal_y 1),
       0x400_003e => write_bg_reference_point!(high y internal_y 1),
       0x400_0088 => (),
+      0x400_00b0 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(0, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00b2 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(0, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00b4 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(0, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00b6 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(0, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00b8 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[0].word_count = value;
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00ba => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[0].dma_control = DmaControlRegister::from_bits_retain(value);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00bc => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(1, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00be => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(1, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00c0 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(1, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00c2 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(1, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00c4 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[1].word_count = value;
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00c6 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[1].dma_control = DmaControlRegister::from_bits_retain(value);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00c8 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(2, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00ca => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(2, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00cc => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(2, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00ce => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(2, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00d0 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[2].word_count = value;
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00d2 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[2].dma_control = DmaControlRegister::from_bits_retain(value);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00d4 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(3, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00d6 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_source_address(3, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00d8 => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(3, value, AddressType::Low);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00da => {
+        let mut dma = self.dma_channels.get();
+
+        dma.set_destination_address(3, value, AddressType::High);
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00dc => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[3].word_count = value;
+
+        self.dma_channels.set(dma);
+      }
+      0x400_00de => {
+        let mut dma = self.dma_channels.get();
+
+        dma.channels[3].dma_control = DmaControlRegister::from_bits_retain(value);
+
+        self.dma_channels.set(dma);
+      }
       0x400_0200 => self.interrupt_enable = InterruptEnableRegister::from_bits_retain(value),
       0x400_0202 => self.clear_interrupts(value),
       0x400_0208 => self.interrupt_master_enable = value != 0,

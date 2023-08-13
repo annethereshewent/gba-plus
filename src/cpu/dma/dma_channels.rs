@@ -1,4 +1,9 @@
-use super::dma_channel::DmaChannel;
+use crate::cpu::CPU;
+
+use super::dma_channel::{DmaChannel, registers::dma_control_register::DmaControlRegister};
+
+pub const VBLANK_TIMING: u16 = 1;
+pub const HBLANK_TIMING: u16 = 2;
 
 #[derive(Copy, Clone)]
 pub struct DmaChannels {
@@ -13,12 +18,47 @@ pub enum AddressType {
 impl DmaChannels {
   pub fn new() -> Self {
     Self {
-      channels: [DmaChannel::new(); 4]
+      channels: [
+        DmaChannel::new(0),
+        DmaChannel::new(1),
+        DmaChannel::new(2),
+        DmaChannel::new(3)
+      ]
     }
   }
 
   pub fn notify_gpu_event(&mut self, timing: u16) {
+    for channel in &mut self.channels {
+      if channel.dma_control.contains(DmaControlRegister::DMA_ENABLE) && channel.dma_control.dma_start_timing() == timing {
+        channel.pending = true;
+      }
+    }
+  }
 
+  pub fn do_transfers(&mut self, cpu: &mut CPU) -> Vec<bool> {
+
+    let mut trigger_irqs = Vec::new();
+    for channel in &mut self.channels {
+      if channel.pending {
+        let should_trigger_irq = channel.transfer(cpu);
+        trigger_irqs.push(should_trigger_irq);
+        channel.pending = false;
+      } else {
+        trigger_irqs.push(false);
+      }
+    }
+
+    trigger_irqs
+  }
+
+  pub fn has_pending_transfers(&self) -> bool {
+    for channel in self.channels {
+      if channel.pending {
+        return true;
+      }
+    }
+
+    false
   }
 
   pub fn set_source_address(&mut self, channel_id: usize, value: u16, address_type: AddressType) {
@@ -27,7 +67,7 @@ impl DmaChannels {
         self.channels[channel_id].source_address = (self.channels[channel_id].source_address & 0xffff0000) | (value as u32);
       }
       AddressType::High => {
-        self.channels[channel_id].source_address = (self.channels[channel_id].source_address & 0xffff) | (value as u32) << 16
+        self.channels[channel_id].source_address = (self.channels[channel_id].source_address & 0xffff) | ((value & 0xfff) as u32) << 16
       }
     }
   }
@@ -38,7 +78,7 @@ impl DmaChannels {
         self.channels[channel_id].destination_address = (self.channels[channel_id].destination_address & 0xffff0000) | (value as u32);
       }
       AddressType::High => {
-        self.channels[channel_id].destination_address = (self.channels[channel_id].destination_address & 0xffff) | (value as u32) << 16
+        self.channels[channel_id].destination_address = (self.channels[channel_id].destination_address & 0xffff) | ((value & 0xfff )as u32) << 16
       }
     }
   }

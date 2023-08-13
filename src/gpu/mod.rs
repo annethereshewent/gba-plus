@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell};
 
-use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::DmaChannels};
+use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::{DmaChannels, VBLANK_TIMING, HBLANK_TIMING}};
 
 use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, picture::Picture};
 
@@ -153,6 +153,11 @@ impl GPU {
       }
 
       // notify dma that vblank has started
+      let mut dma = self.dma_channels.get();
+
+      dma.notify_gpu_event(VBLANK_TIMING);
+
+      self.dma_channels.set(dma);
 
       // reset object buffer
     } else {
@@ -190,6 +195,11 @@ impl GPU {
 
     if self.vcount <= VISIBLE_LINES {
       // notify dma that hblank has started
+      let mut dma = self.dma_channels.get();
+
+      dma.notify_gpu_event(HBLANK_TIMING);
+
+      self.dma_channels.set(dma);
     }
     self.mode = GpuMode::Hblank;
   }

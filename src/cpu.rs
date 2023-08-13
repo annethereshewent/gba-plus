@@ -320,7 +320,22 @@ impl CPU {
     // first check interrupts
     self.check_interrupts();
 
-    if !self.is_halted {
+    let mut dma = self.dma_channels.get();
+
+    if dma.has_pending_transfers() {
+      let should_trigger_irqs = dma.do_transfers(self);
+      let mut interrupt_request = self.interrupt_request.get();
+
+      for i in 0..4 {
+        if should_trigger_irqs[i] {
+          interrupt_request.request_dma(i);
+        }
+      }
+
+      self.interrupt_request.set(interrupt_request);
+      self.dma_channels.set(dma);
+    }
+    else if !self.is_halted {
       if self.cpsr.contains(PSRRegister::STATE_BIT) {
         self.step_thumb();
       } else {
@@ -410,6 +425,14 @@ impl CPU {
   fn add_cycles(&mut self, cycles: u32) {
     self.cycles += cycles;
     self.gpu.tick(cycles);
+
+    let mut dma = self.dma_channels.get();
+
+    for channel in &mut dma.channels {
+      channel.tick(cycles);
+    }
+
+    self.dma_channels.set(dma);
   }
 
   pub fn reload_pipeline16(&mut self) {

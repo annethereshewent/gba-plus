@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::{dma_channels::AddressType, dma_channel::registers::dma_control_register::DmaControlRegister}}};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}};
 
 use super::CPU;
 
@@ -257,7 +257,7 @@ impl CPU {
       0x400_00ba => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[0].dma_control = DmaControlRegister::from_bits_retain(value);
+        dma.channels[0].write_control(value);
 
         self.dma_channels.set(dma);
       }
@@ -299,7 +299,7 @@ impl CPU {
       0x400_00c6 => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[1].dma_control = DmaControlRegister::from_bits_retain(value);
+        dma.channels[1].write_control(value);
 
         self.dma_channels.set(dma);
       }
@@ -341,7 +341,7 @@ impl CPU {
       0x400_00d2 => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[2].dma_control = DmaControlRegister::from_bits_retain(value);
+        dma.channels[2].write_control(value);
 
         self.dma_channels.set(dma);
       }
@@ -383,7 +383,7 @@ impl CPU {
       0x400_00de => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[3].dma_control = DmaControlRegister::from_bits_retain(value);
+        dma.channels[3].write_control(value);
 
         self.dma_channels.set(dma);
       }

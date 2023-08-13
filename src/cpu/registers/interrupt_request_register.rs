@@ -17,3 +17,15 @@ bitflags! {
     const GAMEPACK = 0b1 << 13;
   }
 }
+
+impl InterruptRequestRegister {
+  pub fn request_dma(&mut self, id: usize) {
+    match id {
+      0 => self.insert(Self::DMA0),
+      1 => self.insert(Self::DMA1),
+      2 => self.insert(Self::DMA2),
+      3 => self.insert(Self::DMA3),
+      _ => panic!("invalid id specified for dma interrupt: {id}")
+    }
+  }
+}

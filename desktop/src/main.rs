@@ -1,9 +1,9 @@
 extern crate gba_emulator;
 
-use std::{fs, env};
+use std::{fs, env, collections::HashMap};
 
-use gba_emulator::{cpu::CPU, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}};
-use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode, video};
+use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister}, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}};
+use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode};
 
 
 fn main() {
@@ -26,6 +26,26 @@ fn main() {
 
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
+
+  let mut key_map = HashMap::new();
+
+  key_map.insert(Keycode::W, KeyInputRegister::Up);
+  key_map.insert(Keycode::S, KeyInputRegister::Down);
+  key_map.insert(Keycode::D, KeyInputRegister::Right);
+  key_map.insert(Keycode::A, KeyInputRegister::Left);
+
+  key_map.insert(Keycode::Space, KeyInputRegister::ButtonA);
+  key_map.insert(Keycode::K, KeyInputRegister::ButtonA);
+
+  key_map.insert(Keycode::LShift, KeyInputRegister::ButtonB);
+  key_map.insert(Keycode::J, KeyInputRegister::ButtonB);
+
+  key_map.insert(Keycode::C, KeyInputRegister::ButtonL);
+  key_map.insert(Keycode::V, KeyInputRegister::ButtonR);
+
+  key_map.insert(Keycode::Return, KeyInputRegister::Start);
+  key_map.insert(Keycode::Tab, KeyInputRegister::Select);
+
 
   let window = video_subsystem
     .window("GBA Emulator", (SCREEN_WIDTH * 3) as u32, (SCREEN_HEIGHT * 3) as u32)
@@ -64,6 +84,16 @@ fn main() {
             keycode: Some(Keycode::Escape),
             ..
         } => std::process::exit(0),
+        Event::KeyDown { keycode, .. } => {
+          if let Some(button) = key_map.get(&keycode.unwrap_or(Keycode::Return)) {
+            cpu.key_input.set(*button, false);
+          }
+        }
+        Event::KeyUp { keycode, .. } => {
+          if let Some(button) = key_map.get(&keycode.unwrap_or(Keycode::Return)) {
+            cpu.key_input.set(*button, true);
+          }
+        }
         _ => { /* do nothing */ }
       }
     }

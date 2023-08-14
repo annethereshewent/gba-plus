@@ -9,7 +9,7 @@ use std::{rc::Rc, cell::Cell};
 
 use crate::gpu::GPU;
 
-use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister}, dma::dma_channels::DmaChannels};
+use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister}, dma::dma_channels::DmaChannels};
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
@@ -67,7 +67,8 @@ pub struct CPU {
   interrupt_enable: InterruptEnableRegister,
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   is_halted: bool,
-  dma_channels: Rc<Cell<DmaChannels>>
+  dma_channels: Rc<Cell<DmaChannels>>,
+  pub key_input: KeyInputRegister
 }
 
 
@@ -161,7 +162,8 @@ impl CPU {
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
       dma_channels,
-      is_halted: false
+      is_halted: false,
+      key_input: KeyInputRegister::from_bits_retain(0x1ff)
     };
 
     cpu.populate_thumb_lut();

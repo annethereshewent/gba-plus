@@ -74,7 +74,7 @@ impl CPU {
       // TODO
       0x400_0088 => 0x200,
       // TODO: implement controller
-      0x400_0130 => 0x1ff,
+      0x400_0130 => self.key_input.bits(),
       0x400_0200 => self.interrupt_enable.bits(),
       0x400_0202 => self.interrupt_request.get().bits(),
       0x400_0208 => if self.interrupt_master_enable { 1 } else { 0 },

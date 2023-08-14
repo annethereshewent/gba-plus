@@ -382,12 +382,12 @@ impl CPU {
   }
 
   pub fn load_32(&mut self, address: u32, access: MemoryAccess) -> u32 {
-    self.update_cycles(address, access, MemoryWidth::Width16);
+    self.update_cycles(address, access, MemoryWidth::Width32);
     self.mem_read_32(address)
   }
 
   pub fn load_16(&mut self, address: u32, access: MemoryAccess) -> u16 {
-    self.update_cycles(address, access, MemoryWidth::Width32);
+    self.update_cycles(address, access, MemoryWidth::Width16);
     self.mem_read_16(address)
   }
 

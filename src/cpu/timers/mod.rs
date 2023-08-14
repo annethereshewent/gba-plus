@@ -21,29 +21,28 @@ impl Timers {
     for i in 0..self.t.len() {
       let timer = &mut self.t[i];
 
-      let timer_overflowed = timer.tick(cycles, dma);
+      let timer_overflowed = timer.tick(cycles);
 
       let timer_id = timer.id;
-      if timer.id != 3 && timer_overflowed {
-
+      if timer_overflowed {
         self.handle_overflow(timer_id, dma);
-      }
-
-      if timer_id == 0 || timer_id == 3 {
-        // do apu related timer stuff
-
       }
     }
   }
 
   pub fn handle_overflow(&mut self, timer_id: usize, dma: &mut DmaChannels) {
-    let next_timer_id = timer_id + 1;
+    if timer_id != 3 {
+      let next_timer_id = timer_id + 1;
 
-    let next_timer = &mut self.t[next_timer_id];
+      let next_timer = &mut self.t[next_timer_id];
 
-    if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.tick(1, dma) && next_timer_id != 3 {
-      let timer_id = next_timer.id + 1;
-      self.handle_overflow(timer_id, dma);
+      if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.update() {
+        self.handle_overflow(next_timer_id, dma);
+      }
+    }
+
+    if timer_id == 0 || timer_id == 1 {
+      // do apu related timer stuff
     }
   }
 
@@ -58,7 +57,8 @@ impl Timers {
     if new_ctl.contains(TimerControl::ENABLED) && !new_ctl.contains(TimerControl::COUNT_UP_TIMING) {
       timer.running = true;
 
-      timer.cycles_to_overflow = timer.ticks_for_overflow() << timer.prescalar_shift;
+      timer.cycles_to_overflow = timer.ticks_to_overflow() << timer.prescalar_shift;
+      timer.initial_value = value;
     } else {
       timer.running = false;
       timer.cycles_to_overflow = 0;

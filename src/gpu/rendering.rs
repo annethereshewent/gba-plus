@@ -3,6 +3,7 @@ use super::{GPU, SCREEN_WIDTH, SCREEN_HEIGHT, registers::{bg_control_register::B
 // 2 bytes per tile
 const SCREEN_BLOCK_SIZE: u32 = 32 * 32 * 2;
 const ATTRIBUTE_SIZE: usize = 8; // 6 bytes (3 16 bit attributes) + 2 empty bytes in between
+const AFFINE_SIZE: u16 = 3 * 2;
 
 #[derive(Debug)]
 struct OamAttributes {
@@ -22,6 +23,26 @@ struct OamAttributes {
   tile_number: u16,
   priority: u16,
   palette_number: u16
+}
+
+impl OamAttributes {
+  pub fn get_object_dimensions(&self) -> (u32, u32) {
+    match (self.obj_size, self.obj_shape) {
+      (0, 0) => (8, 8),
+      (1, 0) => (16, 16),
+      (2, 0) => (32, 32),
+      (3, 0) => (64, 64),
+      (0, 1) => (16, 8),
+      (1, 1) => (32, 8),
+      (2, 1) => (32, 16),
+      (3, 1) => (64, 32),
+      (0, 2) => (8, 16),
+      (1, 2) => (8, 32),
+      (2, 2) => (16, 32),
+      (3, 2) => (32, 64),
+      _ => panic!("object shape of 3 not allowed")
+    }
+  }
 }
 
 impl GPU {
@@ -264,27 +285,13 @@ impl GPU {
   fn render_normal_object(&mut self, obj_attributes: OamAttributes) {
     let y = self.vcount;
 
-    let (obj_width, obj_height) = match (obj_attributes.obj_size, obj_attributes.obj_shape) {
-      (0, 0) => (8, 8),
-      (1, 0) => (16, 16),
-      (2, 0) => (32, 32),
-      (3, 0) => (64, 64),
-      (0, 1) => (16, 8),
-      (1, 1) => (32, 8),
-      (2, 1) => (32, 16),
-      (3, 1) => (64, 32),
-      (0, 2) => (8, 16),
-      (1, 2) => (8, 32),
-      (2, 2) => (16, 32),
-      (3, 2) => (32, 64),
-      _ => panic!("object shape of 3 not allowed")
-    };
+    let (obj_width, obj_height) = obj_attributes.get_object_dimensions();
 
     let (x_coordinate, y_coordinate) = self.get_obj_coordinates(obj_attributes.x_coordinate, obj_attributes.y_coordinate);
 
     let y_pos_in_sprite: i16 = y as i16 - y_coordinate;
 
-    if y_pos_in_sprite < 0 || y_pos_in_sprite >= obj_height || obj_attributes.obj_mode == 3 {
+    if y_pos_in_sprite < 0 || y_pos_in_sprite as u32 >= obj_height || obj_attributes.obj_mode == 3 {
       return;
     }
 
@@ -341,7 +348,7 @@ impl GPU {
       };
 
       let y_pos_in_sprite = if obj_attributes.vertical_flip {
-        (obj_height - y_pos_in_sprite - 1) as u16
+        (obj_height as i16 - y_pos_in_sprite - 1) as u16
       } else {
         y_pos_in_sprite as u16
       };
@@ -367,6 +374,108 @@ impl GPU {
   }
 
   fn render_affine_object(&mut self, obj_attributes: OamAttributes) {
+    let y = self.vcount;
+
+    let (obj_width, obj_height) = obj_attributes.get_object_dimensions();
+
+    let (x_coordinate, y_coordinate) = self.get_obj_coordinates(obj_attributes.x_coordinate, obj_attributes.y_coordinate);
+
+    let (bbox_width, bbox_height) = if obj_attributes.double_sized_flag {
+      (2 * obj_width, 2 * obj_height)
+    } else {
+      (obj_width, obj_height)
+    };
+
+    let y_pos_in_sprite = y as i16 - y_coordinate;
+
+    if y_pos_in_sprite < 0 || y_pos_in_sprite as u32 >= bbox_height || obj_attributes.obj_mode == 3 {
+      return;
+    }
+
+    let tile_number = obj_attributes.tile_number;
+    let tile_base: u32 = 0x1_0000 + tile_number as u32 * 32;
+
+    if tile_base < self.vram_obj_start {
+      return;
+    }
+
+    let tile_size = if obj_attributes.palette_flag {
+      64
+    } else {
+      32
+    };
+
+    let tile_width = if self.dispcnt.contains(DisplayControlRegister::OBJ_CHARACTER_MAPPING) {
+      obj_width / 8
+    } else {
+      if obj_attributes.palette_flag {
+        16
+      } else {
+        32
+      }
+    };
+
+    let palette_bank = if !obj_attributes.palette_flag {
+      obj_attributes.palette_number
+    } else {
+      0
+    };
+
+    // get affine matrix
+    let (dx, dmx, dy, dmy) = self.get_obj_affine_params(obj_attributes.rotation_param_selection);
+
+    let half_height = bbox_height / 2;
+    let half_width: i16 = bbox_width as i16 / 2;
+
+    let iy = y as i16 - (y_coordinate + half_height as i16);
+
+    for ix in (-half_width)..(half_width) {
+      let x = x_coordinate + half_width + ix;
+
+      if x < 0 {
+        continue;
+      }
+
+      if x as u16 >= SCREEN_WIDTH {
+        break;
+      }
+
+      let obj_line_index =(x as u16 + y * SCREEN_WIDTH) as usize;
+
+      if self.obj_lines[obj_line_index].priority <= obj_attributes.priority && obj_attributes.obj_mode != 2 {
+        continue;
+      }
+
+      let transformed_x = (dx * ix + dmx * iy) >> 8;
+      let transformed_y = (dy * ix + dmy * iy) >> 8;
+
+      let texture_x = transformed_x + obj_width as i16 / 2;
+      let texture_y = transformed_y + obj_height as i16 / 2;
+
+      if texture_x >= 0 && texture_x < obj_width as i16 && texture_y >= 0 && texture_y < obj_height as i16 {
+        // finally queue the pixel!
+
+        let tile_x = texture_x % 8;
+        let tile_y = texture_y % 8;
+
+        let tile_address = tile_base + (texture_x as u32 / 8 + (texture_y as u32 / 8) * tile_width) * tile_size;
+
+        let palette_index = if obj_attributes.palette_flag {
+          self.get_pixel_index_bpp8(tile_address, tile_x as u16, tile_y as u16, false, false)
+        } else {
+          self.get_pixel_index_bpp4(tile_address, tile_x as u16, tile_y as u16, false, false)
+        };
+
+        let color = self.get_palette_color(palette_index as usize, palette_bank as usize, 0x200);
+
+        if palette_index != 0 {
+          self.obj_lines[obj_line_index] = ObjectPixel {
+            priority: obj_attributes.priority,
+            color
+          }
+        }
+      }
+    }
 
   }
 
@@ -384,6 +493,20 @@ impl GPU {
     };
 
     (return_x, return_y)
+  }
+
+  fn get_obj_affine_params(&self, affine_index: u16) -> (i16, i16, i16, i16) {
+    let mut offset = affine_index * 32 + AFFINE_SIZE;
+
+    let dx = self.oam_read_16(offset as usize) as i16;
+    offset += 2 + AFFINE_SIZE;
+    let dmx = self.oam_read_16(offset as usize) as i16;
+    offset += 2 + AFFINE_SIZE;
+    let dy = self.oam_read_16(offset as usize) as i16;
+    offset += 2 + AFFINE_SIZE;
+    let dmy = self.oam_read_16(offset as usize) as i16;
+
+    (dx, dmx, dy, dmy)
   }
 
   fn get_attributes(&self, i: usize) -> OamAttributes {

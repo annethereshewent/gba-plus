@@ -28,4 +28,14 @@ impl InterruptRequestRegister {
       _ => panic!("invalid id specified for dma interrupt: {id}")
     }
   }
+
+  pub fn request_timer(&mut self, id: usize) {
+    match id {
+      0 => self.insert(Self::TIMER_0_OVERFLOW),
+      1 => self.insert(Self::TIMER_1_OVERFLOW),
+      2 => self.insert(Self::TIMER_2_OVERFLOW),
+      3 => self.insert(Self::TIMER_3_OVERFLOW),
+      _ => panic!("invalid id specified for dma interrupt: {id}")
+    }
+  }
 }

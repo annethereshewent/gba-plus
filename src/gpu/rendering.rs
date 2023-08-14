@@ -240,7 +240,6 @@ impl GPU {
       0
     };
 
-    let y = self.vcount;
     let (ref_x, ref_y) = (self.bg_props[bg2_index-2].internal_x, self.bg_props[bg2_index - 2].internal_y);
 
     let dx = self.bg_props[bg2_index-2].dx;

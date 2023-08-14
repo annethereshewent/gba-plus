@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType, timers::timer::TimerControl}};
 
 use super::CPU;
 
@@ -73,7 +73,14 @@ impl CPU {
       0x400_000e => self.gpu.bgcnt[3].bits(),
       // TODO
       0x400_0088 => 0x200,
-      // TODO: implement controller
+      0x400_0100 => self.timers.t[0].value,
+      0x400_0102 => self.timers.t[0].timer_ctl.bits(),
+      0x400_0104 => self.timers.t[1].value,
+      0x400_0106 => self.timers.t[1].timer_ctl.bits(),
+      0x400_0108 => self.timers.t[2].value,
+      0x400_010a => self.timers.t[2].timer_ctl.bits(),
+      0x400_010c => self.timers.t[3].value,
+      0x400_010e => self.timers.t[3].timer_ctl.bits(),
       0x400_0130 => self.key_input.bits(),
       0x400_0200 => self.interrupt_enable.bits(),
       0x400_0202 => self.interrupt_request.get().bits(),
@@ -387,6 +394,14 @@ impl CPU {
 
         self.dma_channels.set(dma);
       }
+      0x400_0100 => self.timers.t[0].reload_timer(value),
+      0x400_0102 => self.timers.write_timer_control(0, value),
+      0x400_0104 => self.timers.t[1].reload_timer(value),
+      0x400_0106 => self.timers.write_timer_control(1, value),
+      0x400_0108 => self.timers.t[2].reload_timer(value),
+      0x400_010a => self.timers.write_timer_control(2, value),
+      0x400_010c => self.timers.t[3].reload_timer(value),
+      0x400_010e => self.timers.write_timer_control(3, value),
       0x400_0200 => self.interrupt_enable = InterruptEnableRegister::from_bits_retain(value),
       0x400_0202 => self.clear_interrupts(value),
       0x400_0208 => self.interrupt_master_enable = value != 0,

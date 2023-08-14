@@ -9,7 +9,7 @@ use std::{rc::Rc, cell::Cell};
 
 use crate::gpu::GPU;
 
-use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister}, dma::dma_channels::DmaChannels};
+use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister}, dma::dma_channels::DmaChannels, timers::Timers};
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
@@ -18,6 +18,7 @@ pub mod bus;
 pub mod rotations_shifts;
 pub mod registers;
 pub mod dma;
+pub mod timers;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;
@@ -68,7 +69,8 @@ pub struct CPU {
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   is_halted: bool,
   dma_channels: Rc<Cell<DmaChannels>>,
-  pub key_input: KeyInputRegister
+  pub key_input: KeyInputRegister,
+  pub timers: Timers
 }
 
 
@@ -156,14 +158,15 @@ impl CPU {
       chip_wram: [0; 32 * 1024],
       post_flag: 0,
       gpu: GPU::new(interrupt_request.clone(), dma_channels.clone()),
-      interrupt_request,
+      interrupt_request: interrupt_request.clone(),
       cycle_luts: CycleLookupTables::new(),
       cycles: 0,
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
       dma_channels,
       is_halted: false,
-      key_input: KeyInputRegister::from_bits_retain(0x1ff)
+      key_input: KeyInputRegister::from_bits_retain(0x1ff),
+      timers: Timers::new(interrupt_request.clone())
     };
 
     cpu.populate_thumb_lut();
@@ -427,8 +430,9 @@ impl CPU {
   fn add_cycles(&mut self, cycles: u32) {
     self.cycles += cycles;
     self.gpu.tick(cycles);
-
     let mut dma = self.dma_channels.get();
+
+    self.timers.tick(cycles, &mut dma);
 
     for channel in &mut dma.channels {
       channel.tick(cycles);

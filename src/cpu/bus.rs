@@ -73,6 +73,10 @@ impl CPU {
       0x400_000e => self.gpu.bgcnt[3].bits(),
       // TODO
       0x400_0088 => 0x200,
+      0x400_00ba => self.dma_channels.get().channels[0].dma_control.bits(),
+      0x400_00c6 => self.dma_channels.get().channels[1].dma_control.bits(),
+      0x400_00d2 => self.dma_channels.get().channels[2].dma_control.bits(),
+      0x400_00de => self.dma_channels.get().channels[3].dma_control.bits(),
       0x400_0100 => self.timers.t[0].value,
       0x400_0102 => self.timers.t[0].timer_ctl.bits(),
       0x400_0104 => self.timers.t[1].value,

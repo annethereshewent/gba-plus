@@ -9,7 +9,7 @@ use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode};
 fn main() {
   let mut cpu = CPU::new();
 
-  // cpu.skip_bios();
+  cpu.skip_bios();
 
   let args: Vec<String> = env::args().collect();
 

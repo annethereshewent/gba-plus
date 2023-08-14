@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType, timers::timer::TimerControl}};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}};
 
 use super::CPU;
 
@@ -88,6 +88,7 @@ impl CPU {
       0x400_0130 => self.key_input.bits(),
       0x400_0200 => self.interrupt_enable.bits(),
       0x400_0202 => self.interrupt_request.get().bits(),
+      0x400_0204 => self.waitcnt.value,
       0x400_0208 => if self.interrupt_master_enable { 1 } else { 0 },
       0x400_0300 => self.post_flag,
       _ => {
@@ -408,6 +409,10 @@ impl CPU {
       0x400_010e => self.timers.write_timer_control(3, value),
       0x400_0200 => self.interrupt_enable = InterruptEnableRegister::from_bits_retain(value),
       0x400_0202 => self.clear_interrupts(value),
+      0x400_0204 => {
+        self.waitcnt.value = value;
+        self.cycle_luts.update_tables(&self.waitcnt);
+      }
       0x400_0208 => self.interrupt_master_enable = value != 0,
       0x400_0300 => self.post_flag = if value > 0 { 1 } else { 0 },
       0x400_0301 => {

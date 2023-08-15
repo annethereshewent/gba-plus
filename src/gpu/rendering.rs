@@ -146,7 +146,6 @@ impl GPU {
           transformed_x = transformed_x.rem_euclid(texture_size.into());
           transformed_y = transformed_y.rem_euclid(texture_size.into());
         } else {
-          // -1 means transparent
           self.bg_lines[background_id][x as usize] = None;
           continue;
         }

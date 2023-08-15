@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}, cartridge::BackupMedia};
 
 use super::CPU;
 
@@ -10,8 +10,12 @@ impl CPU {
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
     match address {
       0x400_0000..=0x400_03ff => self.io_read_16(address),
-      // TODO: this is a hack. fix later
-      0xd00_0000 if self.rom.len() <= (16 * 1024 * 1024) => 1,
+      0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) => {
+        if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
+          return eeprom_controller.read(address);
+        }
+        0
+      },
       _ => self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
     }
   }
@@ -37,7 +41,7 @@ impl CPU {
       0x700_0000..=0x7ff_ffff => self.gpu.oam_ram[(address & 0x3ff) as usize],
       0x800_0000..=0xdff_ffff => {
         let offset = address & 0x01ff_ffff;
-        if offset >= self.rom.len() as u32 {
+        if offset >= self.cartridge.rom.len() as u32 {
           let x = (address / 2) & 0xffff;
           if address & 1 != 0 {
               (x >> 8) as u8
@@ -45,7 +49,7 @@ impl CPU {
               x as u8
           }
         } else {
-          self.rom[offset as usize]
+          self.cartridge.rom[offset as usize]
         }
       }
       // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
@@ -141,6 +145,11 @@ impl CPU {
         let base_address = address & 0x3fe;
         self.gpu.oam_ram[base_address as usize] = lower;
         self.gpu.oam_ram[(base_address+ 1) as usize] = upper;
+      }
+      0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) => {
+        if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
+          eeprom_controller.write(address, val);
+        }
       }
       _ => {
         self.mem_write_8(address, lower);

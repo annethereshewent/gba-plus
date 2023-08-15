@@ -7,7 +7,7 @@
 
 use std::{rc::Rc, cell::Cell};
 
-use crate::gpu::GPU;
+use crate::{gpu::GPU, cartridge::{Cartridge, BackupMedia}};
 
 use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers};
 
@@ -60,7 +60,7 @@ pub struct CPU {
   bios: Vec<u8>,
   board_wram: [u8; 256 * 1024],
   chip_wram: [u8; 32 * 1024],
-  rom: Vec<u8>,
+  cartridge: Cartridge,
   next_fetch: MemoryAccess,
   cycle_luts: CycleLookupTables,
   pub gpu: GPU,
@@ -152,7 +152,11 @@ impl CPU {
       thumb_lut: Vec::new(),
       arm_lut: Vec::new(),
       pipeline: [0; 2],
-      rom: Vec::new(),
+      cartridge: Cartridge {
+        rom: Vec::new(),
+        file_path: "".to_string(),
+        backup: BackupMedia::Undetected
+      },
       bios: Vec::new(),
       next_fetch: MemoryAccess::NonSequential,
       board_wram: [0; 256 * 1024],
@@ -254,8 +258,10 @@ impl CPU {
     }
   }
 
-  pub fn load_game(&mut self, rom: Vec<u8>) {
-    self.rom = rom;
+  pub fn load_game(&mut self, rom: Vec<u8>, file_path: String) {
+    self.cartridge.rom = rom;
+    self.cartridge.file_path = file_path;
+    self.cartridge.detect_backup_media();
   }
 
   pub fn execute_thumb(&mut self, instr: u16) -> Option<MemoryAccess> {

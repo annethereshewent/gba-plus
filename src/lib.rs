@@ -3,4 +3,4 @@ extern crate bitflags;
 
 pub mod cpu;
 pub mod gpu;
-
+pub mod cartridge;

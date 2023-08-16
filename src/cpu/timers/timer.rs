@@ -38,7 +38,6 @@ impl Timer {
     if self.cycles_to_overflow > 0 {
       self.cycles += cycles;
 
-      self.value = self.initial_value + (self.cycles >> self.prescalar_shift) as u16;
       if self.cycles >= self.cycles_to_overflow {
         self.cycles -= self.cycles_to_overflow;
         self.handle_overflow();
@@ -47,6 +46,8 @@ impl Timer {
         self.initial_value = self.value;
 
         return true;
+      } else {
+        self.value = self.reload_value + (self.cycles >> self.prescalar_shift) as u16;
       }
     }
 

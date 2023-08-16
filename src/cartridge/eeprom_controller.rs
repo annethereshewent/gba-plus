@@ -3,7 +3,8 @@ use std::fs;
 use super::backup_file::BackupFile;
 
 pub struct EepromController {
-  chip: EepromChip
+  chip: EepromChip,
+  detected: bool
 }
 
 impl EepromController {
@@ -11,26 +12,67 @@ impl EepromController {
     let file_path = &file_path.replace(".gba", ".sav");
     let mut eeprom_type = EepromType::Eeprom512;
 
+    let mut detected = false;
+
     if let Ok(metadata) = fs::metadata(file_path) {
       eeprom_type = match metadata.len() {
         512 => EepromType::Eeprom512,
         8192 => EepromType::Eeprom8k,
         _ => panic!("invalid eeprom type detected")
       };
+
+      detected = true;
     }
 
     let size = eeprom_type.size();
     Self {
-      chip: EepromChip::new(eeprom_type, BackupFile::new(size, file_path))
+      chip: EepromChip::new(eeprom_type, BackupFile::new(size, file_path)),
+      detected
     }
   }
 
   pub fn read(&mut self, address: u32) -> u16 {
-    self.chip.clock_data_out(address) as u16
+    if self.detected {
+      self.chip.clock_data_out(address) as u16
+    } else {
+      0
+    }
   }
 
   pub fn write(&mut self, address: u32, val: u16) {
-    self.chip.clock_data_in(address, val as u8);
+    if self.detected {
+      self.chip.clock_data_in(address, val as u8);
+    }
+  }
+
+  pub fn handle_dma(&mut self, destination: u32, source: u32, count: u32) {
+    if !self.detected {
+      match (destination, source) {
+        (0xd00_0000..=0xdff_ffff, _) => {
+          let eeprom_type = match count {
+            9 => EepromType::Eeprom512,
+            17 => EepromType::Eeprom8k,
+            73 => EepromType::Eeprom512,
+            81 => EepromType::Eeprom8k,
+            _ => panic!("invalid count sent to eeprom dma")
+          };
+
+          self.detected = true;
+          self.chip.set_type(eeprom_type);
+        }
+        (_, 0xd00_0000..=0xdff_ffff) => {
+          panic!("reading from eeprom when size has not been detected yet!")
+        }
+        _ => ()
+      }
+    } else {
+      if !self.chip.transmitting() {
+        println!("resetting da eeprom");
+        self.chip.state = SpiState::RxInstruction;
+        self.chip.reset_rx_buffer();
+        self.chip.reset_tx_buffer();
+      }
+    }
   }
 }
 
@@ -66,6 +108,11 @@ impl EepromChip {
 
       address: 0
     }
+  }
+
+  fn set_type(&mut self, eeprom_type: EepromType) {
+    self.address_bits = eeprom_type.bits();
+    self.memory.resize(eeprom_type.size())
   }
 
   fn fill_tx_buffer(&mut self) {
@@ -127,14 +174,19 @@ impl EepromChip {
     match value {
       0b10 =>  SpiInstruction::Read,
       0b11 => SpiInstruction::Write,
-      _ => SpiInstruction::Read
+      _ => panic!("invalid value specified for get_instruction: {value}")
+    }
+  }
+
+  pub fn transmitting(&self) -> bool {
+    match self.state {
+      SpiState::TxData | SpiState::TxDummy => true,
+      _ => false
     }
   }
 
   pub fn clock_data_in(&mut self, _address: u32, val: u8) {
-    let bit0 = if val & 0b1 == 1 { 1 } else { 0 };
-
-    self.rx_buffer = (self.rx_buffer << 1) | bit0;
+    self.rx_buffer = (self.rx_buffer << 1) | (val & 0b1) as u64;
 
     self.rx_count += 1;
 
@@ -159,7 +211,7 @@ impl EepromChip {
             SpiInstruction::Write => {
               self.state = SpiState::RxData;
               self.is_ready = false;
-              self.reset_tx_buffer();
+              self.reset_rx_buffer();
             }
           }
         }

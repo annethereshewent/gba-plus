@@ -10,7 +10,7 @@ impl CPU {
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
     match address {
       0x400_0000..=0x400_03ff => self.io_read_16(address),
-      0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) => {
+      0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) || address >= 0xdff_ff00 => {
         if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
           return eeprom_controller.read(address);
         }
@@ -146,7 +146,7 @@ impl CPU {
         self.gpu.oam_ram[base_address as usize] = lower;
         self.gpu.oam_ram[(base_address+ 1) as usize] = upper;
       }
-      0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) => {
+      0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) || address >= 0xdff_ff00 => {
         if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
           eeprom_controller.write(address, val);
         }

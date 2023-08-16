@@ -1,4 +1,4 @@
-use crate::cpu::{CPU, MemoryAccess};
+use crate::{cpu::{CPU, MemoryAccess}, cartridge::{BackupMedia, eeprom_controller}};
 
 use self::registers::dma_control_register::DmaControlRegister;
 
@@ -70,7 +70,12 @@ impl DmaChannel {
       2 => 0,
       _ => panic!("illegal value specified for source address control")
     };
-    // TODO: do backup eeprom for channel 3
+
+    if self.id == 3 && word_size == 2 {
+      if let BackupMedia::Eeprom(eeprom_controller) = &mut cpu.cartridge.backup {
+        eeprom_controller.handle_dma(self.internal_destination_address, self.internal_source_address, self.internal_count.into());
+      }
+    }
 
 
     let mut access = MemoryAccess::NonSequential;

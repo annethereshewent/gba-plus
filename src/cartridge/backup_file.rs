@@ -1,4 +1,4 @@
-use std::{fs::{File, self}, io::{Read, SeekFrom, Seek, Write}, path::Path};
+use std::{fs::{File, self}, io::{Read, SeekFrom, Seek, Write}, path::PathBuf};
 
 pub struct BackupFile {
   size: usize,
@@ -7,9 +7,9 @@ pub struct BackupFile {
 }
 
 impl BackupFile {
-  pub fn new(size: usize, file_path: &String) -> Self {
-    if !Path::new(file_path).is_file() {
-      let mut file = File::create(file_path).unwrap();
+  pub fn new(size: usize, file_path: PathBuf) -> Self {
+    if !file_path.is_file() {
+      let mut file = File::create(&file_path).unwrap();
       file.write_all(&vec![0xff; size]).unwrap();
     }
 

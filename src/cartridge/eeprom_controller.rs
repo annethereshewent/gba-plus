@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use super::backup_file::BackupFile;
 
@@ -8,13 +8,12 @@ pub struct EepromController {
 }
 
 impl EepromController {
-  pub fn new(file_path: &String) -> Self {
-    let file_path = &file_path.replace(".gba", ".sav");
+  pub fn new(file_path: PathBuf) -> Self {
     let mut eeprom_type = EepromType::Eeprom512;
 
     let mut detected = false;
 
-    if let Ok(metadata) = fs::metadata(file_path) {
+    if let Ok(metadata) = fs::metadata(&file_path) {
       eeprom_type = match metadata.len() {
         512 => EepromType::Eeprom512,
         8192 => EepromType::Eeprom8k,

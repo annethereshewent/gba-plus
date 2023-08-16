@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use self::{eeprom_controller::EepromController, flash::Flash, backup_file::BackupFile};
 
 pub mod eeprom_controller;
@@ -10,15 +12,6 @@ pub struct Cartridge {
   pub file_path: String
 }
 
-// pub enum BackupType {
-//   Eeprom = 0,
-//   Sram = 1,
-//   Flash = 2,
-//   Flash512 = 3,
-//   Flash1024 = 4,
-//   Undetected = 5
-// }
-
 pub enum BackupMedia {
   Eeprom(EepromController),
   Flash(Flash),
@@ -26,26 +19,26 @@ pub enum BackupMedia {
   Undetected
 }
 
+const BACKUP_MEDIA: &[&str] = &["EEPROM", "SRAM", "FLASH_", "FLASH512_", "FLASH1M_"];
 
 impl Cartridge {
   pub fn detect_backup_media(&mut self) {
-    const BACKUP_MEDIA: &[&str] = &["EEPROM", "SRAM", "FLASH_", "FLASH512_", "FLASH1M_"];
-
     for i in 0..5 {
       let needle = BACKUP_MEDIA[i].as_bytes();
 
       if let Some(_) = self.rom.windows(needle.len()).position(|window| window == needle) {
-        self.backup = self.detect_backup(i);
+        self.backup = self.create_backup(i);
         break;
       }
     }
   }
 
-  fn detect_backup(&self, index: usize) -> BackupMedia {
+  fn create_backup(&self, index: usize) -> BackupMedia {
+    let backup_path = Path::new(&self.file_path).with_extension("sav");
     match index {
-      0 => BackupMedia::Eeprom(EepromController::new(&self.file_path)),
+      0 => BackupMedia::Eeprom(EepromController::new(backup_path)),
+      1 => BackupMedia::Sram(BackupFile::new(32 * 1024, backup_path)),
       // TODO
-      // 1 => BackupMedia::Sram(BackupFile::new(self.file_path)),
       // 2 => BackupMedia::Flash(Flash::new(self.file_path)), // regular flash
       // 3 => BackupMedia::Flash(Flash::new(self.file_path)), // flash 512
       // 4 => BackupMedia::Flash(Flash::new(self.file_path)), // flash 1024

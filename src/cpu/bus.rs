@@ -52,6 +52,13 @@ impl CPU {
           self.cartridge.rom[offset as usize]
         }
       }
+      0xe000_000..=0xeff_ffff => {
+        if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
+          sram.read((address & 0x7fff) as usize)
+        } else {
+          0
+        }
+      }
       // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
         // println!("reading from unsupported address: {:X}", address);
@@ -174,6 +181,11 @@ impl CPU {
         }
 
         self.mem_write_16(offset, (val as u16) * 0x101);
+      }
+      0xe000_000..=0xeff_ffff => {
+        if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
+          sram.write((address & 0x7fff) as usize, val);
+        }
       }
       _ => {
         // println!("writing go unsupported address: {:X}", address);

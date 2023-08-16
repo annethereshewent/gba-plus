@@ -170,7 +170,7 @@ impl CPU {
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
       dma_channels,
       is_halted: false,
-      key_input: KeyInputRegister::from_bits_retain(0x1ff),
+      key_input: KeyInputRegister::from_bits_retain(0x3ff),
       timers: Timers::new(interrupt_request.clone()),
       waitcnt: WaitstateControlRegister::new()
     };

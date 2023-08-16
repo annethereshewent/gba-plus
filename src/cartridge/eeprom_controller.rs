@@ -67,7 +67,6 @@ impl EepromController {
       }
     } else {
       if !self.chip.transmitting() {
-        println!("resetting da eeprom");
         self.chip.state = SpiState::RxInstruction;
         self.chip.reset_rx_buffer();
         self.chip.reset_tx_buffer();

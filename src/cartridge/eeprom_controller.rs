@@ -66,7 +66,7 @@ impl EepromController {
         _ => ()
       }
     } else {
-      if !self.chip.transmitting() {
+      if !self.chip.transmitting() && matches!(destination, 0xd00_0000..=0xdff_ffff) {
         self.chip.state = SpiState::RxInstruction;
         self.chip.reset_rx_buffer();
         self.chip.reset_tx_buffer();
@@ -171,9 +171,9 @@ impl EepromChip {
 
   fn get_instruction(&self, value: u64) -> SpiInstruction {
     match value {
-      0b10 =>  SpiInstruction::Read,
-      0b11 => SpiInstruction::Write,
-      _ => panic!("invalid value specified for get_instruction: {value}")
+      0b11 =>  SpiInstruction::Read,
+      0b10 => SpiInstruction::Write,
+      _ => panic!("invalid value specified")
     }
   }
 
@@ -219,8 +219,7 @@ impl EepromChip {
         if self.rx_count == 64 {
           let mut data = self.rx_buffer;
           for i in 0..8 {
-            self.memory
-              .write(self.address + (7 - i), (data & 0xff) as u8);
+            self.memory.write(self.address + (7 - i), (data & 0xff) as u8);
             data >>= 8;
           }
 

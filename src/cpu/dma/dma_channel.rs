@@ -149,6 +149,8 @@ impl DmaChannel {
 
       if timing == 0 {
         self.cycles_to_transfer = 3;
+      } else {
+        self.pending = false;
       }
 
       self.fifo_mode = timing == 3

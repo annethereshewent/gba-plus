@@ -161,7 +161,9 @@ impl CPU {
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
     match address {
       0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize] = val,
-      0x300_0000..=0x3ff_ffff => self.chip_wram[(address & & 0x7fff) as usize] = val,
+      0x300_0000..=0x3ff_ffff => {
+        self.chip_wram[(address & & 0x7fff) as usize] = val
+      },
       0x400_0000..=0x400_03ff => self.io_write_8(address, val),
       0x500_0000..=0x5ff_ffff => self.mem_write_16(address & 0x3fe, (val as u16) * 0x101),
       0x600_0000..=0x6ff_ffff => {
@@ -408,13 +410,13 @@ impl CPU {
 
         self.dma_channels.set(dma);
       }
-      0x400_0100 => self.timers.t[0].reload_timer(value),
+      0x400_0100 => self.timers.t[0].reload_timer_value(value),
       0x400_0102 => self.timers.write_timer_control(0, value),
-      0x400_0104 => self.timers.t[1].reload_timer(value),
+      0x400_0104 => self.timers.t[1].reload_timer_value(value),
       0x400_0106 => self.timers.write_timer_control(1, value),
-      0x400_0108 => self.timers.t[2].reload_timer(value),
+      0x400_0108 => self.timers.t[2].reload_timer_value(value),
       0x400_010a => self.timers.write_timer_control(2, value),
-      0x400_010c => self.timers.t[3].reload_timer(value),
+      0x400_010c => self.timers.t[3].reload_timer_value(value),
       0x400_010e => self.timers.write_timer_control(3, value),
       0x400_0200 => self.interrupt_enable = InterruptEnableRegister::from_bits_retain(value),
       0x400_0202 => self.clear_interrupts(value),

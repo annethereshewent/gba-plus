@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell};
 
-use self::timer::{Timer, TimerControl, SHIFT_LUT};
+use self::timer::{Timer, TimerControl, CYCLE_LUT};
 
 use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_register::InterruptRequestRegister};
 
@@ -36,7 +36,7 @@ impl Timers {
 
       let next_timer = &mut self.t[next_timer_id];
 
-      if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.update() {
+      if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.count_up_timer() {
         self.handle_overflow(next_timer_id, dma);
       }
     }
@@ -50,18 +50,17 @@ impl Timers {
     let new_ctl = TimerControl::from_bits_retain(value);
     let mut timer = &mut self.t[timer_id];
 
-    timer.prescalar_shift = SHIFT_LUT[new_ctl.prescalar_selection() as usize];
+    timer.prescalar_frequency = CYCLE_LUT[new_ctl.prescalar_selection() as usize];
+
+    if new_ctl.contains(TimerControl::ENABLED) && !timer.timer_ctl.contains(TimerControl::ENABLED) {
+      timer.value = timer.reload_value;
+      timer.cycles = 0;
+      timer.running = true;
+    } else if !new_ctl.contains(TimerControl::ENABLED) {
+      timer.running = false;
+      timer.cycles = 0;
+    }
 
     timer.timer_ctl = new_ctl;
-
-    if new_ctl.contains(TimerControl::ENABLED) && !new_ctl.contains(TimerControl::COUNT_UP_TIMING) {
-      timer.running = true;
-
-      timer.cycles_to_overflow = timer.ticks_to_overflow() << timer.prescalar_shift;
-      timer.initial_value = value;
-    } else {
-      timer.running = false;
-      timer.cycles_to_overflow = 0;
-    }
   }
 }

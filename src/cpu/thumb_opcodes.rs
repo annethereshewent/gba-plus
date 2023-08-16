@@ -844,8 +844,9 @@ impl CPU {
 
     self.add_cycles(cycles);
 
-    self.cpsr.set(PSRRegister::CARRY, false);
+
     self.cpsr.set(PSRRegister::OVERFLOW, false);
+    self.set_carry_zero_and_negative_flags(result, false);
 
     result
   }

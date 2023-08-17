@@ -9,8 +9,6 @@ use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode};
 fn main() {
   let mut cpu = CPU::new();
 
-  cpu.skip_bios();
-
   let args: Vec<String> = env::args().collect();
 
   if args.len() != 2 {
@@ -23,6 +21,7 @@ fn main() {
 
   cpu.load_game(bytes, filepath.to_string());
   cpu.load_bios(fs::read("../gba_bios.bin").unwrap());
+  cpu.skip_bios();
 
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();

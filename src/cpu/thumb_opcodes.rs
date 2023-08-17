@@ -528,6 +528,7 @@ impl CPU {
         for r in 0..8 {
           if (rlist >> r) & 0b1 == 1 {
             let val = if r != rb {
+              first = false;
               self.r[r as usize]
             } else if first {
               first = false;
@@ -649,22 +650,6 @@ impl CPU {
 
       None
     }
-  }
-
-  fn bge(&self) -> bool {
-    self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
-  }
-
-  fn blt(&self) -> bool {
-    self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
-  }
-
-  fn bgt(&self) -> bool {
-    !self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
-  }
-
-  fn ble(&self) -> bool {
-    self.cpsr.contains(PSRRegister::ZERO) || self.cpsr.contains(PSRRegister::NEGATIVE) != self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn mov(&mut self, rd: u16, val: u32, set_flags: bool) {

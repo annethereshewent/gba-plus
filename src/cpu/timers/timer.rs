@@ -91,6 +91,23 @@ impl Timer {
   pub fn reload_timer_value(&mut self, value: u16) {
     self.reload_value = value;
   }
+
+  pub fn write_timer_control(&mut self, value: u16) {
+    let new_ctl = TimerControl::from_bits_retain(value);
+
+    self.prescalar_frequency = CYCLE_LUT[new_ctl.prescalar_selection() as usize];
+
+    if new_ctl.contains(TimerControl::ENABLED) && !self.timer_ctl.contains(TimerControl::ENABLED) {
+      self.value = self.reload_value;
+      self.cycles = 0;
+      self.running = true;
+    } else if !new_ctl.contains(TimerControl::ENABLED) {
+      self.running = false;
+      self.cycles = 0;
+    }
+
+    self.timer_ctl = new_ctl;
+  }
 }
 
 bitflags! {

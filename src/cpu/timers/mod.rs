@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell};
 
-use self::timer::{Timer, TimerControl, CYCLE_LUT};
+use self::timer::{Timer, TimerControl};
 
 use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_register::InterruptRequestRegister};
 
@@ -44,23 +44,5 @@ impl Timers {
     if timer_id == 0 || timer_id == 1 {
       // do apu related timer stuff
     }
-  }
-
-  pub fn write_timer_control(&mut self, timer_id: usize, value: u16) {
-    let new_ctl = TimerControl::from_bits_retain(value);
-    let mut timer = &mut self.t[timer_id];
-
-    timer.prescalar_frequency = CYCLE_LUT[new_ctl.prescalar_selection() as usize];
-
-    if new_ctl.contains(TimerControl::ENABLED) && !timer.timer_ctl.contains(TimerControl::ENABLED) {
-      timer.value = timer.reload_value;
-      timer.cycles = 0;
-      timer.running = true;
-    } else if !new_ctl.contains(TimerControl::ENABLED) {
-      timer.running = false;
-      timer.cycles = 0;
-    }
-
-    timer.timer_ctl = new_ctl;
   }
 }

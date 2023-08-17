@@ -75,12 +75,9 @@ impl CycleLookupTables {
       self.n_cycles_16[WAITSTATE_2_PAGE + i] = 1 + waitcnt.waitstate_2_first_access_cycles() as u32;
       self.s_cycles_16[WAITSTATE_2_PAGE + i] = 1 + waitcnt.waitstate_2_second_access_cycles() as u32;
 
-      self.n_cycles_32[WAITSTATE_0_PAGE + i] =
-        self.n_cycles_16[WAITSTATE_0_PAGE + i] + self.s_cycles_16[WAITSTATE_0_PAGE + i];
-      self.n_cycles_32[WAITSTATE_1_PAGE + i] =
-        self.n_cycles_16[WAITSTATE_1_PAGE + i] + self.s_cycles_16[WAITSTATE_1_PAGE + i];
-      self.n_cycles_32[WAITSTATE_2_PAGE + i] =
-        self.n_cycles_16[WAITSTATE_2_PAGE + i] + self.s_cycles_16[WAITSTATE_2_PAGE + i];
+      self.n_cycles_32[WAITSTATE_0_PAGE + i] = self.n_cycles_16[WAITSTATE_0_PAGE + i] + self.s_cycles_16[WAITSTATE_0_PAGE + i];
+      self.n_cycles_32[WAITSTATE_1_PAGE + i] = self.n_cycles_16[WAITSTATE_1_PAGE + i] + self.s_cycles_16[WAITSTATE_1_PAGE + i];
+      self.n_cycles_32[WAITSTATE_2_PAGE + i] = self.n_cycles_16[WAITSTATE_2_PAGE + i] + self.s_cycles_16[WAITSTATE_2_PAGE + i];
 
       self.s_cycles_32[WAITSTATE_0_PAGE + i] = 2 * self.s_cycles_16[WAITSTATE_0_PAGE + i];
       self.s_cycles_32[WAITSTATE_1_PAGE + i] = 2 * self.s_cycles_16[WAITSTATE_1_PAGE + i];

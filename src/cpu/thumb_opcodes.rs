@@ -528,7 +528,6 @@ impl CPU {
         for r in 0..8 {
           if (rlist >> r) & 0b1 == 1 {
             let val = if r != rb {
-              first = false;
               self.r[r as usize]
             } else if first {
               first = false;
@@ -677,7 +676,7 @@ impl CPU {
   }
 
   fn bgt(&self) -> bool {
-    self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
+    !self.cpsr.contains(PSRRegister::ZERO) && self.cpsr.contains(PSRRegister::NEGATIVE) == self.cpsr.contains(PSRRegister::OVERFLOW)
   }
 
   fn ble(&self) -> bool {

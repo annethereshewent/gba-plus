@@ -1,4 +1,4 @@
-use super::{GPU, SCREEN_WIDTH, SCREEN_HEIGHT, registers::{bg_control_register::BgControlRegister, display_control_register::DisplayControlRegister}, MODE5_WIDTH, MODE5_HEIGHT, ObjectPixel};
+use super::{GPU, SCREEN_WIDTH, SCREEN_HEIGHT, registers::{bg_control_register::BgControlRegister, display_control_register::DisplayControlRegister}, MODE5_WIDTH, MODE5_HEIGHT, ObjectPixel, COLOR_TRANSPARENT};
 
 // 2 bytes per tile
 const SCREEN_BLOCK_SIZE: u32 = 32 * 32 * 2;
@@ -193,7 +193,7 @@ impl GPU {
 
       let color_val = (self.vram[vram_index] as u16) | (self.vram[vram_index + 1] as u16) << 8;
 
-      self.bg_lines[bg2_index][x as usize] = self.translate_to_rgb(color_val);
+      self.bg_lines[bg2_index][x as usize] = self.get_rgb(color_val);
     }
   }
 
@@ -260,7 +260,7 @@ impl GPU {
 
       let color_val = (self.vram[vram_index] as u16) | (self.vram[vram_index + 1] as u16) << 8;
 
-      self.bg_lines[bg2_index][x as usize] = self.translate_to_rgb(color_val);
+      self.bg_lines[bg2_index][x as usize] = self.get_rgb(color_val);
     }
   }
 

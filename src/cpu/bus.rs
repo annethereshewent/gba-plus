@@ -82,6 +82,7 @@ impl CPU {
       0x400_000a => self.gpu.bgcnt[1].bits(),
       0x400_000c => self.gpu.bgcnt[2].bits(),
       0x400_000e => self.gpu.bgcnt[3].bits(),
+      0x400_0050 => self.gpu.bldcnt.value,
       // TODO
       0x400_0088 => 0x200,
       0x400_00ba => self.dma_channels.get().channels[0].dma_control.bits(),
@@ -214,7 +215,7 @@ impl CPU {
       (high $coordinate:ident $internal:ident $i:expr) => {{
         let existing = gpu.bg_props[$i].$coordinate;
 
-        let new_value = existing & 0xffff | ((((value & 0xfff) as i32) << 20) as i32) >> 4;
+        let new_value = existing & 0xffff | (((value & 0xfff) as i32) << 20) >> 4;
 
         gpu.bg_props[$i].$coordinate = new_value;
         gpu.bg_props[$i].$internal = new_value;
@@ -253,6 +254,9 @@ impl CPU {
       0x400_003a => write_bg_reference_point!(high x internal_x 1),
       0x400_003c => write_bg_reference_point!(low y internal_y 1),
       0x400_003e => write_bg_reference_point!(high y internal_y 1),
+      0x400_0050 => self.gpu.bldcnt.write(value),
+      0x400_0052 => self.gpu.bldalpha.write(value),
+      0x400_0054 => self.gpu.bldy.write(value),
       0x400_0088 => (),
       0x400_00b0 => {
         let mut dma = self.dma_channels.get();

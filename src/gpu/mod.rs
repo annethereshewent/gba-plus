@@ -1,8 +1,8 @@
-use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep};
+use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep, cmp};
 
 use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::{DmaChannels, VBLANK_TIMING, HBLANK_TIMING}};
 
-use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister}, picture::Picture};
+use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister, color_effects_register::{ColorEffectsRegister, ColorEffect}, alpha_blend_register::AlphaBlendRegister, brightness_register::BrightnessRegister}, picture::Picture};
 
 pub mod registers;
 pub mod picture;
@@ -65,10 +65,13 @@ pub struct GPU {
   pub bg_props: [BgProps; 2],
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
-  bg_lines: [[Option<(u8,u8,u8)>; SCREEN_WIDTH as usize]; 4],
+  bg_lines: [[Option<(u8, u8, u8)>; SCREEN_WIDTH as usize]; 4],
   obj_lines: [ObjectPixel; (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
   dma_channels: Rc<Cell<DmaChannels>>,
-  previous_time: u128
+  previous_time: u128,
+  pub bldcnt: ColorEffectsRegister,
+  pub bldalpha: AlphaBlendRegister,
+  pub bldy: BrightnessRegister
 }
 
 enum GpuMode {
@@ -124,7 +127,10 @@ impl GPU {
       bgyofs: [0; 4],
       dma_channels,
       obj_lines: [ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
-      previous_time: 0
+      previous_time: 0,
+      bldcnt: ColorEffectsRegister::new(),
+      bldalpha: AlphaBlendRegister::new(),
+      bldy: BrightnessRegister::new()
     }
   }
 
@@ -268,7 +274,7 @@ impl GPU {
       ((lower as u16) | (upper as u16) << 8) & 0x7fff
     };
 
-    self.translate_to_rgb(value)
+    self.get_rgb(value)
   }
 
   // TODO: refactor this and get rid of x_flip and y_flip
@@ -299,17 +305,22 @@ impl GPU {
     g_8 = (g << 2) | (g >> 4)
     b_8 = (b << 3) | (b >> 2)
   */
-  fn translate_to_rgb(&self, value: u16) -> Option<(u8, u8, u8)> {
-    // turn this into an rgb format that sdl can use
-    let mut r = (value & 0b11111) as u8;
-    let mut g = ((value >> 5) & 0b11111) as u8;
-    let mut b = ((value >> 10) & 0b11111) as u8;
+  fn translate_to_rgb24(&self, value: (u8, u8, u8)) -> (u8, u8, u8) {
+    let (mut r, mut g, mut b) = value;
 
     r = (r << 3) | (r >> 2);
     g = (g << 3) | (g >> 2);
     b = (b << 3) | (b >> 2);
 
-    if value == COLOR_TRANSPARENT { None } else {Some((r, g, b)) }
+   (r, g, b)
+  }
+
+  fn get_rgb(&self, value: u16) -> Option<(u8, u8, u8)> {
+    let r = (value & 0b11111) as u8;
+    let g = ((value >> 5) & 0b11111) as u8;
+    let b = ((value >> 10) & 0b11111) as u8;
+
+    if value != COLOR_TRANSPARENT { Some((r,g,b))} else { None }
   }
 
   fn bg_enabled(&self, bg_index: usize) -> bool {
@@ -360,7 +371,7 @@ impl GPU {
   }
 
   fn finalize_pixel(&mut self, x: usize, sorted: &Vec<usize>) {
-    let default_color = self.translate_to_rgb((self.palette_ram[0] as u16) | (self.palette_ram[1] as u16) << 8);
+    let default_color = self.get_rgb((self.palette_ram[0] as u16) | (self.palette_ram[1] as u16) << 8);
 
     // disregard blending effects for now so we can just draw the top layer.
     let mut top_layer: isize = -1;
@@ -376,7 +387,6 @@ impl GPU {
     for index in sorted {
       // if the pixel isn't transparent
       if let Some(_) = self.bg_lines[*index][x] {
-
         if bottom_layer == -1 {
           top_layer = *index as isize;
           top_layer_priority = self.bgcnt[*index].bg_priority() as isize;
@@ -390,27 +400,72 @@ impl GPU {
     }
 
     // check to see if object layer has higher priority
-    if top_layer_priority == -1 || (self.obj_lines[obj_line_index].priority <= top_layer_priority as u16) {
-      bottom_layer = top_layer;
-      top_layer = 4;
-    } else if bottom_layer_priority == -1 ||  (self.obj_lines[obj_line_index].priority <= bottom_layer_priority as u16) {
-      bottom_layer = 4;
+    if self.dispcnt.contains(DisplayControlRegister::DISPLAY_OBJ) {
+      if top_layer_priority == -1 || (self.obj_lines[obj_line_index].priority <= top_layer_priority as u16) {
+        bottom_layer = top_layer;
+        top_layer = 4;
+      } else if bottom_layer_priority == -1 ||  (self.obj_lines[obj_line_index].priority <= bottom_layer_priority as u16) {
+        bottom_layer = 4;
+      }
     }
 
-    if top_layer < 4 {
+    if top_layer < 4 && top_layer >= 0 {
       // safe to unwrap at this point since we have verified above the color exists
-      let color = self.bg_lines[top_layer as usize][x as usize].unwrap();
-      self.picture.set_pixel(x, y as usize, color);
+      let mut color = self.bg_lines[top_layer as usize][x as usize].unwrap();
+
+      if self.bldcnt.bg_first_pixels[top_layer as usize] {
+        match self.bldcnt.color_effect {
+          ColorEffect::AlphaBlending => {
+            let mut blend_layer: isize = -1;
+            for i in 0..self.bldcnt.bg_second_pixels.len() {
+              if self.bldcnt.bg_second_pixels[i] {
+                blend_layer = i as isize;
+                break;
+              }
+            }
+
+            if blend_layer != -1 {
+              if let Some(color2) = self.bg_lines[blend_layer as usize][x as usize] {
+                // do alpha blending here
+                color = self.blend_colors(color, color2, self.bldalpha.eva, self.bldalpha.evb);
+              }
+            }
+          }
+          ColorEffect::Darken => {
+            // blending with black
+            let color2: (u8, u8, u8) = (31, 31, 31);
+
+            color = self.blend_colors(color, color2, 16 - self.bldy.evy, self.bldy.evy);
+          }
+          ColorEffect::Brighten => {
+            // blending with white
+            let color2: (u8, u8, u8) = (0, 0, 0);
+
+            color = self.blend_colors(color, color2, 16 - self.bldy.evy, self.bldy.evy);
+          }
+          ColorEffect::None => ()
+        }
+      }
+
+      self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(color));
     } else if let Some(color) = self.obj_lines[obj_line_index].color {
       // render object pixel
-      self.picture.set_pixel(x, y as usize, color);
+      self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(color));
     } else if bottom_layer != -1 {
       let color = self.bg_lines[bottom_layer as usize][x as usize].unwrap();
-      self.picture.set_pixel(x, y as usize, color);
+      self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(color));
     }
     else {
-      self.picture.set_pixel(x, y as usize, default_color.unwrap());
+      self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(default_color.unwrap()));
     }
+  }
+
+  fn blend_colors(&self, color: (u8, u8, u8), color2: (u8, u8, u8), eva: u8, evb: u8) -> (u8, u8, u8) {
+    let r = cmp::min(31, (color.0 * eva + color2.0 * evb) >> 4);
+    let g = cmp::min(31, (color.1 * eva + color2.1 * evb) >> 4);
+    let b = cmp::min(31, (color.2 * eva + color2.2 * evb) >> 4);
+
+    (r, g, b)
   }
 
   fn render_scanline(&mut self) {

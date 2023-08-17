@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::Cell};
+use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep};
 
 use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::{DmaChannels, VBLANK_TIMING, HBLANK_TIMING}};
 
@@ -31,6 +31,8 @@ pub const CYCLES_PER_FRAME: u32 = CYCLES_PER_SCANLINE * SCANLINES_PER_FRAME;
 const VRAM_OBJECT_START_TILE: u32 = 0x1_0000;
 const VRAM_OBJECT_START_BITMAP: u32 = 0x1_4000;
 const COLOR_TRANSPARENT: u16 = 0x8000;
+
+const FPS_INTERVAL: u32 = 1000 / 60;
 
 #[derive(Copy, Clone)]
 pub struct ObjectPixel {
@@ -65,7 +67,8 @@ pub struct GPU {
   vram_obj_start: u32,
   bg_lines: [[Option<(u8,u8,u8)>; SCREEN_WIDTH as usize]; 4],
   obj_lines: [ObjectPixel; (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
-  dma_channels: Rc<Cell<DmaChannels>>
+  dma_channels: Rc<Cell<DmaChannels>>,
+  previous_time: u128
 }
 
 enum GpuMode {
@@ -120,7 +123,8 @@ impl GPU {
       bgxofs: [0; 4],
       bgyofs: [0; 4],
       dma_channels,
-      obj_lines: [ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize]
+      obj_lines: [ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
+      previous_time: 0
     }
   }
 
@@ -316,6 +320,26 @@ impl GPU {
       3 => self.dispcnt.contains(DisplayControlRegister::DISPLAY_BG3),
       _ => panic!("shouldn't happen")
     }
+  }
+
+  pub fn cap_fps(&mut self) {
+    let current_time = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .expect("an error occurred")
+      .as_millis();
+
+    if self.previous_time != 0 {
+      let diff = current_time - self.previous_time;
+      if diff < FPS_INTERVAL as u128 {
+        // sleep for the missing time
+        sleep(Duration::from_millis((FPS_INTERVAL - diff as u32) as u64));
+      }
+    }
+
+    self.previous_time = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .expect("an error occurred")
+      .as_millis();
   }
 
   fn finalize_scanline(&mut self, start: usize, end: usize) {

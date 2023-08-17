@@ -103,6 +103,8 @@ fn main() {
       cycles += cpu.step();
     }
 
+    cpu.gpu.cap_fps();
+
     cycles = 0;
 
     texture.update(None, &cpu.gpu.picture.data, SCREEN_WIDTH as usize * 3).unwrap();

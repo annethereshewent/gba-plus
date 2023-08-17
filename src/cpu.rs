@@ -583,8 +583,6 @@ impl CPU {
 
     interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() & !value);
 
-    // println!("new interrupt request is {:b}", interrupt_request.bits());
-
     self.interrupt_request.set(interrupt_request);
   }
 

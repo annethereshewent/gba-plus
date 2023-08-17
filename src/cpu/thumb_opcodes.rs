@@ -531,11 +531,9 @@ impl CPU {
               first = false;
               self.r[r as usize]
             } else if first {
-              // println!("huh?");
               first = false;
               address
             } else {
-              // println!("this guy is causing issues");
               address + (rlist.count_ones() - 1) * 4
             };
 

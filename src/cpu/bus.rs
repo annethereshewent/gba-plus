@@ -9,7 +9,7 @@ impl CPU {
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
     match address {
-      0x400_0000..=0x400_03ff => self.io_read_16(address),
+      0x400_0000..=0x4ff_ffff => self.io_read_16(address),
       0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) || address >= 0xdff_ff00 => {
         if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
           return eeprom_controller.read(address);
@@ -27,7 +27,7 @@ impl CPU {
       0x300_0000..=0x3ff_ffff => {
         self.chip_wram[(address & 0x7fff) as usize]
       },
-      0x400_0000..=0x400_03fe => self.io_read_8(address),
+      0x400_0000..=0x4ff_ffff => self.io_read_8(address),
       0x500_0000..=0x5ff_ffff => self.gpu.palette_ram[(address & 0x3ff) as usize],
       0x600_0000..=0x6ff_ffff => {
         let mut offset = address % VRAM_SIZE as u32;
@@ -52,7 +52,7 @@ impl CPU {
           self.cartridge.rom[offset as usize]
         }
       }
-      0xe000_000..=0xeff_ffff => {
+      0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
         if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
           sram.read((address & 0x7fff) as usize)
         } else {
@@ -132,7 +132,7 @@ impl CPU {
     let lower = (val & 0xff) as u8;
 
     match address {
-      0x400_0000..=0x400_03ff => self.io_write_16(address, val),
+      0x400_0000..=0x4ff_ffff => self.io_write_16(address, val),
       0x500_0000..=0x5ff_ffff => {
         let base_address = address & 0x3fe;
         self.gpu.palette_ram[base_address as usize] = lower;
@@ -169,9 +169,9 @@ impl CPU {
     match address {
       0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize] = val,
       0x300_0000..=0x3ff_ffff => {
-        self.chip_wram[(address & & 0x7fff) as usize] = val
+        self.chip_wram[(address & 0x7fff) as usize] = val
       },
-      0x400_0000..=0x400_03ff => self.io_write_8(address, val),
+      0x400_0000..=0x4ff_ffff => self.io_write_8(address, val),
       0x500_0000..=0x5ff_ffff => self.mem_write_16(address & 0x3fe, (val as u16) * 0x101),
       0x600_0000..=0x6ff_ffff => {
         let mut offset = address % VRAM_SIZE as u32;
@@ -180,9 +180,9 @@ impl CPU {
           offset -= 0x8000
         }
 
-        self.mem_write_16(offset, (val as u16) * 0x101);
+        self.mem_write_16(offset & !(0b1), (val as u16) * 0x101);
       }
-      0xe000_000..=0xeff_ffff => {
+      0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
         if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
           sram.write((address & 0x7fff) as usize, val);
         }

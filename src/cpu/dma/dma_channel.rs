@@ -1,4 +1,4 @@
-use crate::{cpu::{CPU, MemoryAccess}, cartridge::{BackupMedia, eeprom_controller}};
+use crate::{cpu::{CPU, MemoryAccess}, cartridge::BackupMedia};
 
 use self::registers::dma_control_register::DmaControlRegister;
 

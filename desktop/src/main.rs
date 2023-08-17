@@ -27,6 +27,24 @@ fn main() {
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
 
+  let game_controller_subsystem = sdl_context.game_controller().unwrap();
+
+  let available = game_controller_subsystem
+      .num_joysticks()
+      .map_err(|e| format!("can't enumerate joysticks: {}", e)).unwrap();
+
+  let _controller = (0..available)
+    .find_map(|id| {
+      match game_controller_subsystem.open(id) {
+        Ok(c) => {
+          Some(c)
+        }
+        Err(_) => {
+          None
+        }
+      }
+    });
+
   let mut key_map = HashMap::new();
 
   key_map.insert(Keycode::W, KeyInputRegister::Up);
@@ -45,6 +63,22 @@ fn main() {
 
   key_map.insert(Keycode::Return, KeyInputRegister::Start);
   key_map.insert(Keycode::Tab, KeyInputRegister::Select);
+
+  let mut joypad_map = HashMap::new();
+
+  joypad_map.insert(0, KeyInputRegister::ButtonA);
+  joypad_map.insert(2, KeyInputRegister::ButtonB);
+
+  joypad_map.insert(6, KeyInputRegister::Start);
+  joypad_map.insert(4, KeyInputRegister::Select);
+
+  joypad_map.insert(11, KeyInputRegister::Up);
+  joypad_map.insert(12, KeyInputRegister::Down);
+  joypad_map.insert(13, KeyInputRegister::Left);
+  joypad_map.insert(14, KeyInputRegister::Right);
+
+  joypad_map.insert(9, KeyInputRegister::ButtonL);
+  joypad_map.insert(10, KeyInputRegister::ButtonR);
 
 
   let window = video_subsystem
@@ -91,6 +125,16 @@ fn main() {
         }
         Event::KeyUp { keycode, .. } => {
           if let Some(button) = key_map.get(&keycode.unwrap_or(Keycode::Return)) {
+            cpu.key_input.set(*button, true);
+          }
+        }
+        Event::JoyButtonDown { button_idx, .. } => {
+          if let Some(button) = joypad_map.get(&button_idx){
+            cpu.key_input.set(*button, false);
+          }
+        }
+        Event::JoyButtonUp { button_idx, .. } => {
+          if let Some(button) = joypad_map.get(&button_idx){
             cpu.key_input.set(*button, true);
           }
         }

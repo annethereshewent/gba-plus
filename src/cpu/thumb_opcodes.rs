@@ -602,23 +602,7 @@ impl CPU {
 
     // println!("condition = {cond}");
 
-    match cond {
-      0 => self.branch_if(self.cpsr.contains(PSRRegister::ZERO), signed_offset),
-      1 => self.branch_if(!self.cpsr.contains(PSRRegister::ZERO), signed_offset),
-      2 => self.branch_if(self.cpsr.contains(PSRRegister::CARRY), signed_offset),
-      3 => self.branch_if(!self.cpsr.contains(PSRRegister::CARRY), signed_offset),
-      4 => self.branch_if(self.cpsr.contains(PSRRegister::NEGATIVE), signed_offset),
-      5 => self.branch_if(!self.cpsr.contains(PSRRegister::NEGATIVE), signed_offset),
-      6 => self.branch_if(self.cpsr.contains(PSRRegister::OVERFLOW), signed_offset),
-      7 => self.branch_if(!self.cpsr.contains(PSRRegister::OVERFLOW), signed_offset),
-      8 => self.branch_if(self.cpsr.contains(PSRRegister::CARRY) && !self.cpsr.contains(PSRRegister::ZERO), signed_offset),
-      9 => self.branch_if(!self.cpsr.contains(PSRRegister::CARRY) || self.cpsr.contains(PSRRegister::ZERO), signed_offset),
-      10 => self.branch_if(self.bge(), signed_offset),
-      11 => self.branch_if(self.blt(), signed_offset),
-      12 => self.branch_if(self.bgt(), signed_offset),
-      13 => self.branch_if(self.ble(), signed_offset),
-      _ => panic!("shouldn't happen")
-    }
+    self.branch_if(self.arm_condition_met(cond as u8), signed_offset)
   }
 
   fn thumb_software_interrupt(&mut self, _instr: u16) -> Option<MemoryAccess> {

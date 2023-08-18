@@ -515,7 +515,7 @@ impl GPU {
     for index in sorted {
       // if the pixel isn't transparent
       if let Some(_) = self.bg_lines[*index][x] {
-        if bottom_layer == -1 {
+        if top_layer == -1 {
           top_layer = *index as isize;
           top_layer_priority = self.bgcnt[*index].bg_priority() as isize;
         } else {

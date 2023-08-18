@@ -36,7 +36,7 @@ impl Timer {
 
       let temp = if self.cycles >= self.prescalar_frequency {
         let to_add = self.cycles / self.prescalar_frequency;
-        self.cycles -= self.prescalar_frequency;
+        self.cycles = 0;
         self.value.wrapping_add(to_add as u16)
       } else {
         self.value

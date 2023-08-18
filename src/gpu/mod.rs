@@ -2,7 +2,7 @@ use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::
 
 use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::{DmaChannels, VBLANK_TIMING, HBLANK_TIMING}};
 
-use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister, color_effects_register::{ColorEffectsRegister, ColorEffect}, alpha_blend_register::AlphaBlendRegister, brightness_register::BrightnessRegister}, picture::Picture};
+use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister, color_effects_register::{ColorEffectsRegister, ColorEffect}, alpha_blend_register::AlphaBlendRegister, brightness_register::BrightnessRegister, window_horizontal_register::WindowHorizontalRegister, window_vertical_register::WindowVerticalRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, picture::Picture};
 
 pub mod registers;
 pub mod picture;
@@ -34,17 +34,27 @@ const COLOR_TRANSPARENT: u16 = 0x8000;
 
 const FPS_INTERVAL: u32 = 1000 / 60;
 
+enum WindowType {
+  Zero = 0,
+  One = 1,
+  Obj = 2,
+  Out = 3,
+  None = 4
+}
+
 #[derive(Copy, Clone)]
 pub struct ObjectPixel {
   pub priority: u16,
-  pub color: Option<(u8, u8, u8)>
+  pub color: Option<(u8, u8, u8)>,
+  pub is_window: bool
 }
 
 impl ObjectPixel {
   pub fn new() -> Self {
     Self {
       priority: 4,
-      color: None
+      color: None,
+      is_window: false
     }
   }
 }
@@ -71,7 +81,11 @@ pub struct GPU {
   previous_time: u128,
   pub bldcnt: ColorEffectsRegister,
   pub bldalpha: AlphaBlendRegister,
-  pub bldy: BrightnessRegister
+  pub bldy: BrightnessRegister,
+  pub winh: [WindowHorizontalRegister; 2],
+  pub winv: [WindowVerticalRegister; 2],
+  pub winin: WindowInRegister,
+  pub winout: WindowOutRegister
 }
 
 enum GpuMode {
@@ -130,7 +144,11 @@ impl GPU {
       previous_time: 0,
       bldcnt: ColorEffectsRegister::new(),
       bldalpha: AlphaBlendRegister::new(),
-      bldy: BrightnessRegister::new()
+      bldy: BrightnessRegister::new(),
+      winh: [WindowHorizontalRegister::new(); 2],
+      winv: [WindowVerticalRegister::new(); 2],
+      winin: WindowInRegister::from_bits_retain(0),
+      winout: WindowOutRegister::from_bits_retain(0)
     }
   }
 
@@ -365,12 +383,122 @@ impl GPU {
     sorted.sort_by_key(|key| (self.bgcnt[*key].bg_priority(), *key));
 
 
-    for x in 0..SCREEN_WIDTH {
-      self.finalize_pixel(x as usize, &sorted)
+    let mut occupied = [false; SCREEN_WIDTH as usize];
+
+    let y = self.vcount;
+
+    if self.dispcnt.windows_enabled() {
+      if self.dispcnt.contains(DisplayControlRegister::DISPLAY_WINDOW_0) {
+        if y >= self.winv[0].y1 && y < self.winv[0].y2 {
+          let mut window_sorted: Vec<usize> = Vec::new();
+
+          for bg in &sorted {
+            if (self.winin.window0_bg_enable() >> bg) & 0b1 == 1 {
+              window_sorted.push(*bg);
+            }
+          }
+
+          for x in self.winh[0].x1..self.winh[0].x2 {
+            if !occupied[x as usize] {
+              occupied[x as usize] = true;
+              self.finalize_pixel(x as usize, &window_sorted, WindowType::Zero);
+            }
+          }
+        }
+      }
+      if self.dispcnt.contains(DisplayControlRegister::DISPLAY_WINDOW_1) {
+        if y >= self.winv[1].y1 && y < self.winv[1].y2 {
+          let mut window_sorted: Vec<usize> = Vec::new();
+
+          for bg in &sorted {
+            if (self.winin.window1_bg_enable() >> bg) & 0b1 == 1 {
+              window_sorted.push(*bg);
+            }
+          }
+          for x in self.winh[0].x1..self.winh[0].x2 {
+            if !occupied[x as usize] {
+              occupied[x as usize] = true;
+              self.finalize_pixel(x as usize, &window_sorted, WindowType::One);
+            }
+          }
+        }
+      }
+
+
+      let mut outside_sorted: Vec<usize> = Vec::new();
+
+      for bg in &sorted {
+        if (self.winout.outside_window_background_enable_bits() >> bg) & 0b1 == 1 {
+          outside_sorted.push(*bg);
+        }
+      }
+
+      if self.dispcnt.contains(DisplayControlRegister::DISPLAY_OBJ_WINDOW) {
+        for x in 0..SCREEN_WIDTH {
+          if !occupied[x as usize] {
+            occupied[x as usize] = true;
+            let obj_index = (x + y * SCREEN_WIDTH) as usize;
+
+            if self.obj_lines[obj_index].is_window {
+              self.finalize_pixel(x as usize, &outside_sorted, WindowType::Obj);
+            } else {
+              self.finalize_pixel(x as usize, &outside_sorted, WindowType::Out);
+            }
+          }
+        }
+      }
+
+      // finally render pixels outside of window
+      for x in 0..SCREEN_WIDTH {
+        if !occupied[x as usize] {
+          self.finalize_pixel(x as usize, &outside_sorted, WindowType::Out);
+        }
+      }
+    } else {
+      // no windows enabled, just render as normal
+      for x in 0..SCREEN_WIDTH {
+        self.finalize_pixel(x as usize, &sorted, WindowType::None);
+      }
     }
   }
 
-  fn finalize_pixel(&mut self, x: usize, sorted: &Vec<usize>) {
+  fn is_window_obj_enabled(&self, window_type: &WindowType) -> bool {
+    match window_type {
+      WindowType::Zero => {
+        self.winin.contains(WindowInRegister::Window0ObjEnable)
+      }
+      WindowType::One => {
+        self.winin.contains(WindowInRegister::Window1ObjEnable)
+      }
+      WindowType::Obj => {
+        self.winout.contains(WindowOutRegister::ObjWindowObjEnable)
+      }
+      WindowType::Out => {
+        self.winout.contains(WindowOutRegister::OutsideWindowObjEnable)
+      }
+      WindowType::None => true
+    }
+  }
+
+  fn window_apply_effects(&self, window_type: &WindowType) -> bool {
+    match window_type {
+      WindowType::Zero => {
+        self.winin.contains(WindowInRegister::Window0ColorEffect)
+      }
+      WindowType::One => {
+        self.winin.contains(WindowInRegister::Window1ColorEffect)
+      }
+      WindowType::Obj => {
+        self.winout.contains(WindowOutRegister::ObjWIndowColorEffect)
+      }
+      WindowType::Out => {
+        self.winout.contains(WindowOutRegister::OutsideWindowColorEffect)
+      }
+      WindowType::None => true
+    }
+  }
+
+  fn finalize_pixel(&mut self, x: usize, sorted: &Vec<usize>, window_type: WindowType) {
     let default_color = self.get_rgb((self.palette_ram[0] as u16) | (self.palette_ram[1] as u16) << 8);
 
     // disregard blending effects for now so we can just draw the top layer.
@@ -400,7 +528,7 @@ impl GPU {
     }
 
     // check to see if object layer has higher priority
-    if self.dispcnt.contains(DisplayControlRegister::DISPLAY_OBJ) {
+    if self.dispcnt.contains(DisplayControlRegister::DISPLAY_OBJ) && self.is_window_obj_enabled(&window_type) {
       if top_layer_priority == -1 || (self.obj_lines[obj_line_index].priority <= top_layer_priority as u16) {
         bottom_layer = top_layer;
         top_layer = 4;
@@ -413,7 +541,7 @@ impl GPU {
       // safe to unwrap at this point since we have verified above the color exists
       let mut color = self.bg_lines[top_layer as usize][x as usize].unwrap();
 
-      if self.bldcnt.bg_first_pixels[top_layer as usize] {
+      if self.bldcnt.bg_first_pixels[top_layer as usize] && self.window_apply_effects(&window_type) {
         match self.bldcnt.color_effect {
           ColorEffect::AlphaBlending => {
             let mut blend_layer: isize = -1;
@@ -488,6 +616,7 @@ impl GPU {
             self.render_normal_background(i);
           }
         }
+
         self.finalize_scanline(0, 3);
       }
       1 => {

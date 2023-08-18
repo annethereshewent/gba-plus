@@ -4,3 +4,7 @@ pub mod bg_control_register;
 pub mod color_effects_register;
 pub mod alpha_blend_register;
 pub mod brightness_register;
+pub mod window_horizontal_register;
+pub mod window_vertical_register;
+pub mod window_in_register;
+pub mod window_out_register;

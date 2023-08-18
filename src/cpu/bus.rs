@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}, cartridge::BackupMedia};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}, cartridge::BackupMedia};
 
 use super::CPU;
 
@@ -82,6 +82,8 @@ impl CPU {
       0x400_000a => self.gpu.bgcnt[1].bits(),
       0x400_000c => self.gpu.bgcnt[2].bits(),
       0x400_000e => self.gpu.bgcnt[3].bits(),
+      0x400_0048 => self.gpu.winin.bits(),
+      0x400_004a => self.gpu.winout.bits(),
       0x400_0050 => self.gpu.bldcnt.value,
       // TODO
       0x400_0088 => 0x200,
@@ -254,6 +256,12 @@ impl CPU {
       0x400_003a => write_bg_reference_point!(high x internal_x 1),
       0x400_003c => write_bg_reference_point!(low y internal_y 1),
       0x400_003e => write_bg_reference_point!(high y internal_y 1),
+      0x400_0040 => self.gpu.winh[0].write(value),
+      0x400_0042 => self.gpu.winh[1].write(value),
+      0x400_0044 => self.gpu.winv[0].write(value),
+      0x400_0046 => self.gpu.winv[1].write(value),
+      0x400_0048 => self.gpu.winin = WindowInRegister::from_bits_retain(value),
+      0x400_004a => self.gpu.winout = WindowOutRegister::from_bits_retain(value),
       0x400_0050 => self.gpu.bldcnt.write(value),
       0x400_0052 => self.gpu.bldalpha.write(value),
       0x400_0054 => self.gpu.bldy.write(value),

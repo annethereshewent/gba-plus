@@ -30,4 +30,8 @@ impl DisplayControlRegister {
       _ => panic!("invalid bg provided")
     }
   }
+
+  pub fn windows_enabled(&self) -> bool {
+    self.contains(Self::DISPLAY_WINDOW_0) || self.contains(Self::DISPLAY_WINDOW_1) || self.contains(Self::DISPLAY_OBJ_WINDOW)
+  }
 }

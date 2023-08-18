@@ -561,13 +561,13 @@ impl GPU {
           }
           ColorEffect::Darken => {
             // blending with black
-            let color2: (u8, u8, u8) = (31, 31, 31);
+            let color2: (u8, u8, u8) = (0, 0, 0);
 
             color = self.blend_colors(color, color2, 16 - self.bldy.evy, self.bldy.evy);
           }
           ColorEffect::Brighten => {
             // blending with white
-            let color2: (u8, u8, u8) = (0, 0, 0);
+            let color2: (u8, u8, u8) = (31, 31, 31);
 
             color = self.blend_colors(color, color2, 16 - self.bldy.evy, self.bldy.evy);
           }

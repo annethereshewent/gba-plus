@@ -2,25 +2,33 @@ use std::{fs::{File, self}, io::{Read, SeekFrom, Seek, Write}, path::PathBuf};
 
 pub struct BackupFile {
   size: usize,
-  file: File,
+  file: Option<File>,
   buffer: Vec<u8>
 }
 
 impl BackupFile {
-  pub fn new(size: usize, file_path: PathBuf) -> Self {
-    if !file_path.is_file() {
-      let mut file = File::create(&file_path).unwrap();
-      file.write_all(&vec![0xff; size]).unwrap();
-    }
-
-    let mut file = fs::OpenOptions::new()
-      .read(true)
-      .write(true)
-      .open(file_path)
-      .unwrap();
-
+  pub fn new(size: usize, file_path: Option<PathBuf>) -> Self {
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
+    let file = if let Some(file_path) = file_path {
+      if !file_path.is_file() {
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(&vec![0xff; size]).unwrap();
+      }
+
+      let mut file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(file_path)
+        .unwrap();
+
+      file.read_to_end(&mut buffer).unwrap();
+
+      Some(file)
+    } else {
+      None
+    };
+
+
     buffer.resize(size, 0xff);
 
     Self {
@@ -37,8 +45,10 @@ impl BackupFile {
   pub fn write(&mut self, offset: usize, value: u8) {
     self.buffer[offset] = value;
 
-    self.file.seek(SeekFrom::Start(offset as u64)).unwrap();
-    self.file.write_all(&[value]).unwrap();
+    if let Some(file) = &mut self.file {
+      file.seek(SeekFrom::Start(offset as u64)).unwrap();
+      file.write_all(&[value]).unwrap();
+    }
   }
 
   pub fn resize(&mut self, new_size: usize) {
@@ -48,7 +58,9 @@ impl BackupFile {
   }
 
   pub fn flush(&mut self) {
-    self.file.seek(SeekFrom::Start(0)).unwrap();
-    self.file.write_all(&self.buffer).unwrap();
+    if let Some(file) = &mut self.file {
+      file.seek(SeekFrom::Start(0)).unwrap();
+      file.write_all(&self.buffer).unwrap();
+    }
   }
 }

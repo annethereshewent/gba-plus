@@ -8,19 +8,21 @@ pub struct EepromController {
 }
 
 impl EepromController {
-  pub fn new(file_path: PathBuf) -> Self {
+  pub fn new(file_path: Option<PathBuf>) -> Self {
     let mut eeprom_type = EepromType::Eeprom512;
 
     let mut detected = false;
 
-    if let Ok(metadata) = fs::metadata(&file_path) {
-      eeprom_type = match metadata.len() {
-        512 => EepromType::Eeprom512,
-        8192 => EepromType::Eeprom8k,
-        _ => panic!("invalid eeprom type detected")
-      };
+    if let Some(file_path) = &file_path {
+      if let Ok(metadata) = fs::metadata(&file_path) {
+        eeprom_type = match metadata.len() {
+          512 => EepromType::Eeprom512,
+          8192 => EepromType::Eeprom8k,
+          _ => panic!("invalid eeprom type detected")
+        };
 
-      detected = true;
+        detected = true;
+      }
     }
 
     let size = eeprom_type.size();

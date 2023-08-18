@@ -19,7 +19,7 @@ fn main() {
 
   let bytes: Vec<u8> = fs::read(filepath).unwrap();
 
-  cpu.load_game(bytes, filepath.to_string());
+  cpu.load_game(bytes, Some(filepath.to_string()));
   cpu.load_bios(fs::read("../gba_bios.bin").unwrap());
   cpu.skip_bios();
 

@@ -1,0 +1,15 @@
+[package]
+name = "gba-emulator-wasm"
+version = "0.1.0"
+authors = ["Anne Castrillon <anne.castrillon@gmail.com>"]
+edition = "2021"
+
+[lib]
+path="src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies.gba-emulator]
+path = "../"
+
+[dependencies]
+wasm-bindgen = "0.2.50"

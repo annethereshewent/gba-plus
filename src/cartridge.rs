@@ -9,7 +9,7 @@ pub mod backup_file;
 pub struct Cartridge {
   pub rom: Vec<u8>,
   pub backup: BackupMedia,
-  pub file_path: String
+  pub file_path: Option<String>
 }
 
 pub enum BackupMedia {
@@ -34,7 +34,13 @@ impl Cartridge {
   }
 
   fn create_backup(&self, index: usize) -> BackupMedia {
-    let backup_path = Path::new(&self.file_path).with_extension("sav");
+
+    let backup_path = if let Some(file_path) = &self.file_path {
+      Some(Path::new(file_path).with_extension("sav"))
+    } else {
+      None
+    };
+
     match index {
       0 => BackupMedia::Eeprom(EepromController::new(backup_path)),
       1 => BackupMedia::Sram(BackupFile::new(32 * 1024, backup_path)),

@@ -1,0 +1,298 @@
+<head>
+  <link href="//cdn.muicss.com/mui-0.10.3/css/mui.min.css" rel="stylesheet" type="text/css" />
+  <link href="styles.css" rel="stylesheet" type="text/css" />
+  <script src="//cdn.muicss.com/mui-0.10.3/js/mui.min.js"></script>
+</head>
+<body>
+  <title>GBA Emulator</title>
+  <div class="menu-bar" id="menu">
+    <span class="buttons">
+      <button class="mui-btn mui-btn--primary mui-btn--raised" id="load-game-btn">Load Game</button>
+      <button class="mui-btn mui-btn--accent mui-btn--raised" id="help-btn">Help</button>
+      <button id="full-screen" class="mui-btn mui-btn--danger mui-btn--raised">Full Screen</button>
+    </span>
+    <span class="header-title">
+      <h3>GBA Emulator</h3>
+    </span>
+  </div>
+  <div id="nes">
+    <input type="file" id="rom-input">
+    <canvas width="256" height="240" id="canvas" />
+  </div>
+  <div id="modal">
+    <div class="controls">
+      <span class="close" id="close-btn">&times;</span>
+      <div class="modal-title">
+        <h1>GBA Emulator</h1>
+      </div>
+      <h2>CONTROLS</h2>
+      <h3>Keyboard:</h3>
+      <ul>
+        <li><label>Up:</label> W key</li>
+        <li><label>Down:</label> S key</li>
+        <li><label>Left:</label> A key</li>
+        <li><label>Right:</label> D key</li>
+        <li><label>A button:</label> K key</li>
+        <li><label>B button:</label> J key</li>
+        <li><label>L button:</label> C key</li>
+        <li><label>R button:</label> V key</li>
+        <li><label>Select:</label> Tab</li>
+        <li><label>Start:</label> Enter</li>
+      </ul>
+      <h3>PS5 Controller:</h3>
+      <ul>
+        <li><label>D-Pad:</label> D-pad</li>
+        <li><label>A button:</label> X button</li>
+        <li><label>B button:</label> Square button</li>
+        <li><label>L button:</label> L button</li>
+        <li><label>R button:</label> R button</li>
+        <li><label>Start:</label> Start</li>
+        <li><label>Select:</label> Select</li>
+      </ul>
+      <p>Emulator written by <a href="https://www.github.com/annethereshewent">annethereshewent</a></p>
+    </div>
+  </div>
+
+  <script src="jszip.min.js"></script>
+  <script type="module">
+    import init, { WasmEmulator, ButtonEvent } from "./pkg/gba_emulator_wasm.js"
+
+    const SCREEN_WIDTH = 240
+    const SCREEN_HEIGHT = 160
+    const FPS_INTERVAL = 1000 / 60
+
+    async function main() {
+      document.getElementById("load-game-btn").addEventListener("click", loadRom)
+
+      document.getElementById("close-btn").addEventListener("click", hideHelpModal)
+
+      document.getElementById("help-btn").addEventListener("click", showHelpModal)
+
+      document.getElementById("full-screen").addEventListener("click", (e) => {
+        document.documentElement.requestFullscreen()
+      })
+
+      function loadRom() {
+        document.getElementById("rom-input").click()
+      }
+
+      const path = "pkg/gba_emulator_wasm_bg.wasm"
+
+      const wasm = await init(path)
+
+      const emulator = new WasmEmulator()
+
+      const romInput = document.getElementById("rom-input")
+
+      romInput.addEventListener("change", (e) => {
+        handleFileChange(e)
+      })
+
+      function showHelpModal() {
+        document.getElementById("modal").style.display = "block"
+      }
+
+      function hideHelpModal() {
+        document.getElementById("modal").style.display = "none"
+      }
+
+      let isPressingW = false
+      let isPressingA = false
+      let isPressingS = false
+      let isPressingD = false
+
+      let isPressingJ = false
+      let isPressingK = false
+
+      let isPressingSpace = false
+      let isPressingEnter = false
+      let isPressingTab = false
+      let isPressingShift = false
+
+      document.addEventListener("keyup", (e) => {
+        e.preventDefault()
+
+        switch (e.key) {
+          case "w":
+            isPressingW = false
+            break
+          case "a":
+            isPressingA = false
+            break
+          case "s":
+            isPressingS = false
+            break
+          case "d":
+            isPressingD = false
+            break
+          case "j":
+            isPressingJ = false
+            break
+          case "k":
+            isPressingK = false
+            break
+          case "Enter":
+            isPressingEnter = false
+            break
+          case "Tab":
+            isPressingTab = false
+            break
+          case "Space":
+            isPressingSpace = false
+            break
+          case "Shift":
+            isPressingShift = false
+            break
+        }
+      })
+
+      document.addEventListener("keydown", (e) => {
+        e.preventDefault()
+
+        switch (e.key) {
+          case "w":
+            isPressingW = true
+            break
+          case "a":
+            isPressingA = true
+            break
+          case "s":
+            isPressingS = true
+            break
+          case "d":
+            isPressingD = true
+            break
+          case "j":
+            isPressingJ = true
+            break
+          case "k":
+            isPressingK = true
+            break
+          case "Enter":
+            isPressingEnter = true
+            break
+          case "Tab":
+            isPressingTab = true
+            break
+          case "Space":
+            isPressingSpace = true
+            break
+          case "Shift":
+            isPressingShift = true
+            break
+        }
+      })
+
+      let fileName = ""
+
+      async function handleFileChange(e) {
+        if (e.target.files != null) {
+          const file = e.target.files[0]
+          fileName = file.name
+
+          let rom
+
+          if (file.name.indexOf(".zip") !== -1) {
+            // unzip the file first
+            const zipFile = await JSZip.loadAsync(file)
+            const zipFileName = Object.keys(zipFile.files)[0]
+
+            rom = await zipFile?.file(zipFileName)?.async('arraybuffer')
+          } else {
+            rom = await fileToArrayBuffer(file)
+          }
+
+          if (rom != null) {
+            console.log(emulator)
+            emulator.load(new Uint8Array(rom));
+
+            requestAnimationFrame((time) => run(time))
+          }
+        }
+      }
+
+      const context = document.getElementById("canvas").getContext("2d")
+
+      function getImageData() {
+        const rustMemory = new Uint8Array(wasm.memory.buffer, emulator.get_picture_pointer())
+
+        const imageData = context.getImageData(0,0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        for (let x = 0; x < SCREEN_WIDTH; x++) {
+          for (let y = 0; y < SCREEN_HEIGHT; y++) {
+            const imageIndex = x * 4 + y * SCREEN_WIDTH * 4;
+            const rustIndex = x * 3 + y * SCREEN_WIDTH * 3;
+
+            imageData.data[imageIndex] = rustMemory[rustIndex]
+            imageData.data[imageIndex+1] = rustMemory[rustIndex+1]
+            imageData.data[imageIndex+2] = rustMemory[rustIndex+2]
+            imageData.data[imageIndex+3] = 255
+          }
+        }
+
+        return imageData
+      }
+
+      const A_BUTTON = 0
+      const B_BUTTON = 1
+      const X_BUTTON = 2
+      const SELECT = 8
+      const START = 9
+      const UP = 12
+      const DOWN = 13
+      const LEFT = 14
+      const RIGHT = 15
+
+      function handleJoypadInput() {
+        const gamepad = navigator.getGamepads()[0]
+
+        emulator.update_input(ButtonEvent.ButtonA, gamepad?.buttons[A_BUTTON].pressed == true || isPressingK || isPressingSpace)
+        emulator.update_input(ButtonEvent.ButtonB, gamepad?.buttons[X_BUTTON].pressed == true || isPressingJ || isPressingShift)
+        emulator.update_input(ButtonEvent.Select, gamepad?.buttons[SELECT].pressed == true || isPressingTab)
+        emulator.update_input(ButtonEvent.Start, gamepad?.buttons[START].pressed == true || isPressingEnter)
+        emulator.update_input(ButtonEvent.Up, gamepad?.buttons[UP].pressed == true || isPressingW)
+        emulator.update_input(ButtonEvent.Down, gamepad?.buttons[DOWN].pressed == true || isPressingS)
+        emulator.update_input(ButtonEvent.Left, gamepad?.buttons[LEFT].pressed == true || isPressingA)
+        emulator.update_input(ButtonEvent.Right, gamepad?.buttons[RIGHT].pressed == true || isPressingD)
+      }
+
+      let frames = 0
+
+
+      function run(time) {
+        const diff = time - previousTime
+
+        if (diff >= FPS_INTERVAL || previousTime == 0) {
+          previousTime = time - (diff % FPS_INTERVAL)
+
+          emulator.step_frame()
+          context.putImageData(getImageData(), 0, 0)
+
+          handleJoypadInput()
+        }
+
+        frames++
+
+        requestAnimationFrame((time) => run(time))
+      }
+
+      function fileToArrayBuffer(file){
+        const fileReader = new FileReader()
+
+        return new Promise((resolve, reject) => {
+          fileReader.onload = () => resolve(fileReader.result)
+
+          fileReader.onerror = () => {
+            fileReader.abort()
+            reject(new Error("Error parsing file"))
+          }
+
+          fileReader.readAsArrayBuffer(file)
+        })
+      }
+    }
+
+
+    main()
+  </script>
+</body>

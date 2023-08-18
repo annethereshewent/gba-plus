@@ -154,7 +154,7 @@ impl CPU {
       pipeline: [0; 2],
       cartridge: Cartridge {
         rom: Vec::new(),
-        file_path: "".to_string(),
+        file_path: None,
         backup: BackupMedia::Undetected
       },
       bios: Vec::new(),
@@ -258,7 +258,7 @@ impl CPU {
     }
   }
 
-  pub fn load_game(&mut self, rom: Vec<u8>, file_path: String) {
+  pub fn load_game(&mut self, rom: Vec<u8>, file_path: Option<String>) {
     self.cartridge.rom = rom;
     self.cartridge.file_path = file_path;
     self.cartridge.detect_backup_media();

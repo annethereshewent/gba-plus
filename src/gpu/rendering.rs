@@ -46,6 +46,10 @@ impl OamAttributes {
 }
 
 impl GPU {
+  fn bg_transform(&self, ref_x: i32, ref_y: i32, screen_x: i32, dx: i32, dy: i32) -> (i32, i32) {
+    (((ref_x + screen_x * dx) >> 8), ((ref_y + screen_x * dy) >> 8))
+  }
+
   pub fn render_normal_background(&mut self, background_id: usize) {
     let (x_offset, y_offset) = (self.bgxofs[background_id], self.bgyofs[background_id]);
 
@@ -562,5 +566,43 @@ impl GPU {
 
   fn oam_read_16(&self, address: usize) -> u16 {
     (self.oam_ram[address] as u16) | (self.oam_ram[address + 1] as u16) << 8
+  }
+
+  fn get_palette_color(&self, index: usize, palette_bank: usize, offset: usize) -> Option<(u8, u8, u8)> {
+    let value = if index == 0 || (palette_bank != 0 && index % 16 == 0) {
+      COLOR_TRANSPARENT
+    } else {
+      let index = offset + 2 * index + 32 * palette_bank;
+
+      let lower = self.palette_ram[index];
+      let upper = self.palette_ram[index + 1];
+
+      ((lower as u16) | (upper as u16) << 8) & 0x7fff
+    };
+
+    self.get_rgb(value)
+  }
+
+  // TODO: refactor this and get rid of x_flip and y_flip
+  fn get_pixel_index_bpp8(&self, address: u32, tile_x: u16, tile_y: u16, x_flip: bool, y_flip: bool) -> u8 {
+    let tile_x = if x_flip { 7 - tile_x } else { tile_x };
+    let tile_y = if y_flip { 7 - tile_y } else { tile_y };
+
+    self.vram[(address + tile_x as u32 + (tile_y as u32) * 8) as usize]
+  }
+
+  fn get_pixel_index_bpp4(&self, address: u32, tile_x: u16, tile_y: u16, x_flip: bool, y_flip: bool) -> u8 {
+    let tile_x = if x_flip { 7 - tile_x } else { tile_x };
+    let tile_y = if y_flip { 7 - tile_y } else { tile_y };
+
+    let address = address + (tile_x / 2) as u32 + (tile_y as u32) * 4;
+
+    let byte = self.vram[address as usize];
+
+    if tile_x & 0b1 == 1 {
+      byte >> 4
+    } else {
+      byte & 0xf
+    }
   }
 }

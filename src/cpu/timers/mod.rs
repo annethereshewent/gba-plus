@@ -2,7 +2,7 @@ use std::{rc::Rc, cell::Cell};
 
 use self::timer::{Timer, TimerControl};
 
-use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_register::InterruptRequestRegister};
+use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_register::InterruptRequestRegister, apu::APU};
 
 pub mod timer;
 
@@ -17,7 +17,7 @@ impl Timers {
     }
   }
 
-  pub fn tick(&mut self, cycles: u32, dma: &mut DmaChannels) {
+  pub fn tick(&mut self, cycles: u32, apu: &mut APU, dma: &mut DmaChannels) {
     for i in 0..self.t.len() {
       let timer = &mut self.t[i];
 
@@ -25,24 +25,25 @@ impl Timers {
 
       let timer_id = timer.id;
       if timer_overflowed {
-        self.handle_overflow(timer_id, dma);
+        self.handle_overflow(timer_id, apu, dma);
       }
     }
   }
 
-  pub fn handle_overflow(&mut self, timer_id: usize, dma: &mut DmaChannels) {
+  pub fn handle_overflow(&mut self, timer_id: usize, apu: &mut APU, dma: &mut DmaChannels) {
     if timer_id != 3 {
       let next_timer_id = timer_id + 1;
 
       let next_timer = &mut self.t[next_timer_id];
 
       if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.count_up_timer() {
-        self.handle_overflow(next_timer_id, dma);
+        self.handle_overflow(next_timer_id, apu, dma);
       }
     }
 
     if timer_id == 0 || timer_id == 1 {
       // do apu related timer stuff
+      apu.handle_timer_overflow(timer_id, dma);
     }
   }
 }

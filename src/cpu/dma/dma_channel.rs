@@ -18,7 +18,7 @@ pub struct DmaChannel {
   pub dma_control: DmaControlRegister,
   pub word_count: u16,
   pub pending: bool,
-  running: bool,
+  pub running: bool,
   fifo_mode: bool,
   cycles: u32,
   cycles_to_transfer: u32

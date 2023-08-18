@@ -9,7 +9,7 @@ use std::{rc::Rc, cell::Cell};
 
 use crate::{gpu::GPU, cartridge::{Cartridge, BackupMedia}};
 
-use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers};
+use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers, apu::APU};
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
@@ -19,6 +19,7 @@ pub mod rotations_shifts;
 pub mod registers;
 pub mod dma;
 pub mod timers;
+pub mod apu;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;
@@ -26,6 +27,8 @@ pub const SP_REGISTER: usize = 13;
 
 pub const SOFTWARE_INTERRUPT_VECTOR: u32 = 0x8;
 pub const IRQ_VECTOR: u32 = 0x18;
+
+pub const CPU_CLOCK_SPEED: u32 = 2u32.pow(24);
 
 #[derive(Clone, Copy)]
 pub enum MemoryAccess {
@@ -71,7 +74,8 @@ pub struct CPU {
   is_halted: bool,
   dma_channels: Rc<Cell<DmaChannels>>,
   pub key_input: KeyInputRegister,
-  pub timers: Timers
+  pub timers: Timers,
+  pub apu: APU
 }
 
 
@@ -172,7 +176,8 @@ impl CPU {
       is_halted: false,
       key_input: KeyInputRegister::from_bits_retain(0x3ff),
       timers: Timers::new(interrupt_request.clone()),
-      waitcnt: WaitstateControlRegister::new()
+      waitcnt: WaitstateControlRegister::new(),
+      apu: APU::new()
     };
 
     cpu.populate_thumb_lut();
@@ -438,9 +443,11 @@ impl CPU {
   fn add_cycles(&mut self, cycles: u32) {
     self.cycles += cycles;
     self.gpu.tick(cycles);
+    self.apu.tick(cycles);
+
     let mut dma = self.dma_channels.get();
 
-    self.timers.tick(cycles, &mut dma);
+    self.timers.tick(cycles, &mut self.apu, &mut dma);
 
     for channel in &mut dma.channels {
       channel.tick(cycles);

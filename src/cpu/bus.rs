@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}, cartridge::BackupMedia};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType, apu::registers::sound_control_dma::SoundControlDma}, cartridge::BackupMedia};
 
 use super::CPU;
 
@@ -85,8 +85,7 @@ impl CPU {
       0x400_0048 => self.gpu.winin.bits(),
       0x400_004a => self.gpu.winout.bits(),
       0x400_0050 => self.gpu.bldcnt.value,
-      // TODO
-      0x400_0088 => 0x200,
+      0x400_0088 => self.apu.sound_bias,
       0x400_00ba => self.dma_channels.get().channels[0].dma_control.bits(),
       0x400_00c6 => self.dma_channels.get().channels[1].dma_control.bits(),
       0x400_00d2 => self.dma_channels.get().channels[2].dma_control.bits(),
@@ -98,6 +97,13 @@ impl CPU {
       0x400_0108 => self.timers.t[2].value,
       0x400_010a => self.timers.t[2].timer_ctl.bits(),
       0x400_010c => self.timers.t[3].value,
+      0x400_0080 => self.apu.soundcnt_l.value,
+      0x400_0082 => self.apu.soundcnt_h.bits(),
+      0x400_0084 => {
+        let value = if self.apu.fifo_enable { 1 } else { 0 };
+
+        value << 7
+      }
       0x400_010e => self.timers.t[3].timer_ctl.bits(),
       0x400_0130 => self.key_input.bits(),
       0x400_0200 => self.interrupt_enable.bits(),
@@ -265,7 +271,22 @@ impl CPU {
       0x400_0050 => self.gpu.bldcnt.write(value),
       0x400_0052 => self.gpu.bldalpha.write(value),
       0x400_0054 => self.gpu.bldy.write(value),
-      0x400_0088 => (),
+      0x400_0080 => self.apu.soundcnt_l.write(value),
+      0x400_0082 => {
+        self.apu.soundcnt_h = SoundControlDma::from_bits_retain(value);
+
+        self.apu.on_soundcnt_h_write();
+      }
+      0x400_0084 => self.apu.fifo_enable = (value >> 7) & 0b1 == 1,
+      0x400_0088 => self.apu.write_sound_bias(value),
+      0x400_00a0 | 0x400_00a2 => {
+        self.apu.fifo_a.write((value & 0xff) as i8);
+        self.apu.fifo_a.write(((value >> 8) & 0xff) as i8);
+      },
+      0x400_00a4 | 0x400_00a6 => {
+        self.apu.fifo_b.write((value & 0xff) as i8);
+        self.apu.fifo_b.write(((value >> 8) & 0xff) as i8);
+      },
       0x400_00b0 => {
         let mut dma = self.dma_channels.get();
 
@@ -473,7 +494,12 @@ impl CPU {
     // println!("im being called with address {:X}", address);
 
     match address {
-      0x0400_00a0..=0x0400_00a7 => (),
+      0x400_00a0..=0x400_00a3 => {
+        self.apu.fifo_a.write(value as i8);
+      },
+      0x400_00a4..=0x400_00a7 => {
+        self.apu.fifo_b.write(value as i8);
+      }
       _ => {
         let mut temp = self.mem_read_16(address & !(0b1));
 

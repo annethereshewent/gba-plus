@@ -2,8 +2,34 @@ extern crate gba_emulator;
 
 use std::{fs, env, collections::HashMap};
 
-use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister}, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}};
-use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode};
+use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister, apu::APU}, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}};
+use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode, audio::{AudioSpecDesired, AudioCallback}};
+
+struct GbaAudioCallback<'a> {
+  volume: f32,
+  apu: &'a mut APU
+}
+
+impl AudioCallback for GbaAudioCallback<'_> {
+  type Channel = i16;
+
+  fn callback(&mut self, buf: &mut [Self::Channel]) {
+    let mut index = 0;
+
+    for b in buf.iter_mut() {
+      *b = if index >= self.apu.buffer_index {
+        self.apu.previous_value
+      } else {
+        self.apu.audio_samples[index]
+      };
+
+      self.apu.previous_value = *b;
+      index += 1;
+    }
+
+    self.apu.buffer_index = 0;
+  }
+}
 
 
 fn main() {
@@ -25,6 +51,21 @@ fn main() {
 
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
+  let audio_subsystem = sdl_context.audio().unwrap();
+
+  let spec = AudioSpecDesired {
+    freq: Some(44100),
+    channels: Some(2),
+    samples: Some(4096)
+  };
+
+  let device = audio_subsystem.open_playback(
+    None,
+    &spec,
+    |_| GbaAudioCallback { volume: 0.5, apu: &mut cpu.apu }
+  ).unwrap();
+
+  device.resume();
 
   let game_controller_subsystem = sdl_context.game_controller().unwrap();
 

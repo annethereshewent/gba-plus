@@ -4,6 +4,7 @@ use super::dma_channel::{DmaChannel, registers::dma_control_register::DmaControl
 
 pub const VBLANK_TIMING: u16 = 1;
 pub const HBLANK_TIMING: u16 = 2;
+const FIFO_TIMING: u16 = 3;
 
 #[derive(Copy, Clone)]
 pub struct DmaChannels {
@@ -32,6 +33,17 @@ impl DmaChannels {
       if channel.dma_control.contains(DmaControlRegister::DMA_ENABLE) && channel.dma_control.dma_start_timing() == timing {
         channel.pending = true;
       }
+    }
+  }
+
+  pub fn notify_apu_event(&mut self, address: u32) {
+    for channel in &mut self.channels {
+      if channel.dma_control.contains(DmaControlRegister::DMA_ENABLE)
+        && channel.running
+        && channel.dma_control.dma_start_timing() == FIFO_TIMING
+        && channel.destination_address == address {
+          channel.pending = true;
+        }
     }
   }
 

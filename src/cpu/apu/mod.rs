@@ -1,0 +1,177 @@
+use std::f32::consts::PI;
+
+use self::{registers::{sound_control_dma::SoundControlDma, sound_control_enable::SoundControlEnable}, dma_fifo::DmaFifo};
+
+use super::{CPU_CLOCK_SPEED, dma::dma_channels::DmaChannels};
+
+pub mod registers;
+pub mod dma_fifo;
+
+pub const GBA_SAMPLE_RATE: u32 = 32768;
+pub const NUM_SAMPLES: usize = 4096*2;
+
+const FIFO_REGISTER_A: u32 = 0x400_00a0;
+const FIFO_REGISTER_B: u32 = 0x400_00a4;
+
+
+pub struct APU {
+  pub fifo_a: DmaFifo,
+  pub fifo_b: DmaFifo,
+  pub fifo_enable: bool,
+  pub soundcnt_h: SoundControlDma,
+  pub soundcnt_l: SoundControlEnable,
+  pub cycles_per_sample: u32,
+  pub sample_rate: u32,
+  pub sound_bias: u16,
+  cycles: u32,
+  pub audio_samples: [i16; NUM_SAMPLES],
+  pub buffer_index: usize,
+  pub previous_value: i16,
+
+  phase: f32,
+  in_frequency: f32,
+  out_frequency: f32,
+  last_sample: [f32; 2]
+}
+
+impl APU {
+  pub fn new() -> Self {
+    Self {
+      fifo_a: DmaFifo::new(),
+      fifo_b: DmaFifo::new(),
+      fifo_enable: false,
+      soundcnt_h: SoundControlDma::from_bits_retain(0),
+      soundcnt_l: SoundControlEnable::new(),
+      sample_rate: GBA_SAMPLE_RATE,
+      cycles_per_sample: CPU_CLOCK_SPEED / GBA_SAMPLE_RATE,
+      sound_bias: 0x200,
+      cycles: 0,
+      audio_samples: [0; NUM_SAMPLES],
+      buffer_index: 0,
+      previous_value: 0,
+      in_frequency: GBA_SAMPLE_RATE as f32,
+      out_frequency: 44100 as f32,
+      last_sample: [0.0; 2],
+      phase: 0.0
+    }
+  }
+
+  pub fn on_soundcnt_h_write(&mut self) {
+    if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_A_RESET) {
+      self.fifo_a.reset();
+    }
+    if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_B_RESET) {
+      self.fifo_b.reset();
+    }
+  }
+
+  pub fn tick(&mut self, cycles: u32) {
+    self.cycles += cycles;
+
+    if self.cycles >= self.cycles_per_sample {
+      self.cycles -= self.cycles_per_sample;
+
+      self.sample_audio();
+    }
+  }
+
+  pub fn sample_audio(&mut self) {
+    let mut left_sample: i16 = 0;
+    let mut right_sample: i16 = 0;
+
+    if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_A_ENABLE_LEFT) {
+      self.update_sample(self.fifo_a.value as i16, &mut left_sample, SoundControlDma::DMA_SOUND_A_VOLUME);
+    }
+    if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_A_ENABLE_RIGHT) {
+      self.update_sample(self.fifo_a.value as i16, &mut right_sample, SoundControlDma::DMA_SOUND_A_VOLUME);
+    }
+    if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_B_ENABLE_LEFT) {
+      self.update_sample(self.fifo_b.value as i16, &mut left_sample, SoundControlDma::DMA_SOUND_B_VOLUME);
+    }
+    if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_B_ENABLE_RIGHT) {
+      self.update_sample(self.fifo_b.value as i16, &mut right_sample, SoundControlDma::DMA_SOUND_B_VOLUME);
+    }
+
+    let mut sample = [left_sample as i32 as f32, right_sample as i32 as f32];
+    self.resample(&mut sample);
+  }
+
+  pub fn update_sample(&mut self, value: i16, sample: &mut i16, stereo_channel: SoundControlDma) {
+    let volume_shift = if self.soundcnt_h.contains(stereo_channel) { 1 } else { 0 };
+
+    *sample += value * (2 << volume_shift);
+
+    self.apply_bias(sample);
+  }
+
+  fn push_sample(&mut self, sample: i16) {
+    if self.buffer_index < NUM_SAMPLES {
+      self.audio_samples[self.buffer_index] = sample;
+      self.buffer_index += 1;
+    }
+  }
+
+  fn resample(&mut self, sample: &mut [f32; 2]) {
+    while self.phase < 1.0 {
+      let left = self.cosine_interpolation(self.last_sample[0], sample[0], self.phase);
+      let right = self.cosine_interpolation(self.last_sample[1], sample[1], self.phase);
+
+      let left = (left.round() as i16) * (std::i16::MAX / 512);
+      let right = (right.round() as i16) * (std::i16::MAX / 512);
+
+      self.push_sample(left);
+      self.push_sample(right);
+
+      self.phase += self.in_frequency / self.out_frequency;
+    }
+    self.phase -= 1.0;
+    self.last_sample = *sample;
+  }
+
+  fn cosine_interpolation(&self, y1: f32, y2: f32, phase: f32) -> f32 {
+    let mu2 = (1.0 - (PI * phase).cos()) / 2.0;
+    y2 * (1.0 - mu2) + y1 * mu2
+  }
+
+  pub fn apply_bias(&mut self, sample: &mut i16) {
+    *sample += self.sound_bias as i16;
+
+    if *sample > 0x3ff {
+      *sample = 0x3ff;
+    } else if *sample < 0 {
+      *sample = 0;
+    }
+    *sample -= self.sound_bias as i16;
+  }
+
+  pub fn write_sound_bias(&mut self, val: u16) {
+    self.sound_bias = (val >> 1) & 0b111111111;
+
+    let sample_shift = (val >> 14) & 0b11;
+
+    self.sample_rate = GBA_SAMPLE_RATE << sample_shift;
+    self.cycles_per_sample = CPU_CLOCK_SPEED / self.sample_rate;
+
+    self.in_frequency = self.sample_rate as f32;
+  }
+
+  pub fn handle_timer_overflow(&mut self, timer_id: usize, dma: &mut DmaChannels) {
+    let fifo_a_timer_id = if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_A_TIMER_SELECT) { 1 } else { 0 };
+    let fifo_b_timer_id = if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_B_TIMER_SELECT) { 1 } else { 0 };
+
+    if fifo_a_timer_id == timer_id {
+      self.fifo_a.value = self.fifo_a.read();
+
+      if self.fifo_a.count <= 16 {
+        dma.notify_apu_event(FIFO_REGISTER_A);
+      }
+    }
+    if fifo_b_timer_id == timer_id {
+      self.fifo_b.value = self.fifo_b.read();
+
+      if self.fifo_b.count <= 16 {
+        dma.notify_apu_event(FIFO_REGISTER_B);
+      }
+    }
+  }
+}

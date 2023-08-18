@@ -555,7 +555,7 @@ impl GPU {
             if blend_layer != -1 {
               if let Some(color2) = self.bg_lines[blend_layer as usize][x as usize] {
                 // do alpha blending here
-                color = self.blend_colors(color, color2, self.bldalpha.eva, self.bldalpha.evb);
+                color = self.blend_colors(color, color2, self.bldalpha.eva as u16, self.bldalpha.evb as u16);
               }
             }
           }
@@ -563,13 +563,13 @@ impl GPU {
             // blending with black
             let color2: (u8, u8, u8) = (0, 0, 0);
 
-            color = self.blend_colors(color, color2, 16 - self.bldy.evy, self.bldy.evy);
+            color = self.blend_colors(color, color2, (16 - self.bldy.evy) as u16, self.bldy.evy as u16);
           }
           ColorEffect::Brighten => {
             // blending with white
             let color2: (u8, u8, u8) = (31, 31, 31);
 
-            color = self.blend_colors(color, color2, 16 - self.bldy.evy, self.bldy.evy);
+            color = self.blend_colors(color, color2, (16 - self.bldy.evy) as u16, self.bldy.evy as u16);
           }
           ColorEffect::None => ()
         }
@@ -588,10 +588,26 @@ impl GPU {
     }
   }
 
-  fn blend_colors(&self, color: (u8, u8, u8), color2: (u8, u8, u8), eva: u8, evb: u8) -> (u8, u8, u8) {
-    let r = cmp::min(31, (color.0 * eva + color2.0 * evb) >> 4);
-    let g = cmp::min(31, (color.1 * eva + color2.1 * evb) >> 4);
-    let b = cmp::min(31, (color.2 * eva + color2.2 * evb) >> 4);
+  fn darken_color(&self, color: (u8, u8, u8)) -> (u8, u8, u8) {
+    let r = cmp::min(31, color.0 - color.0 * self.bldy.evy);
+    let g = cmp::min(31, color.1 - color.1 * self.bldy.evy);
+    let b = cmp::min(31, color.2 - color.2 * self.bldy.evy);
+
+    (r, g, b)
+  }
+
+  fn lighten_color(&self, color: (u8, u8, u8)) -> (u8, u8, u8) {
+    let r = cmp::min(31, color.0 + (31 - self.bldy.evy) * color.0);
+    let g = cmp::min(31, color.1 + (31 - self.bldy.evy) * color.1);
+    let b = cmp::min(31, color.2 + (31 - self.bldy.evy) * color.2);
+
+    (r, g, b)
+  }
+
+  fn blend_colors(&self, color: (u8, u8, u8), color2: (u8, u8, u8), eva: u16, evb: u16) -> (u8, u8, u8) {
+    let r = cmp::min(31, (color.0 as u16 * eva + color2.0 as u16 * evb) >> 4) as u8;
+    let g = cmp::min(31, (color.1 as u16 * eva + color2.1 as u16 * evb) >> 4) as u8;
+    let b = cmp::min(31, (color.2 as u16 * eva + color2.2 as u16 * evb) >> 4) as u8;
 
     (r, g, b)
   }

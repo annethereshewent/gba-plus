@@ -10,34 +10,47 @@ Make sure you have rust and SDL2 installed on your computer. There are several g
 
 ### Keyboard controls
 
+
 **Up**: W key
+
 **Down**: S key
+
 **Left**: A key
+
 **Right**: D key
 
 **A button**: K key
+
 **B button**: J key
 
 **L button**: C key
+
 **R button**: V key
 
 **Select**: Tab
+
 **Start**: Enter
+
 
 ### Gamepad controls
 
 Tested with a PS5 controller. Other controllers may vary. *TODO: allow joypad configuration*
 
+
 **Up, down, left, right**: Control pad
 
 **A button**: X button
+
 **B button**: Square button
 
 **L button**: L1
+
 **R button**: R1
 
 **Start**: Start
+
 **Select**: Share/Select button
+
 
 ## Screenshots
 

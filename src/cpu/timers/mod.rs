@@ -1,8 +1,10 @@
 use std::{rc::Rc, cell::Cell};
 
+use crate::apu::APU;
+
 use self::timer::{Timer, TimerControl};
 
-use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_register::InterruptRequestRegister, apu::APU};
+use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_register::InterruptRequestRegister};
 
 pub mod timer;
 

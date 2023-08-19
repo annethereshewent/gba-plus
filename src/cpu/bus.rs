@@ -1,4 +1,4 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType, apu::registers::sound_control_dma::SoundControlDma}, cartridge::BackupMedia};
+use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}, cartridge::BackupMedia, apu::registers::sound_control_dma::SoundControlDma};
 
 use super::CPU;
 

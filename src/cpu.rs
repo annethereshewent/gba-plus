@@ -7,9 +7,9 @@
 
 use std::{rc::Rc, cell::Cell};
 
-use crate::{gpu::GPU, cartridge::{Cartridge, BackupMedia}};
+use crate::{gpu::GPU, cartridge::{Cartridge, BackupMedia}, apu::APU};
 
-use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers, apu::APU};
+use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers};
 
 pub mod arm_opcodes;
 pub mod thumb_opcodes;
@@ -19,7 +19,6 @@ pub mod rotations_shifts;
 pub mod registers;
 pub mod dma;
 pub mod timers;
-pub mod apu;
 
 pub const PC_REGISTER: usize = 15;
 pub const LR_REGISTER: usize = 14;

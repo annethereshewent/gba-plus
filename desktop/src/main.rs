@@ -2,7 +2,7 @@ extern crate gba_emulator;
 
 use std::{fs, env, collections::HashMap};
 
-use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister, apu::APU}, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}};
+use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister}, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}, apu::APU};
 use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode, audio::{AudioSpecDesired, AudioCallback}};
 
 struct GbaAudioCallback<'a> {

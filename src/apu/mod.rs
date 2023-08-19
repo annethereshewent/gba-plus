@@ -1,8 +1,8 @@
 use std::f32::consts::PI;
 
-use self::{registers::{sound_control_dma::SoundControlDma, sound_control_enable::SoundControlEnable}, dma_fifo::DmaFifo};
+use crate::cpu::{CPU_CLOCK_SPEED, dma::dma_channels::DmaChannels};
 
-use super::{CPU_CLOCK_SPEED, dma::dma_channels::DmaChannels};
+use self::{registers::{sound_control_dma::SoundControlDma, sound_control_enable::SoundControlEnable}, dma_fifo::DmaFifo};
 
 pub mod registers;
 pub mod dma_fifo;

@@ -156,6 +156,10 @@ impl APU {
   }
 
   pub fn handle_timer_overflow(&mut self, timer_id: usize, dma: &mut DmaChannels) {
+    if !self.fifo_enable {
+      return;
+    }
+
     let fifo_a_timer_id = if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_A_TIMER_SELECT) { 1 } else { 0 };
     let fifo_b_timer_id = if self.soundcnt_h.contains(SoundControlDma::DMA_SOUND_B_TIMER_SELECT) { 1 } else { 0 };
 

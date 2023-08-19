@@ -509,7 +509,7 @@ impl CPU {
           (temp & 0xff00) | value as u16
         };
 
-        self.mem_write_16(address, temp);
+        self.mem_write_16(address & !(0b1), temp);
       }
     }
 

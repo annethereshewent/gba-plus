@@ -27,8 +27,6 @@ impl Cartridge {
       let needle = BACKUP_MEDIA[i].as_bytes();
 
       if let Some(_) = self.rom.windows(needle.len()).position(|window| window == needle) {
-
-        println!("found backup media {}", BACKUP_MEDIA[i]);
         self.backup = self.create_backup(i);
         break;
       }
@@ -36,7 +34,6 @@ impl Cartridge {
   }
 
   fn create_backup(&self, index: usize) -> BackupMedia {
-
     let backup_path = if let Some(file_path) = &self.file_path {
       Some(Path::new(file_path).with_extension("sav"))
     } else {

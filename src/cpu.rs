@@ -11,8 +11,8 @@ use crate::{gpu::GPU, cartridge::{Cartridge, BackupMedia}, apu::APU};
 
 use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers};
 
-pub mod arm_opcodes;
-pub mod thumb_opcodes;
+pub mod arm_instructions;
+pub mod thumb_instructions;
 pub mod cycle_lookup_tables;
 pub mod bus;
 pub mod rotations_shifts;

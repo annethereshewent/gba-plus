@@ -155,11 +155,7 @@ fn main() {
 
     for event in event_pump.poll_iter() {
       match event {
-        Event::Quit { .. }
-        | Event::KeyDown {
-            keycode: Some(Keycode::Escape),
-            ..
-        } => std::process::exit(0),
+        Event::Quit { .. } => std::process::exit(0),
         Event::KeyDown { keycode, .. } => {
           if let Some(button) = key_map.get(&keycode.unwrap_or(Keycode::Return)) {
             cpu.key_input.set(*button, false);

@@ -42,7 +42,6 @@ impl Timers {
     }
 
     if timer_id == 0 || timer_id == 1 {
-      // do apu related timer stuff
       apu.handle_timer_overflow(timer_id, dma);
     }
   }

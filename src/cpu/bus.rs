@@ -55,6 +55,8 @@ impl CPU {
       0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
         if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
           sram.read((address & 0x7fff) as usize)
+        } else if let BackupMedia::Flash(flash) = &mut self.cartridge.backup {
+          flash.read(address)
         } else {
           0
         }
@@ -194,6 +196,8 @@ impl CPU {
       0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
         if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
           sram.write((address & 0x7fff) as usize, val);
+        } else if let BackupMedia::Flash(flash) = &mut self.cartridge.backup {
+          flash.write(address, val);
         }
       }
       _ => {

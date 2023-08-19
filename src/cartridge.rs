@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use self::{eeprom_controller::EepromController, flash::Flash, backup_file::BackupFile};
+use self::{eeprom_controller::EepromController, flash::{Flash, FlashSize}, backup_file::BackupFile};
 
 pub mod eeprom_controller;
 pub mod flash;
@@ -27,6 +27,8 @@ impl Cartridge {
       let needle = BACKUP_MEDIA[i].as_bytes();
 
       if let Some(_) = self.rom.windows(needle.len()).position(|window| window == needle) {
+
+        println!("found backup media {}", BACKUP_MEDIA[i]);
         self.backup = self.create_backup(i);
         break;
       }
@@ -44,10 +46,9 @@ impl Cartridge {
     match index {
       0 => BackupMedia::Eeprom(EepromController::new(backup_path)),
       1 => BackupMedia::Sram(BackupFile::new(32 * 1024, backup_path)),
-      // TODO
-      // 2 => BackupMedia::Flash(Flash::new(self.file_path)), // regular flash
-      // 3 => BackupMedia::Flash(Flash::new(self.file_path)), // flash 512
-      // 4 => BackupMedia::Flash(Flash::new(self.file_path)), // flash 1024
+      2 => BackupMedia::Flash(Flash::new(backup_path, FlashSize::Flash64k)), // regular flash
+      3 => BackupMedia::Flash(Flash::new(backup_path, FlashSize::Flash64k)), // flash 512
+      4 => BackupMedia::Flash(Flash::new(backup_path, FlashSize::Flash128k)), // flash 1024
       _ => BackupMedia::Undetected
     }
   }

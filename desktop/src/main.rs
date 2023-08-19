@@ -6,7 +6,6 @@ use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister, a
 use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode, audio::{AudioSpecDesired, AudioCallback}};
 
 struct GbaAudioCallback<'a> {
-  volume: f32,
   apu: &'a mut APU
 }
 
@@ -62,7 +61,7 @@ fn main() {
   let device = audio_subsystem.open_playback(
     None,
     &spec,
-    |_| GbaAudioCallback { volume: 0.5, apu: &mut cpu.apu }
+    |_| GbaAudioCallback { apu: &mut cpu.apu }
   ).unwrap();
 
   device.resume();

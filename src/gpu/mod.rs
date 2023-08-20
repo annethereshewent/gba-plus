@@ -69,9 +69,9 @@ pub struct GPU {
   pub dispstat: DisplayStatusRegister,
   pub dispcnt: DisplayControlRegister,
   pub picture: Picture,
-  pub vram: [u8; VRAM_SIZE],
-  pub palette_ram: [u8; PALETTE_RAM_SIZE],
-  pub oam_ram: [u8; OAM_RAM_SIZE],
+  pub vram: Box<[u8]>,
+  pub palette_ram: Box<[u8]>,
+  pub oam_ram: Box<[u8]>,
   pub bgcnt: [BgControlRegister; 4],
   pub bgxofs: [u16; 4],
   pub bgyofs: [u16; 4],
@@ -79,7 +79,7 @@ pub struct GPU {
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
   bg_lines: [[Option<(u8, u8, u8)>; SCREEN_WIDTH as usize]; 4],
-  obj_lines: [ObjectPixel; (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
+  obj_lines: Box<[ObjectPixel]>,
   dma_channels: Rc<Cell<DmaChannels>>,
   previous_time: u128,
   pub bldcnt: ColorEffectsRegister,
@@ -132,9 +132,9 @@ impl GPU {
       bg_props: [BgProps::new(); 2],
       dispstat: DisplayStatusRegister::from_bits_retain(0),
       dispcnt: DisplayControlRegister::from_bits_retain(0x80),
-      vram: [0; VRAM_SIZE],
-      palette_ram: [0; PALETTE_RAM_SIZE],
-      oam_ram: [0; OAM_RAM_SIZE],
+      vram: vec![0; VRAM_SIZE].into_boxed_slice(),
+      palette_ram: vec![0; PALETTE_RAM_SIZE].into_boxed_slice(),
+      oam_ram: vec![0; OAM_RAM_SIZE].into_boxed_slice(),
       picture: Picture::new(),
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
       interrupt_request,
@@ -143,7 +143,7 @@ impl GPU {
       bgxofs: [0; 4],
       bgyofs: [0; 4],
       dma_channels,
-      obj_lines: [ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize],
+      obj_lines: vec![ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize].into_boxed_slice(),
       previous_time: 0,
       bldcnt: ColorEffectsRegister::new(),
       bldalpha: AlphaBlendRegister::new(),
@@ -181,7 +181,7 @@ impl GPU {
   }
 
   fn clear_obj_lines(&mut self) {
-    for x in &mut self.obj_lines {
+    for x in &mut self.obj_lines.iter_mut() {
       *x = ObjectPixel::new();
     }
   }

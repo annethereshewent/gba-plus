@@ -27,7 +27,7 @@ canvas {
 .title-container h3 {
   display: inline;
 }
-#rom-input {
+#rom-input, #bios-input {
   display: none;
 }
 @media all and (display-mode: fullscreen) {

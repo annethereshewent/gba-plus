@@ -54,14 +54,14 @@ pub struct CPU {
   post_flag: u16,
   interrupt_master_enable: bool,
   spsr: PSRRegister,
-  cpsr: PSRRegister,
+  pub cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
   thumb_lut: Vec<fn(&mut CPU, instruction: u16) -> Option<MemoryAccess>>,
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
   bios: Vec<u8>,
-  board_wram: [u8; 256 * 1024],
-  chip_wram: [u8; 32 * 1024],
+  board_wram: Box<[u8]>,
+  chip_wram: Box<[u8]>,
   cartridge: Cartridge,
   next_fetch: MemoryAccess,
   cycle_luts: CycleLookupTables,
@@ -162,8 +162,8 @@ impl CPU {
       },
       bios: Vec::new(),
       next_fetch: MemoryAccess::NonSequential,
-      board_wram: [0; 256 * 1024],
-      chip_wram: [0; 32 * 1024],
+      board_wram: vec![0; 256 * 1024].into_boxed_slice(),
+      chip_wram: vec![0; 32 * 1024].into_boxed_slice(),
       post_flag: 0,
       gpu: GPU::new(interrupt_request.clone(), dma_channels.clone()),
       interrupt_request: interrupt_request.clone(),
@@ -351,8 +351,7 @@ impl CPU {
 
       self.interrupt_request.set(interrupt_request);
       self.dma_channels.set(dma);
-    }
-    else if !self.is_halted {
+    } else if !self.is_halted {
       if self.cpsr.contains(PSRRegister::STATE_BIT) {
         self.step_thumb();
       } else {

@@ -7,16 +7,18 @@
   <title>GBA Emulator</title>
   <div class="menu-bar" id="menu">
     <span class="buttons">
+      <button class="mui-btn mui-btn--danger mui-btn--raised" id="load-bios-btn">Load BIOS</button>
       <button class="mui-btn mui-btn--primary mui-btn--raised" id="load-game-btn">Load Game</button>
       <button class="mui-btn mui-btn--accent mui-btn--raised" id="help-btn">Help</button>
       <button id="full-screen" class="mui-btn mui-btn--danger mui-btn--raised">Full Screen</button>
     </span>
     <span class="header-title">
-      <h3>GBA Emulator</h3>
+      <h3>GBA+</h3>
     </span>
   </div>
-  <div id="nes">
+  <div id="gba">
     <input type="file" id="rom-input">
+    <input type="file" id="bios-input">
     <canvas width="256" height="240" id="canvas" />
   </div>
   <div id="modal">
@@ -67,6 +69,7 @@
       document.getElementById("close-btn").addEventListener("click", hideHelpModal)
 
       document.getElementById("help-btn").addEventListener("click", showHelpModal)
+      document.getElementById("load-bios-btn").addEventListener("click", loadBios)
 
       document.getElementById("full-screen").addEventListener("click", (e) => {
         document.documentElement.requestFullscreen()
@@ -76,6 +79,10 @@
         document.getElementById("rom-input").click()
       }
 
+      function loadBios() {
+        document.getElementById("bios-input").click()
+      }
+
       const path = "pkg/gba_emulator_wasm_bg.wasm"
 
       const wasm = await init(path)
@@ -83,9 +90,14 @@
       const emulator = new WasmEmulator()
 
       const romInput = document.getElementById("rom-input")
+      const biosInput = document.getElementById("bios-input")
 
       romInput.addEventListener("change", (e) => {
         handleFileChange(e)
+      })
+
+      biosInput.addEventListener("change", (e) => {
+        handleBiosChange(e)
       })
 
       function showHelpModal() {
@@ -186,29 +198,39 @@
       let fileName = ""
 
       async function handleFileChange(e) {
+        let rom = getBinaryData(e);
+
+        if (rom != null) {
+          emulator.load(new Uint8Array(rom));
+          requestAnimationFrame((time) => run(time))
+        }
+      }
+
+      async function handleBiosChange(e) {
+        let bios = getBinaryData(e)
+
+        if (bios != null) {
+          emulator.load_bios(new Uint8Array(bios));
+        }
+      }
+
+      async function getBinaryData(e) {
+        let data = null
         if (e.target.files != null) {
           const file = e.target.files[0]
           fileName = file.name
-
-          let rom
-
           if (file.name.indexOf(".zip") !== -1) {
             // unzip the file first
             const zipFile = await JSZip.loadAsync(file)
             const zipFileName = Object.keys(zipFile.files)[0]
 
-            rom = await zipFile?.file(zipFileName)?.async('arraybuffer')
+            data = await zipFile?.file(zipFileName)?.async('arraybuffer')
           } else {
-            rom = await fileToArrayBuffer(file)
-          }
-
-          if (rom != null) {
-            console.log(emulator)
-            emulator.load(new Uint8Array(rom));
-
-            requestAnimationFrame((time) => run(time))
+            data = await fileToArrayBuffer(file)
           }
         }
+
+        return data
       }
 
       const context = document.getElementById("canvas").getContext("2d")
@@ -258,6 +280,7 @@
 
       let frames = 0
 
+      let previousTime = 0
 
       function run(time) {
         const diff = time - previousTime

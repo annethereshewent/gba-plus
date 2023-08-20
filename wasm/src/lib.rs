@@ -2,7 +2,7 @@ extern crate gba_emulator;
 
 use std::collections::HashMap;
 
-use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister}, gpu::CYCLES_PER_FRAME};
+use gba_emulator::{cpu::{registers::key_input_register::KeyInputRegister, CPU}, gpu::CYCLES_PER_FRAME};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -62,7 +62,10 @@ impl WasmEmulator {
   pub fn step_frame(&mut self) {
     let mut cycles = 0;
 
+    console_log!("how frustrating :/");
+
     while cycles < CYCLES_PER_FRAME {
+      console_log!("stepping through stepping through stepping through!");
       cycles += self.cpu.step();
     }
   }
@@ -73,6 +76,11 @@ impl WasmEmulator {
 
   pub fn load(&mut self, rom: &[u8]) {
     self.cpu.load_game(rom.to_vec(), None);
+  }
+
+  pub fn load_bios(&mut self, bios: &[u8]) {
+    console_log!("successfully loaded the bios");
+    self.cpu.load_bios(bios.to_vec());
   }
 
   pub fn update_input(&mut self, button_event: ButtonEvent, is_pressed: bool) {

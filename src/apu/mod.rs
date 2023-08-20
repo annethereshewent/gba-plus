@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use crate::cpu::{CPU_CLOCK_SPEED, dma::dma_channels::DmaChannels};
 
 use self::{registers::{sound_control_dma::SoundControlDma, sound_control_enable::SoundControlEnable}, dma_fifo::DmaFifo};
@@ -113,11 +111,8 @@ impl APU {
 
   fn resample(&mut self, sample: &mut [f32; 2]) {
     while self.phase < 1.0 {
-      let left = self.cosine_interpolation(self.last_sample[0], sample[0], self.phase);
-      let right = self.cosine_interpolation(self.last_sample[1], sample[1], self.phase);
-
-      let left = (left.round() as i16) * (std::i16::MAX / 512);
-      let right = (right.round() as i16) * (std::i16::MAX / 512);
+      let left = (sample[0].round() as i16) * (std::i16::MAX / 512);
+      let right = (sample[1].round() as i16) * (std::i16::MAX / 512);
 
       self.push_sample(left);
       self.push_sample(right);
@@ -126,11 +121,6 @@ impl APU {
     }
     self.phase -= 1.0;
     self.last_sample = *sample;
-  }
-
-  fn cosine_interpolation(&self, y1: f32, y2: f32, phase: f32) -> f32 {
-    let mu2 = (1.0 - (PI * phase).cos()) / 2.0;
-    y2 * (1.0 - mu2) + y1 * mu2
   }
 
   pub fn apply_bias(&mut self, sample: &mut i16) {

@@ -121,7 +121,7 @@ fn main() {
 
 
   let window = video_subsystem
-    .window("GBA Emulator", (SCREEN_WIDTH * 3) as u32, (SCREEN_HEIGHT * 3) as u32)
+    .window("GBA+", (SCREEN_WIDTH * 3) as u32, (SCREEN_HEIGHT * 3) as u32)
     .position_centered()
     .build()
     .unwrap();

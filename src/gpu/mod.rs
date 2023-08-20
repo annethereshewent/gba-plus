@@ -47,7 +47,8 @@ enum WindowType {
 pub struct ObjectPixel {
   pub priority: u16,
   pub color: Option<(u8, u8, u8)>,
-  pub is_window: bool
+  pub is_window: bool,
+  pub is_transparent: bool
 }
 
 impl ObjectPixel {
@@ -55,7 +56,8 @@ impl ObjectPixel {
     Self {
       priority: 4,
       color: None,
-      is_window: false
+      is_window: false,
+      is_transparent: false
     }
   }
 }

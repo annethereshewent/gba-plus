@@ -5,7 +5,6 @@ const SCREEN_BLOCK_SIZE: u32 = 32 * 32 * 2;
 const ATTRIBUTE_SIZE: usize = 8; // 6 bytes (3 16 bit attributes) + 2 empty bytes in between
 const AFFINE_SIZE: u16 = 3 * 2;
 
-#[derive(Debug)]
 struct OamAttributes {
   x_coordinate: u16,
   y_coordinate: u16,
@@ -370,7 +369,8 @@ impl GPU {
         self.obj_lines[obj_line_index] = ObjectPixel {
           priority: obj_attributes.priority,
           color: self.get_palette_color(palette_index as usize, palette_bank as usize, 0x200),
-          is_window: obj_attributes.obj_mode == 2
+          is_window: obj_attributes.obj_mode == 2,
+          is_transparent: obj_attributes.obj_mode == 1
         };
       }
     }
@@ -475,7 +475,8 @@ impl GPU {
           self.obj_lines[obj_line_index] = ObjectPixel {
             priority: obj_attributes.priority,
             color,
-            is_window: obj_attributes.obj_mode == 2
+            is_window: obj_attributes.obj_mode == 2,
+            is_transparent: obj_attributes.obj_mode == 1
           }
         }
       }

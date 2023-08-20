@@ -175,15 +175,17 @@ impl GPU {
       let mut color = self.bg_lines[top_layer as usize][x as usize].unwrap();
 
       if self.bldcnt.bg_first_pixels[top_layer as usize] && self.window_apply_effects(&window_type) {
-        self.process_pixel(x, &mut color, top_layer, bottom_layer);
+        self.process_pixel(x, &mut color, bottom_layer);
       }
 
       self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(color));
-    } else if let Some(color) = self.obj_lines[obj_line_index].color {
+    } else if let Some(mut color) = self.obj_lines[obj_line_index].color {
       // render object pixel
-      self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(color));
-    } else if bottom_layer != -1 {
-      let color = self.bg_lines[bottom_layer as usize][x as usize].unwrap();
+      if self.obj_lines[obj_line_index].is_transparent && bottom_layer != -1 && self.bldcnt.bg_second_pixels[bottom_layer as usize] {
+        if let Some(color2) = self.bg_lines[bottom_layer as usize][x as usize] {
+          color = self.blend_colors(color, color2, self.bldalpha.eva as u16, self.bldalpha.evb as u16);
+        }
+      }
       self.picture.set_pixel(x, y as usize, self.translate_to_rgb24(color));
     }
     else {
@@ -191,20 +193,24 @@ impl GPU {
     }
   }
 
-  fn process_pixel(&mut self, x: usize, color: &mut (u8, u8, u8), top_layer: isize, bottom_layer: isize) {
+  fn process_pixel(&mut self, x: usize, color: &mut (u8, u8, u8), bottom_layer: isize) {
     match self.bldcnt.color_effect {
       ColorEffect::AlphaBlending => {
-        let mut blend_layer: isize = -1;
-        for i in 0..self.bldcnt.bg_second_pixels.len() {
-          if self.bldcnt.bg_second_pixels[i] {
-            blend_layer = i as isize;
-            break;
-          }
-        }
+        let blend_layer = if self.is_bottom_layer_blended(bottom_layer)  {
+          bottom_layer
+        } else {
+          -1
+        };
 
         if blend_layer != -1 {
-          if let Some(color2) = self.bg_lines[blend_layer as usize][x] {
-            // do alpha blending here
+          let color2 = if blend_layer < 4 {
+            self.bg_lines[blend_layer as usize][x]
+          } else {
+            let obj_index: usize = x + self.vcount as usize * SCREEN_WIDTH as usize;
+            self.obj_lines[obj_index].color
+          };
+
+          if let Some(color2) = color2 {
             *color = self.blend_colors(*color, color2, self.bldalpha.eva as u16, self.bldalpha.evb as u16);
           }
         }
@@ -223,6 +229,10 @@ impl GPU {
       }
       ColorEffect::None => ()
     }
+  }
+
+  fn is_bottom_layer_blended(&self, bottom_layer: isize) -> bool {
+    (bottom_layer < 4 && bottom_layer >= 0 && self.bldcnt.bg_second_pixels[bottom_layer as usize]) || (bottom_layer == 4 && self.bldcnt.obj_second_pixel)
   }
 
   fn darken_color(&self, color: (u8, u8, u8)) -> (u8, u8, u8) {

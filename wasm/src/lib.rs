@@ -12,8 +12,6 @@ extern "C" {
 }
 
 macro_rules! console_log {
-  // Note that this is using the `log` function imported above during
-  // `bare_bones`
   ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
 
@@ -37,13 +35,6 @@ pub struct WasmEmulator {
   cpu: CPU,
   key_map: HashMap<ButtonEvent, KeyInputRegister>
 }
-
-macro_rules! console_log {
-  // Note that this is using the `log` function imported above during
-  // `bare_bones`
-  ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
-
 
 #[wasm_bindgen]
 impl WasmEmulator {

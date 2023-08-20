@@ -62,10 +62,7 @@ impl WasmEmulator {
   pub fn step_frame(&mut self) {
     let mut cycles = 0;
 
-    console_log!("how frustrating :/");
-
     while cycles < CYCLES_PER_FRAME {
-      console_log!("stepping through stepping through stepping through!");
       cycles += self.cpu.step();
     }
   }
@@ -76,16 +73,16 @@ impl WasmEmulator {
 
   pub fn load(&mut self, rom: &[u8]) {
     self.cpu.load_game(rom.to_vec(), None);
+    self.cpu.skip_bios();
   }
 
   pub fn load_bios(&mut self, bios: &[u8]) {
-    console_log!("successfully loaded the bios");
     self.cpu.load_bios(bios.to_vec());
   }
 
   pub fn update_input(&mut self, button_event: ButtonEvent, is_pressed: bool) {
     if let Some(button) = self.key_map.get(&button_event) {
-      self.cpu.key_input.set(*button, is_pressed);
+      self.cpu.key_input.set(*button, !is_pressed);
     }
   }
 }

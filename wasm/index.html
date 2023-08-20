@@ -198,7 +198,7 @@
       let fileName = ""
 
       async function handleFileChange(e) {
-        let rom = getBinaryData(e);
+        let rom = await getBinaryData(e);
 
         if (rom != null) {
           emulator.load(new Uint8Array(rom));
@@ -207,9 +207,11 @@
       }
 
       async function handleBiosChange(e) {
-        let bios = getBinaryData(e)
+        let bios = await getBinaryData(e)
 
         if (bios != null) {
+          console.log('attempting to load bios');
+          console.log(bios);
           emulator.load_bios(new Uint8Array(bios));
         }
       }

@@ -2,7 +2,7 @@ canvas {
   width: 768px;
   image-rendering: pixelated;
 }
-#nes {
+#gba {
   width: 768px;
   margin: 250px auto;
 }
@@ -31,7 +31,7 @@ canvas {
   display: none;
 }
 @media all and (display-mode: fullscreen) {
-  #nes {
+  #gba {
     width: 70%;
     height: 100vh;
     margin: 0 auto;

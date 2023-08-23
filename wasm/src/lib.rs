@@ -66,12 +66,12 @@ impl WasmEmulator {
 
     for (i, sample) in buffer.iter_mut().enumerate() {
       *sample = if (i * 2) < apu.buffer_index {
-        apu.audio_samples[i * 2] as f32
+        apu.audio_samples[i * 2] as f32 * 0.25
       } else {
         previous_sample
       };
 
-      previous_sample = *sample as f32;
+      previous_sample = *sample as f32 * 0.25;
     }
 
     apu.buffer_index = 0;

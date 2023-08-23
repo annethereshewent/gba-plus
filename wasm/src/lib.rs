@@ -2,7 +2,7 @@ extern crate gba_emulator;
 
 use std::collections::HashMap;
 
-use gba_emulator::{cpu::{registers::key_input_register::KeyInputRegister, CPU}, gpu::CYCLES_PER_FRAME};
+use gba_emulator::{cpu::{registers::key_input_register::KeyInputRegister, CPU}, gpu::CYCLES_PER_FRAME, cartridge::BackupMedia};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -56,6 +56,81 @@ impl WasmEmulator {
     WasmEmulator {
       cpu: CPU::new(),
       key_map
+    }
+  }
+
+  pub fn load_save(&mut self, data: &[u8]) {
+    match &mut self.cpu.cartridge.backup {
+      BackupMedia::Eeprom(eeprom) => {
+        eeprom.chip.memory.buffer = data.to_vec();
+      }
+      BackupMedia::Flash(flash) => {
+        flash.memory.buffer = data.to_vec();
+      }
+      BackupMedia::Sram(file) => {
+        file.buffer = data.to_vec();
+      }
+      _ => ()
+    }
+  }
+
+  pub fn backup_file_pointer(&self) -> *const u8 {
+    match &self.cpu.cartridge.backup {
+      BackupMedia::Eeprom(eeprom) => {
+        eeprom.chip.memory.buffer.as_ptr()
+      }
+      BackupMedia::Flash(flash) => {
+        flash.memory.buffer.as_ptr()
+      }
+      BackupMedia::Sram(file) => {
+        file.buffer.as_ptr()
+      }
+      _ => [].as_ptr()
+    }
+  }
+
+  pub fn backup_file_size(&self) -> usize {
+    match &self.cpu.cartridge.backup {
+      BackupMedia::Eeprom(eeprom) => {
+        eeprom.chip.memory.size
+      }
+      BackupMedia::Flash(flash) => {
+        flash.memory.size
+      }
+      BackupMedia::Sram(file) => {
+        file.size
+      }
+      _ => 0
+    }
+  }
+
+  pub fn has_saved(&self) -> bool {
+    match &self.cpu.cartridge.backup {
+      BackupMedia::Eeprom(eeprom) => {
+        eeprom.chip.memory.has_saved
+      }
+      BackupMedia::Flash(flash) => {
+        flash.memory.has_saved
+      }
+      BackupMedia::Sram(file) => {
+        file.has_saved
+      }
+      _ => false
+    }
+  }
+
+  pub fn set_saved(&mut self, val: bool) {
+    match &mut self.cpu.cartridge.backup {
+      BackupMedia::Eeprom(eeprom) => {
+        eeprom.chip.memory.has_saved = val;
+      }
+      BackupMedia::Flash(flash) => {
+        flash.memory.has_saved = val;
+      }
+      BackupMedia::Sram(file) => {
+        file.has_saved = val;
+      }
+      _ => ()
     }
   }
 

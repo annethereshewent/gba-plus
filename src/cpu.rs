@@ -62,7 +62,7 @@ pub struct CPU {
   bios: Vec<u8>,
   board_wram: Box<[u8]>,
   chip_wram: Box<[u8]>,
-  cartridge: Cartridge,
+  pub cartridge: Cartridge,
   next_fetch: MemoryAccess,
   cycle_luts: CycleLookupTables,
   pub gpu: GPU,

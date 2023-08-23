@@ -220,6 +220,16 @@
 
         if (rom != null) {
           emulator.load(new Uint8Array(rom))
+
+          let gameName = fileName.split('/').pop()
+          gameName = gameName.substring(0, gameName.lastIndexOf('.'))
+
+          let saveData = JSON.parse(localStorage.getItem(gameName))
+
+          if (saveData != null) {
+            emulator.load_save(new Uint8Array(saveData))
+          }
+
           startAudio()
           requestAnimationFrame((time) => run(time))
         }
@@ -304,8 +314,6 @@
       function handleJoypadInput() {
         const gamepad = navigator.getGamepads()[0]
 
-        console.log(gamepad?.buttons);
-
         emulator.update_input(ButtonEvent.ButtonA, gamepad?.buttons[A_BUTTON].pressed == true || isPressingK || isPressingSpace)
         emulator.update_input(ButtonEvent.ButtonB, gamepad?.buttons[X_BUTTON].pressed == true || isPressingJ || isPressingShift)
         emulator.update_input(ButtonEvent.Select, gamepad?.buttons[SELECT].pressed == true || isPressingTab)
@@ -332,6 +340,16 @@
           context.putImageData(getImageData(), 0, 0)
 
           handleJoypadInput()
+        }
+        if (emulator.has_saved()) {
+          emulator.set_saved(false)
+
+          const saveMemory = new Uint8Array(wasm.memory.buffer, emulator.backup_file_pointer(), emulator.backup_file_size())
+
+          let gameName = fileName.split('/').pop()
+          gameName = gameName.substring(0, gameName.lastIndexOf('.'))
+
+          localStorage.setItem(gameName, JSON.stringify(Array.from(saveMemory)))
         }
 
         frames++

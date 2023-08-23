@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use super::backup_file::BackupFile;
 
 pub struct EepromController {
-  chip: EepromChip,
+  pub chip: EepromChip,
   detected: bool
 }
 
@@ -77,7 +77,7 @@ impl EepromController {
 }
 
 pub struct EepromChip {
-  memory: BackupFile,
+  pub memory: BackupFile,
   address_bits: EepromAddressBits,
 
   state: SpiState,

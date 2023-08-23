@@ -1,9 +1,10 @@
 use std::{fs::{File, self}, io::{Read, SeekFrom, Seek, Write}, path::PathBuf};
 
 pub struct BackupFile {
-  size: usize,
+  pub size: usize,
   file: Option<File>,
-  buffer: Vec<u8>
+  pub buffer: Vec<u8>,
+  pub has_saved: bool
 }
 
 impl BackupFile {
@@ -28,13 +29,13 @@ impl BackupFile {
       None
     };
 
-
     buffer.resize(size, 0xff);
 
     Self {
       file,
       buffer,
-      size
+      size,
+      has_saved: false
     }
   }
 
@@ -43,6 +44,7 @@ impl BackupFile {
   }
 
   pub fn write(&mut self, offset: usize, value: u8) {
+    self.has_saved = true;
     self.buffer[offset] = value;
 
     if let Some(file) = &mut self.file {

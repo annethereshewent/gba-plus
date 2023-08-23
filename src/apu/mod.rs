@@ -22,9 +22,9 @@ pub struct APU {
   pub sample_rate: u32,
   pub sound_bias: u16,
   cycles: u32,
-  pub audio_samples: [i16; NUM_SAMPLES],
+  pub audio_samples: [f32; NUM_SAMPLES],
   pub buffer_index: usize,
-  pub previous_value: i16,
+  pub previous_value: f32,
 
   phase: f32,
   in_frequency: f32,
@@ -44,9 +44,9 @@ impl APU {
       cycles_per_sample: CPU_CLOCK_SPEED / GBA_SAMPLE_RATE,
       sound_bias: 0x200,
       cycles: 0,
-      audio_samples: [0; NUM_SAMPLES],
+      audio_samples: [0.0; NUM_SAMPLES],
       buffer_index: 0,
-      previous_value: 0,
+      previous_value: 0.0,
       in_frequency: GBA_SAMPLE_RATE as f32,
       out_frequency: 44100 as f32,
       last_sample: [0.0; 2],
@@ -102,7 +102,7 @@ impl APU {
     self.apply_bias(sample);
   }
 
-  fn push_sample(&mut self, sample: i16) {
+  fn push_sample(&mut self, sample: f32) {
     if self.buffer_index < NUM_SAMPLES {
       self.audio_samples[self.buffer_index] = sample;
       self.buffer_index += 1;
@@ -111,11 +111,8 @@ impl APU {
 
   fn resample(&mut self, sample: &mut [f32; 2]) {
     while self.phase < 1.0 {
-      let left = (sample[0].round() as i16) * (std::i16::MAX / 512);
-      let right = (sample[1].round() as i16) * (std::i16::MAX / 512);
-
-      self.push_sample(left);
-      self.push_sample(right);
+      self.push_sample(sample[0]);
+      self.push_sample(sample[1]);
 
       self.phase += self.in_frequency / self.out_frequency;
     }
@@ -124,18 +121,20 @@ impl APU {
   }
 
   pub fn apply_bias(&mut self, sample: &mut i16) {
-    *sample += self.sound_bias as i16;
+    let level = self.sound_bias & 0b1111111111;
+
+    *sample += level as i16;
 
     if *sample > 0x3ff {
       *sample = 0x3ff;
     } else if *sample < 0 {
       *sample = 0;
     }
-    *sample -= self.sound_bias as i16;
+    *sample -= level as i16;
   }
 
   pub fn write_sound_bias(&mut self, val: u16) {
-    self.sound_bias = (val >> 1) & 0b111111111;
+    self.sound_bias = val & 0xc3fe;
 
     let sample_shift = (val >> 14) & 0b11;
 

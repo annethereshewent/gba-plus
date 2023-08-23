@@ -6,7 +6,7 @@ const BANK_SIZE: usize = 0x10000;
 const SECTOR_SIZE: usize = 4 * 1024;
 
 pub struct Flash {
-  memory: BackupFile,
+  pub memory: BackupFile,
   size: usize,
   bank: usize,
   mode: FlashMode,

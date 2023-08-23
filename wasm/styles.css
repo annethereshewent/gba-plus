@@ -2,7 +2,7 @@ canvas {
   width: 768px;
   image-rendering: pixelated;
 }
-#nes {
+#gba {
   width: 768px;
   margin: 250px auto;
 }
@@ -10,7 +10,7 @@ canvas {
   position: fixed;
   top: 0;
   left: 0;
-  background:#50C878;
+  background: #FAA0A0;
   width: 100%;
   height: 80px;
 }
@@ -27,14 +27,14 @@ canvas {
 .title-container h3 {
   display: inline;
 }
-#rom-input {
+#rom-input, #bios-input {
   display: none;
 }
 @media all and (display-mode: fullscreen) {
-  #nes {
-    width: 70%;
-    height: 100vh;
-    margin: 0 auto;
+  #gba {
+    width: 100%;
+    margin-top: 0px;
+    margin-left: 3%;
   }
   canvas {
     height: 100vh;
@@ -48,15 +48,9 @@ canvas {
   }
 }
 .title {
-  text-align: center;
-}
-
-.header-title {
-  display: inline-block;
-  left: 40%;
-  transform: translateX(-50%);
-  position: relative;
   color: #ffffff;
+  text-align: center;
+  line-height: 0;
 }
 
 #modal {

@@ -10,7 +10,7 @@ struct GbaAudioCallback<'a> {
 }
 
 impl AudioCallback for GbaAudioCallback<'_> {
-  type Channel = i16;
+  type Channel = f32;
 
   fn callback(&mut self, buf: &mut [Self::Channel]) {
     let mut index = 0;
@@ -19,7 +19,7 @@ impl AudioCallback for GbaAudioCallback<'_> {
       *b = if index >= self.apu.buffer_index {
         self.apu.previous_value
       } else {
-        self.apu.audio_samples[index]
+        self.apu.audio_samples[index] * 0.0005
       };
 
       self.apu.previous_value = *b;
@@ -46,7 +46,7 @@ fn main() {
 
   cpu.load_game(bytes, Some(filepath.to_string()));
   cpu.load_bios(fs::read("../gba_bios.bin").unwrap());
-  cpu.skip_bios();
+  // cpu.skip_bios();
 
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();

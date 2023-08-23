@@ -4,26 +4,27 @@
   <script src="//cdn.muicss.com/mui-0.10.3/js/mui.min.js"></script>
 </head>
 <body>
-  <title>GBA Emulator</title>
+  <title>GBA+</title>
   <div class="menu-bar" id="menu">
+    <h3 class="title">GBA+</h3>
     <span class="buttons">
+      <button class="mui-btn mui-btn--danger mui-btn--raised" id="load-bios-btn">Load BIOS</button>
       <button class="mui-btn mui-btn--primary mui-btn--raised" id="load-game-btn">Load Game</button>
       <button class="mui-btn mui-btn--accent mui-btn--raised" id="help-btn">Help</button>
       <button id="full-screen" class="mui-btn mui-btn--danger mui-btn--raised">Full Screen</button>
     </span>
-    <span class="header-title">
-      <h3>GBA Emulator</h3>
-    </span>
+
   </div>
-  <div id="nes">
+  <div id="gba">
     <input type="file" id="rom-input">
-    <canvas width="256" height="240" id="canvas" />
+    <input type="file" id="bios-input">
+    <canvas width="240" height="160" id="canvas" />
   </div>
   <div id="modal">
     <div class="controls">
       <span class="close" id="close-btn">&times;</span>
       <div class="modal-title">
-        <h1>GBA Emulator</h1>
+        <h1>GBA+</h1>
       </div>
       <h2>CONTROLS</h2>
       <h3>Keyboard:</h3>
@@ -60,6 +61,9 @@
     const SCREEN_WIDTH = 240
     const SCREEN_HEIGHT = 160
     const FPS_INTERVAL = 1000 / 60
+    const SAMPLE_RATE = 44100
+    const BUFFER_SIZE = 4096
+
 
     async function main() {
       document.getElementById("load-game-btn").addEventListener("click", loadRom)
@@ -67,6 +71,7 @@
       document.getElementById("close-btn").addEventListener("click", hideHelpModal)
 
       document.getElementById("help-btn").addEventListener("click", showHelpModal)
+      document.getElementById("load-bios-btn").addEventListener("click", loadBios)
 
       document.getElementById("full-screen").addEventListener("click", (e) => {
         document.documentElement.requestFullscreen()
@@ -76,6 +81,10 @@
         document.getElementById("rom-input").click()
       }
 
+      function loadBios() {
+        document.getElementById("bios-input").click()
+      }
+
       const path = "pkg/gba_emulator_wasm_bg.wasm"
 
       const wasm = await init(path)
@@ -83,9 +92,14 @@
       const emulator = new WasmEmulator()
 
       const romInput = document.getElementById("rom-input")
+      const biosInput = document.getElementById("bios-input")
 
       romInput.addEventListener("change", (e) => {
         handleFileChange(e)
+      })
+
+      biosInput.addEventListener("change", (e) => {
+        handleBiosChange(e)
       })
 
       function showHelpModal() {
@@ -100,6 +114,9 @@
       let isPressingA = false
       let isPressingS = false
       let isPressingD = false
+
+      let isPressingC = false
+      let isPressingV = false
 
       let isPressingJ = false
       let isPressingK = false
@@ -143,6 +160,12 @@
           case "Shift":
             isPressingShift = false
             break
+          case "c":
+            isPresisngC = false
+            break
+          case "v":
+            isPressingV = false
+            break
         }
       })
 
@@ -180,35 +203,77 @@
           case "Shift":
             isPressingShift = true
             break
+          case "c":
+            isPresisngC = true
+            break
+          case "v":
+            isPressingV = true
+            break
         }
       })
 
       let fileName = ""
 
       async function handleFileChange(e) {
+        let rom = await getBinaryData(e)
+
+        if (rom != null) {
+          emulator.load(new Uint8Array(rom))
+
+          let gameName = fileName.split('/').pop()
+          gameName = gameName.substring(0, gameName.lastIndexOf('.'))
+
+          let saveData = JSON.parse(localStorage.getItem(gameName))
+
+          if (saveData != null) {
+            emulator.load_save(new Uint8Array(saveData))
+          }
+
+          startAudio()
+          requestAnimationFrame((time) => run(time))
+        }
+      }
+
+      async function handleBiosChange(e) {
+        let bios = await getBinaryData(e)
+
+        if (bios != null) {
+          emulator.load_bios(new Uint8Array(bios));
+        }
+      }
+
+      async function getBinaryData(e) {
+        let data = null
         if (e.target.files != null) {
           const file = e.target.files[0]
           fileName = file.name
-
-          let rom
-
           if (file.name.indexOf(".zip") !== -1) {
             // unzip the file first
             const zipFile = await JSZip.loadAsync(file)
             const zipFileName = Object.keys(zipFile.files)[0]
 
-            rom = await zipFile?.file(zipFileName)?.async('arraybuffer')
+            data = await zipFile?.file(zipFileName)?.async('arraybuffer')
           } else {
-            rom = await fileToArrayBuffer(file)
-          }
-
-          if (rom != null) {
-            console.log(emulator)
-            emulator.load(new Uint8Array(rom));
-
-            requestAnimationFrame((time) => run(time))
+            data = await fileToArrayBuffer(file)
           }
         }
+
+        return data
+      }
+
+      function startAudio() {
+        const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE })
+
+        const scriptProcessor = audioContext.createScriptProcessor(BUFFER_SIZE, 0, 2);
+
+        scriptProcessor.onaudioprocess = (e) => {
+          const leftData = e.outputBuffer.getChannelData(0)
+          const rightData = e.outputBuffer.getChannelData(1)
+
+          emulator.update_buffer(leftData, rightData)
+        }
+
+        scriptProcessor.connect(audioContext.destination)
       }
 
       const context = document.getElementById("canvas").getContext("2d")
@@ -236,6 +301,8 @@
       const A_BUTTON = 0
       const B_BUTTON = 1
       const X_BUTTON = 2
+      const L_BUTTON = 4
+      const R_BUTTON = 5
       const SELECT = 8
       const START = 9
       const UP = 12
@@ -254,10 +321,13 @@
         emulator.update_input(ButtonEvent.Down, gamepad?.buttons[DOWN].pressed == true || isPressingS)
         emulator.update_input(ButtonEvent.Left, gamepad?.buttons[LEFT].pressed == true || isPressingA)
         emulator.update_input(ButtonEvent.Right, gamepad?.buttons[RIGHT].pressed == true || isPressingD)
+        emulator.update_input(ButtonEvent.ButtonL, gamepad?.buttons[L_BUTTON].pressed == true || isPressingC)
+        emulator.update_input(ButtonEvent.ButtonR, gamepad?.buttons[R_BUTTON].pressed == true || isPressingV)
       }
 
       let frames = 0
 
+      let previousTime = 0
 
       function run(time) {
         const diff = time - previousTime
@@ -269,6 +339,16 @@
           context.putImageData(getImageData(), 0, 0)
 
           handleJoypadInput()
+        }
+        if (emulator.has_saved()) {
+          emulator.set_saved(false)
+
+          const saveMemory = new Uint8Array(wasm.memory.buffer, emulator.backup_file_pointer(), emulator.backup_file_size())
+
+          let gameName = fileName.split('/').pop()
+          gameName = gameName.substring(0, gameName.lastIndexOf('.'))
+
+          localStorage.setItem(gameName, JSON.stringify(Array.from(saveMemory)))
         }
 
         frames++

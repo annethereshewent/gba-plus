@@ -39,7 +39,7 @@ impl OamAttributes {
       (1, 2) => (8, 32),
       (2, 2) => (16, 32),
       (3, 2) => (32, 64),
-      _ => panic!("object shape of 3 not allowed")
+      _ => (8, 8)
     }
   }
 }

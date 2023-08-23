@@ -59,6 +59,24 @@ impl WasmEmulator {
     }
   }
 
+  pub fn update_buffer(&mut self, buffer: &mut [f32]) {
+    let mut apu = &mut self.cpu.apu;
+
+    let mut previous_sample = 0.0;
+
+    for (i, sample) in buffer.iter_mut().enumerate() {
+      *sample = if (i * 2) < apu.buffer_index {
+        apu.audio_samples[i * 2] as f32
+      } else {
+        previous_sample
+      };
+
+      previous_sample = *sample as f32;
+    }
+
+    apu.buffer_index = 0;
+  }
+
   pub fn step_frame(&mut self) {
     let mut cycles = 0;
 

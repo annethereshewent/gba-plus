@@ -124,18 +124,20 @@ impl APU {
   }
 
   pub fn apply_bias(&mut self, sample: &mut i16) {
-    *sample += self.sound_bias as i16;
+    let level = self.sound_bias & 0b1111111111;
+
+    *sample += level as i16;
 
     if *sample > 0x3ff {
       *sample = 0x3ff;
     } else if *sample < 0 {
       *sample = 0;
     }
-    *sample -= self.sound_bias as i16;
+    *sample -= level as i16;
   }
 
   pub fn write_sound_bias(&mut self, val: u16) {
-    self.sound_bias = (val >> 1) & 0b111111111;
+    self.sound_bias = val & 0xc3fe;
 
     let sample_shift = (val >> 14) & 0b11;
 

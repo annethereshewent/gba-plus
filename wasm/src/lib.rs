@@ -102,7 +102,7 @@ impl WasmEmulator {
 
   pub fn load(&mut self, rom: &[u8]) {
     self.cpu.load_game(rom.to_vec(), None);
-    self.cpu.skip_bios();
+    // self.cpu.skip_bios();
   }
 
   pub fn load_bios(&mut self, bios: &[u8]) {

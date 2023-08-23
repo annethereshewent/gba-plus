@@ -214,8 +214,6 @@
         let bios = await getBinaryData(e)
 
         if (bios != null) {
-          console.log('attempting to load bios');
-          console.log(bios);
           emulator.load_bios(new Uint8Array(bios));
         }
       }
@@ -242,11 +240,13 @@
       function startAudio() {
         const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE })
 
-        const scriptProcessor = audioContext.createScriptProcessor(BUFFER_SIZE, 0, 1);
+        const scriptProcessor = audioContext.createScriptProcessor(BUFFER_SIZE, 0, 2);
 
         scriptProcessor.onaudioprocess = (e) => {
-          const data = e.outputBuffer.getChannelData(0)
-          emulator.update_buffer(data)
+          const leftData = e.outputBuffer.getChannelData(0)
+          const rightData = e.outputBuffer.getChannelData(1)
+
+          emulator.update_buffer(leftData, rightData)
         }
 
         scriptProcessor.connect(audioContext.destination)

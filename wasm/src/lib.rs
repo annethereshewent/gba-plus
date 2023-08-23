@@ -68,7 +68,7 @@ impl WasmEmulator {
     let mut right_index = 0;
 
     for i in 0..apu.buffer_index {
-      let sample = (apu.audio_samples[i] as f32) * 0.00002;
+      let sample = (apu.audio_samples[i] as f32) * 0.0000075;
       if i % 2 == 0 {
         left_buffer[left_index] = sample;
         left_index += 1;

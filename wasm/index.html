@@ -116,6 +116,9 @@
       let isPressingS = false
       let isPressingD = false
 
+      let isPressingC = false
+      let isPressingV = false
+
       let isPressingJ = false
       let isPressingK = false
 
@@ -158,6 +161,12 @@
           case "Shift":
             isPressingShift = false
             break
+          case "c":
+            isPresisngC = false
+            break
+          case "v":
+            isPressingV = false
+            break
         }
       })
 
@@ -194,6 +203,12 @@
             break
           case "Shift":
             isPressingShift = true
+            break
+          case "c":
+            isPresisngC = true
+            break
+          case "v":
+            isPressingV = true
             break
         }
       })
@@ -277,6 +292,8 @@
       const A_BUTTON = 0
       const B_BUTTON = 1
       const X_BUTTON = 2
+      const L_BUTTON = 4
+      const R_BUTTON = 5
       const SELECT = 8
       const START = 9
       const UP = 12
@@ -287,6 +304,8 @@
       function handleJoypadInput() {
         const gamepad = navigator.getGamepads()[0]
 
+        console.log(gamepad?.buttons);
+
         emulator.update_input(ButtonEvent.ButtonA, gamepad?.buttons[A_BUTTON].pressed == true || isPressingK || isPressingSpace)
         emulator.update_input(ButtonEvent.ButtonB, gamepad?.buttons[X_BUTTON].pressed == true || isPressingJ || isPressingShift)
         emulator.update_input(ButtonEvent.Select, gamepad?.buttons[SELECT].pressed == true || isPressingTab)
@@ -295,6 +314,8 @@
         emulator.update_input(ButtonEvent.Down, gamepad?.buttons[DOWN].pressed == true || isPressingS)
         emulator.update_input(ButtonEvent.Left, gamepad?.buttons[LEFT].pressed == true || isPressingA)
         emulator.update_input(ButtonEvent.Right, gamepad?.buttons[RIGHT].pressed == true || isPressingD)
+        emulator.update_input(ButtonEvent.ButtonL, gamepad?.buttons[L_BUTTON].pressed == true || isPressingC)
+        emulator.update_input(ButtonEvent.ButtonR, gamepad?.buttons[R_BUTTON].pressed == true || isPressingV)
       }
 
       let frames = 0

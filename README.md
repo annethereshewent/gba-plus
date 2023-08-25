@@ -1,6 +1,6 @@
 # GBA+
 
-This is a Gameboy Advance emulator written in Rust. It is a work in progress. Currently video and audio work, and a small amount of games have been tested working properly. Desktop app currently available for use, there is also a WASM app that is currently a work in progress.
+This is a Gameboy Advance emulator written in Rust. Currently video and audio work, and a few games have been tested working properly. Desktop and WASM app are up and running! To test the wasm app, go to https://gba-plus.onrender.com. note that some games will have performance issues that are still being worked on.
 
 ## How to run
 

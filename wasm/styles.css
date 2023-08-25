@@ -78,3 +78,19 @@ canvas {
   cursor: pointer;
   font-size: 20px;
 }
+
+#toast {
+  display: none;
+  position: absolute;
+  bottom: 80px;
+  left: 80px;
+  background: #50C878;
+  border-radius: 3px;
+  border: 1px solid #5F8575;
+  color: white;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  box-shadow: 2px 2px 2px grey;
+}

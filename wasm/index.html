@@ -9,7 +9,7 @@
     <h3 class="title">GBA+</h3>
     <span class="buttons">
       <button class="mui-btn mui-btn--danger mui-btn--raised" id="load-bios-btn">Load BIOS</button>
-      <button class="mui-btn mui-btn--primary mui-btn--raised" id="load-game-btn">Load Game</button>
+      <button class="mui-btn mui-btn--primary mui-btn--raised" id="load-game-btn" disabled="true">Load Game</button>
       <button class="mui-btn mui-btn--accent mui-btn--raised" id="help-btn">Help</button>
       <button id="full-screen" class="mui-btn mui-btn--danger mui-btn--raised">Full Screen</button>
     </span>
@@ -53,6 +53,7 @@
       <p>Emulator written by <a href="https://www.github.com/annethereshewent">annethereshewent</a></p>
     </div>
   </div>
+  <div id="toast">Successfully loaded BIOS</div>
 
   <script src="jszip.min.js"></script>
   <script type="module">
@@ -239,6 +240,13 @@
 
         if (bios != null) {
           emulator.load_bios(new Uint8Array(bios));
+
+          const toast = document.getElementById("toast")
+          toast.style.display = "block"
+
+          document.getElementById("load-game-btn").removeAttribute("disabled")
+
+          setTimeout(() => toast.style.display = "none", 1000)
         }
       }
 

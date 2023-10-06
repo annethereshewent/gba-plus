@@ -4,7 +4,7 @@ This is a Gameboy Advance emulator written in Rust. Currently video and audio wo
 
 ## How to run
 
-Make sure you have rust and SDL2 installed on your computer. There are several guides on how to install SDL2 online for any given operating system online. You will also need a copy of the GBA bios that goes in the root directory of the project Once Rust, SDL2, and the bios are up to date, in a terminal go to the desktop directory and run `cargo run --release <path-to-rom>`
+Make sure you have rust and SDL2 installed on your computer. There are several guides on how to install SDL2 online for any given operating system online. You will also need a copy of the GBA bios that goes in the root directory of the project. Once Rust, SDL2, and the bios are up to date, in a terminal go to the desktop directory and run `cargo run --release <path-to-rom>`
 
 ## Controls
 

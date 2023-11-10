@@ -88,7 +88,8 @@ pub struct GPU {
   pub winh: [WindowHorizontalRegister; 2],
   pub winv: [WindowVerticalRegister; 2],
   pub winin: WindowInRegister,
-  pub winout: WindowOutRegister
+  pub winout: WindowOutRegister,
+  pub frame_finished: bool
 }
 
 enum GpuMode {
@@ -151,7 +152,8 @@ impl GPU {
       winh: [WindowHorizontalRegister::new(); 2],
       winv: [WindowVerticalRegister::new(); 2],
       winin: WindowInRegister::from_bits_retain(0),
-      winout: WindowOutRegister::from_bits_retain(0)
+      winout: WindowOutRegister::from_bits_retain(0),
+      frame_finished: false
     }
   }
 
@@ -192,6 +194,9 @@ impl GPU {
     self.dispstat.remove(DisplayStatusRegister::HBLANK);
 
     if self.vcount >= VISIBLE_LINES {
+      if self.vcount == VISIBLE_LINES {
+        self.frame_finished = true;
+      }
       // entering vblank
       self.dispstat.insert(DisplayStatusRegister::VBLANK);
 

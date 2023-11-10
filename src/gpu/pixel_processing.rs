@@ -315,9 +315,7 @@ impl GPU {
         self.render_mode5();
         self.finalize_scanline(2, 2);
       }
-      _ => {
-        // println!("mode not implemented: {}", self.dispcnt.bg_mode())
-      }
+      _ => ()
     }
   }
 

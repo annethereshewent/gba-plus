@@ -138,7 +138,7 @@ fn main() {
 
   let mut cycles = 0;
   loop {
-    while cycles < CYCLES_PER_FRAME {
+    while !cpu.gpu.frame_finished {
       cycles += cpu.step();
     }
 
@@ -151,6 +151,8 @@ fn main() {
     canvas.copy(&texture, None, None).unwrap();
 
     canvas.present();
+
+    cpu.gpu.frame_finished = false;
 
     for event in event_pump.poll_iter() {
       match event {

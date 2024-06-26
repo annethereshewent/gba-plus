@@ -164,10 +164,8 @@ impl WasmEmulator {
   }
 
   pub fn step_frame(&mut self) {
-    let mut cycles = 0;
-
-    while cycles < CYCLES_PER_FRAME {
-      cycles += self.cpu.step();
+    while !self.cpu.gpu.frame_finished {
+      self.cpu.step();
     }
   }
 

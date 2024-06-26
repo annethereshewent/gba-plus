@@ -66,7 +66,6 @@ pub struct CPU {
   next_fetch: MemoryAccess,
   cycle_luts: CycleLookupTables,
   pub gpu: GPU,
-  cycles: u32,
   interrupt_enable: InterruptEnableRegister,
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   waitcnt: WaitstateControlRegister,
@@ -168,7 +167,6 @@ impl CPU {
       gpu: GPU::new(interrupt_request.clone(), dma_channels.clone()),
       interrupt_request: interrupt_request.clone(),
       cycle_luts: CycleLookupTables::new(),
-      cycles: 0,
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
       dma_channels,
@@ -333,7 +331,7 @@ impl CPU {
     }
   }
 
-  pub fn step(&mut self) -> u32 {
+  pub fn step(&mut self) {
     // first check interrupts
     self.check_interrupts();
 
@@ -361,11 +359,6 @@ impl CPU {
       // just keep cycling until an interrupt is triggered
       self.add_cycles(1);
     }
-
-    let return_cycles = self.cycles;
-    self.cycles = 0;
-
-    return_cycles
   }
 
   fn step_thumb(&mut self) {
@@ -439,7 +432,6 @@ impl CPU {
   }
 
   fn add_cycles(&mut self, cycles: u32) {
-    self.cycles += cycles;
     self.gpu.tick(cycles);
     self.apu.tick(cycles);
 

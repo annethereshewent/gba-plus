@@ -136,15 +136,13 @@ fn main() {
     .create_texture_target(PixelFormatEnum::RGB24, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
     .unwrap();
 
-  let mut cycles = 0;
+
   loop {
     while !cpu.gpu.frame_finished {
-      cycles += cpu.step();
+      cpu.step();
     }
 
     cpu.gpu.cap_fps();
-
-    cycles = 0;
 
     texture.update(None, &cpu.gpu.picture.data, SCREEN_WIDTH as usize * 3).unwrap();
 

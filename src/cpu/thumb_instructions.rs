@@ -58,10 +58,10 @@ impl CPU {
 
   fn move_shifted_register(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside move shifted register");
-    let op_code = ((instr >> 11) & 0b11) as u8;
-    let offset5 = ((instr >> 6) & 0b11111) as u8;
-    let rs = ((instr >> 3) & 0b111) as u8;
-    let rd = (instr & 0b111) as u8;
+    let op_code = ((instr >> 11) & 0x3) as u8;
+    let offset5 = ((instr >> 6) & 0x1f) as u8;
+    let rs = ((instr >> 3) & 0x7) as u8;
+    let rd = (instr & 0x7) as u8;
 
     // println!("rs = {rs}, rd = {rd}, offset = {offset5}, op_code = {op_code}");
     // println!("rs value = {:X}, rd value = {:X}", self.r[rs as usize], self.r[rd as usize]);
@@ -81,11 +81,11 @@ impl CPU {
   fn add_subtract(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside add subtract");
     let op_code = (instr >> 9) & 0b1;
-    let rn_offset = (instr >> 6) & 0b111;
+    let rn_offset = (instr >> 6) & 0x7;
     let is_immediate = (instr >> 10) & 0b1 == 1;
 
-    let rs = (instr >> 3) & 0b111;
-    let rd = instr & 0b111;
+    let rs = (instr >> 3) & 0x7;
+    let rd = instr & 0x7;
 
     let operand1 = self.r[rs as usize];
     let operand2 = if is_immediate { rn_offset as u32 } else { self.r[rn_offset as usize] };
@@ -108,8 +108,8 @@ impl CPU {
   fn move_compare_add_sub_imm(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside move compare add sub imm");
     let op_code = (instr >> 11) & 0b11;
-    let rd = (instr >> 8) & 0b111;
-    let offset = instr & 0b11111111;
+    let rd = (instr >> 8) & 0x7;
+    let offset = instr & 0xff;
 
     // println!("r{rd} = {}", self.r[rd as usize]);
 
@@ -132,9 +132,9 @@ impl CPU {
 
   fn alu_operations(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside alu ops");
-    let op_code = (instr >> 6) & 0b1111;
-    let rs = (instr >> 3) & 0b111;
-    let rd = instr & 0b111;
+    let op_code = (instr >> 6) & 0xf;
+    let rs = (instr >> 3) & 0x7;
+    let rd = instr & 0x7;
 
     // println!("rs = {rs} rd = {rd} op code = {op_code}");
     // println!("r{rs} = {:X}, r{rd} = {:X}", self.r[rs as usize], self.r[rd as usize]);
@@ -178,12 +178,12 @@ impl CPU {
 
   fn hi_register_ops(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside hi register ops");
-    let op_code = (instr >> 8) & 0b11;
+    let op_code = (instr >> 8) & 0x3;
     let h1 = (instr >> 7) & 0b1;
     let h2 = (instr >> 6) & 0b1;
 
-    let mut source = (instr >> 3) & 0b111;
-    let mut destination = instr & 0b111;
+    let mut source = (instr >> 3) & 0x7;
+    let mut destination = instr & 0x7;
 
     if h1 == 1 {
       destination += 8;
@@ -253,7 +253,7 @@ impl CPU {
 
   fn pc_relative_load(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside pc relative load");
-    let rd = (instr >> 8) & 0b111;
+    let rd = (instr >> 8) & 0x7;
 
     let immediate = (instr & 0xff) << 2;
 
@@ -272,8 +272,8 @@ impl CPU {
 
   fn load_store_reg_offset(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside load store reg offset");
-    let rb = (instr >> 3) & 0b111;
-    let ro = (instr >> 6) & 0b111;
+    let rb = (instr >> 3) & 0x7;
+    let ro = (instr >> 6) & 0x7;
 
     let b = (instr >> 10) & 0b1;
 
@@ -287,9 +287,9 @@ impl CPU {
     let h = (instr >> 11) & 0b1;
     let s = (instr >> 10) & 0b1;
 
-    let ro = (instr >> 6) & 0b111;
-    let rb = (instr >> 3) & 0b111;
-    let rd = instr & 0b111;
+    let ro = (instr >> 6) & 0x7;
+    let rb = (instr >> 3) & 0x7;
+    let rd = instr & 0x7;
 
     // println!("r{ro} = {:X}, r{rb} = {:X}", self.r[ro as usize], self.r[rb as usize]);
 
@@ -337,14 +337,14 @@ impl CPU {
     let b = (instr >> 12) & 0b1;
 
     let offset = if b == 1 {
-      (instr >> 6) & 0b11111
+      (instr >> 6) & 0x1f
     } else {
-      ((instr >> 6) & 0b11111) << 2
+      ((instr >> 6) & 0x1f) << 2
     };
 
     // println!("offset is {offset}");
 
-    let rb = (instr >> 3) & 0b111;
+    let rb = (instr >> 3) & 0x7;
 
     let address = self.r[rb as usize].wrapping_add(offset as u32);
 
@@ -354,9 +354,9 @@ impl CPU {
   fn load_store_halfword(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside load store halfword");
     let l = (instr >> 11) & 0b1;
-    let offset = (((instr >> 6) & 0b11111) << 1) as i32;
-    let rb = (instr >> 3) & 0b111;
-    let rd = instr & 0b111;
+    let offset = (((instr >> 6) & 0x1f) << 1) as i32;
+    let rb = (instr >> 3) & 0x7;
+    let rd = instr & 0x7;
 
     let address = (self.r[rb as usize] as i32).wrapping_add(offset) as u32;
 
@@ -390,7 +390,7 @@ impl CPU {
   fn sp_relative_load_store(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside sp relative load store");
     let l = (instr >> 11) & 0b1;
-    let rd = (instr >> 8) & 0b111;
+    let rd = (instr >> 8) & 0x7;
     let word8 = (instr & 0xff) << 2;
 
     let address = self.r[SP_REGISTER].wrapping_add(word8 as u32);
@@ -417,7 +417,7 @@ impl CPU {
   fn load_address(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside load address");
     let sp = (instr >> 11) & 0b1;
-    let rd = (instr >> 8) & 0b111;
+    let rd = (instr >> 8) & 0x7;
     let word8 = (instr & 0xff) << 2;
 
     self.r[rd as usize] = if sp == 1 {
@@ -435,7 +435,7 @@ impl CPU {
   fn add_offset_to_sp(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside add offset to sp");
     let s = (instr >> 7) & 0b1;
-    let sword7 = ((instr & 0b1111111) << 2) as i32;
+    let sword7 = ((instr & 0x7f) << 2) as i32;
 
     self.r[SP_REGISTER] = if s == 0 {
       // add immediate to sp
@@ -510,7 +510,7 @@ impl CPU {
   fn multiple_load_store(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside multiple load store");
     let l = (instr >> 11) & 0b1;
-    let rb = (instr >> 8) & 0b111;
+    let rb = (instr >> 8) & 0x7;
     let rlist = instr & 0xff;
 
     let mut address = self.r[rb as usize] & !(0b11);
@@ -597,7 +597,7 @@ impl CPU {
 
   fn conditional_branch(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside conditional branch");
-    let cond = (instr >> 8) & 0b1111;
+    let cond = (instr >> 8) & 0xf;
 
     let signed_offset = ((((instr & 0xff) as u32) << 24) as i32) >> 23;
 
@@ -616,7 +616,7 @@ impl CPU {
 
   fn unconditional_branch(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside unconditional branch");
-    let address = ((((instr & 0b11111111111) as i32) << 21)) >> 20;
+    let address = ((((instr & 0x7ff) as i32) << 21)) >> 20;
 
     self.pc = (self.pc as i32).wrapping_add((address) as i32) as u32;
 
@@ -628,7 +628,7 @@ impl CPU {
   fn long_branch_link(&mut self, instr: u16) -> Option<MemoryAccess> {
     // println!("inside long branch link");
     let h = (instr >> 11) & 0b1;
-    let offset = (instr & 0b11111111111) as i32;
+    let offset = (instr & 0x7ff) as i32;
 
     if h == 0 {
       let address = (offset << 21) >> 9;
@@ -891,7 +891,7 @@ impl CPU {
 
   fn load_store_offset(&mut self, address: u32, b: u16, instr: u16) -> Option<MemoryAccess> {
     let l = (instr >> 11) & 0b1;
-    let rd = instr & 0b111;
+    let rd = instr & 0x7;
 
     if l == 0 {
       // println!("writing to address {:X} value {:X}", address, self.r[rd as usize]);

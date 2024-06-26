@@ -26,7 +26,7 @@ impl CPU {
     } else if upper & 0b11000000 == 0 {
       // check for psr transfer instructions as they are a subset of data processing
       let s = upper & 0b1;
-      let op_code = (upper >> 1) & 0b1111;
+      let op_code = (upper >> 1) & 0xf;
 
       let is_updating_flags_only = (op_code & 0b1100) == 0b1000;
 
@@ -66,10 +66,10 @@ impl CPU {
     let mut return_val = Some(MemoryAccess::Sequential);
 
     let i = (instr >> 25) & 0b1;
-    let op_code = (instr >> 21) & 0b1111;
+    let op_code = (instr >> 21) & 0xf;
     let mut s = (instr >> 20) & 0b1;
-    let rn = (instr >> 16) & 0b1111;
-    let rd = (instr >> 12) & 0b1111;
+    let rn = (instr >> 16) & 0xf;
+    let rd = (instr >> 12) & 0xf;
 
     let mut operand1 = self.get_register(rn as usize);
 
@@ -78,7 +78,7 @@ impl CPU {
 
     let operand2 = if i == 1 {
       let immediate = instr & 0xff;
-      let rotate = (2 * ((instr >> 8) & 0b1111)) as u8;
+      let rotate = (2 * ((instr >> 8) & 0xf)) as u8;
 
       self.ror(immediate, rotate, false, true, &mut carry)
     } else {
@@ -132,10 +132,10 @@ impl CPU {
 
     let a = (instr >> 21) & 0b1;
     let s = (instr >> 20) & 0b1;
-    let rd = (instr >> 16) & 0b1111;
-    let rn = (instr >> 12) & 0b1111;
-    let rs = (instr >> 8) & 0b1111;
-    let rm = instr & 0b1111;
+    let rd = (instr >> 16) & 0xf;
+    let rn = (instr >> 12) & 0xf;
+    let rs = (instr >> 8) & 0xf;
+    let rm = instr & 0xf;
 
     let operand1 = self.get_register(rm as usize);
     let operand2 = self.get_register(rs as usize);
@@ -171,10 +171,10 @@ impl CPU {
     let a = (instr >> 21) & 0b1;
     let s = (instr >> 20) & 0b1;
 
-    let rd_hi = (instr >> 16) & 0b1111;
-    let rd_low = (instr >> 12) & 0b1111;
-    let rs = (instr >> 8) & 0b1111;
-    let rm = instr & 0b1111;
+    let rd_hi = (instr >> 16) & 0xf;
+    let rd_low = (instr >> 12) & 0xf;
+    let rs = (instr >> 8) & 0xf;
+    let rm = instr & 0xf;
 
     let operand1 = self.get_register(rm as usize);
     let operand2 = self.get_register(rs as usize);
@@ -218,9 +218,9 @@ impl CPU {
     // println!("inside single data swap");
 
     let b = (instr >> 22) & 0b1;
-    let rn = (instr >> 16) & 0b1111;
-    let rd = (instr >> 12) & 0b1111;
-    let rm = instr & 0b1111;
+    let rn = (instr >> 16) & 0xf;
+    let rd = (instr >> 12) & 0xf;
+    let rm = instr & 0xf;
 
     let base_address = self.get_register(rn as usize);
 
@@ -241,7 +241,7 @@ impl CPU {
   fn branch_and_exchange(&mut self, instr: u32) -> Option<MemoryAccess> {
     // println!("inside branch and exchange");
 
-    let rn = instr & 0b1111;
+    let rn = instr & 0xf;
 
     // println!("reading register {rn} with address {:X}", self.r[rn as usize]);
 
@@ -272,7 +272,7 @@ impl CPU {
 
   fn halfword_data_transfer_register(&mut self, instr: u32) -> Option<MemoryAccess>  {
     // println!("inside halfword data transfer register");
-    let rm = instr & 0b1111;
+    let rm = instr & 0xf;
 
     let offset = self.get_register(rm as usize);
 
@@ -282,8 +282,8 @@ impl CPU {
   fn halfword_data_transfer_immediate(&mut self, instr: u32) -> Option<MemoryAccess>  {
     // println!("inside halfword data transfer immediate");
 
-    let offset_high = (instr >> 8) & 0b1111;
-    let offset_low = instr & 0b1111;
+    let offset_high = (instr >> 8) & 0xf;
+    let offset_low = instr & 0xf;
 
     let offset = offset_high << 4 | offset_low;
 
@@ -294,8 +294,8 @@ impl CPU {
 
   fn halfword_transfer(&mut self, offset: u32, instr: u32) -> Option<MemoryAccess> {
     let sh = (instr >> 5) & 0b11;
-    let rd = (instr >> 12) & 0b1111;
-    let rn = (instr >> 16) & 0b1111;
+    let rd = (instr >> 12) & 0xf;
+    let rn = (instr >> 16) & 0xf;
 
     let l = (instr >> 20) & 0b1;
     let w = (instr >> 21) & 0b1;
@@ -386,8 +386,8 @@ impl CPU {
     let w = (instr >> 21) & 0b1;
     let l = (instr >> 20) & 0b1;
 
-    let rn = (instr >> 16) & 0b1111;
-    let rd = (instr >> 12) & 0b1111;
+    let rn = (instr >> 16) & 0xf;
+    let rd = (instr >> 12) & 0xf;
     let mut offset: u32 = instr & 0xfff;
 
     let mut should_update_pc = true;
@@ -491,7 +491,7 @@ impl CPU {
     let mut w = (instr >> 21) & 0b1;
     let l = (instr >> 20) & 0b1;
 
-    let rn = (instr >> 16) & 0b1111;
+    let rn = (instr >> 16) & 0xf;
 
     // println!("rn = r{rn} = {:X}", self.r[rn as usize]);
 
@@ -708,7 +708,7 @@ impl CPU {
       self.spsr.bits()
     };
 
-    let rd = (instr >> 12) & 0b1111;
+    let rd = (instr >> 12) & 0xf;
 
     if rd == PC_REGISTER as u32 {
       self.pc = value & !(0b11);
@@ -735,7 +735,7 @@ impl CPU {
 
     let value = if i == 1 {
       let immediate = instr & 0xff;
-      let rotate = ((instr >> 8) & 0b1111) * 2;
+      let rotate = ((instr >> 8) & 0xf) * 2;
 
       let mut carry = self.cpsr.contains(PSRRegister::CARRY);
 
@@ -745,7 +745,7 @@ impl CPU {
 
       value
     } else {
-      let rm = instr & 0b1111;
+      let rm = instr & 0xf;
 
       // println!("using register r{rm}");
 
@@ -906,18 +906,18 @@ impl CPU {
       }
       self.add_cycles(1);
 
-      let rs = (instr >> 8) & 0b1111;
+      let rs = (instr >> 8) & 0xf;
 
       // println!("rs = {rs}");
 
       self.r[rs as usize] & 0xff
     } else {
-      (instr >> 7) & 0b11111
+      (instr >> 7) & 0x1f
     };
 
     let shift_type = (instr >> 5) & 0b11;
 
-    let rm = instr & 0b1111;
+    let rm = instr & 0xf;
 
     // println!("rm = {rm}");
 

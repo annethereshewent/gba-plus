@@ -167,6 +167,7 @@ impl WasmEmulator {
     while !self.cpu.gpu.frame_finished {
       self.cpu.step();
     }
+    self.cpu.gpu.frame_finished = false;
   }
 
   pub fn get_picture_pointer(&self) -> *const u8 {

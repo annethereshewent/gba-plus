@@ -1,7 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export function __wbg_wasmemulator_free(a: number): void;
+export function __wbg_wasmemulator_free(a: number, b: number): void;
 export function wasmemulator_new(): number;
 export function wasmemulator_load_save(a: number, b: number, c: number): void;
 export function wasmemulator_backup_file_pointer(a: number): number;

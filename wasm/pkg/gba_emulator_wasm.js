@@ -1,17 +1,17 @@
 let wasm;
 
-let cachedUint8Memory0 = null;
+let cachedUint8ArrayMemory0 = null;
 
-function getUint8Memory0() {
-    if (cachedUint8Memory0 === null || cachedUint8Memory0.byteLength === 0) {
-        cachedUint8Memory0 = new Uint8Array(wasm.memory.buffer);
+function getUint8ArrayMemory0() {
+    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
+        cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
-    return cachedUint8Memory0;
+    return cachedUint8ArrayMemory0;
 }
 
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
-    return getUint8Memory0().subarray(ptr / 1, ptr / 1 + len);
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
 const heap = new Array(128).fill(undefined);
@@ -40,30 +40,30 @@ if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
 
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
-    return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
+    return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
 let WASM_VECTOR_LEN = 0;
 
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
-    getUint8Memory0().set(arg, ptr / 1);
+    getUint8ArrayMemory0().set(arg, ptr / 1);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
 
-let cachedFloat32Memory0 = null;
+let cachedFloat32ArrayMemory0 = null;
 
-function getFloat32Memory0() {
-    if (cachedFloat32Memory0 === null || cachedFloat32Memory0.byteLength === 0) {
-        cachedFloat32Memory0 = new Float32Array(wasm.memory.buffer);
+function getFloat32ArrayMemory0() {
+    if (cachedFloat32ArrayMemory0 === null || cachedFloat32ArrayMemory0.byteLength === 0) {
+        cachedFloat32ArrayMemory0 = new Float32Array(wasm.memory.buffer);
     }
-    return cachedFloat32Memory0;
+    return cachedFloat32ArrayMemory0;
 }
 
 function passArrayF32ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 4, 4) >>> 0;
-    getFloat32Memory0().set(arg, ptr / 4);
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
@@ -79,34 +79,32 @@ function addHeapObject(obj) {
 /**
 */
 export const ButtonEvent = Object.freeze({ ButtonA:0,"0":"ButtonA",ButtonB:1,"1":"ButtonB",ButtonL:2,"2":"ButtonL",ButtonR:3,"3":"ButtonR",Select:4,"4":"Select",Start:5,"5":"Start",Up:6,"6":"Up",Down:7,"7":"Down",Left:8,"8":"Left",Right:9,"9":"Right", });
+
+const WasmEmulatorFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmemulator_free(ptr >>> 0, 1));
 /**
 */
 export class WasmEmulator {
 
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(WasmEmulator.prototype);
-        obj.__wbg_ptr = ptr;
-
-        return obj;
-    }
-
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
-
+        WasmEmulatorFinalization.unregister(this);
         return ptr;
     }
 
     free() {
         const ptr = this.__destroy_into_raw();
-        wasm.__wbg_wasmemulator_free(ptr);
+        wasm.__wbg_wasmemulator_free(ptr, 0);
     }
     /**
     */
     constructor() {
         const ret = wasm.wasmemulator_new();
-        return WasmEmulator.__wrap(ret);
+        this.__wbg_ptr = ret >>> 0;
+        WasmEmulatorFinalization.register(this, this.__wbg_ptr, this);
+        return this;
     }
     /**
     * @param {Uint8Array} data
@@ -121,7 +119,7 @@ export class WasmEmulator {
     */
     backup_file_pointer() {
         const ret = wasm.wasmemulator_backup_file_pointer(this.__wbg_ptr);
-        return ret;
+        return ret >>> 0;
     }
     /**
     * @returns {number}
@@ -164,7 +162,7 @@ export class WasmEmulator {
     */
     get_picture_pointer() {
         const ret = wasm.wasmemulator_get_picture_pointer(this.__wbg_ptr);
-        return ret;
+        return ret >>> 0;
     }
     /**
     * @param {Uint8Array} rom
@@ -183,7 +181,7 @@ export class WasmEmulator {
         wasm.wasmemulator_load_bios(this.__wbg_ptr, ptr0, len0);
     }
     /**
-    * @param {number} button_event
+    * @param {ButtonEvent} button_event
     * @param {boolean} is_pressed
     */
     update_input(button_event, is_pressed) {
@@ -238,15 +236,16 @@ function __wbg_get_imports() {
     return imports;
 }
 
-function __wbg_init_memory(imports, maybe_memory) {
+function __wbg_init_memory(imports, memory) {
 
 }
 
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
-    cachedFloat32Memory0 = null;
-    cachedUint8Memory0 = null;
+    cachedFloat32ArrayMemory0 = null;
+    cachedUint8ArrayMemory0 = null;
+
 
 
     return wasm;
@@ -254,6 +253,12 @@ function __wbg_finalize_init(instance, module) {
 
 function initSync(module) {
     if (wasm !== undefined) return wasm;
+
+
+    if (typeof module !== 'undefined' && Object.getPrototypeOf(module) === Object.prototype)
+    ({module} = module)
+    else
+    console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
 
     const imports = __wbg_get_imports();
 
@@ -268,24 +273,30 @@ function initSync(module) {
     return __wbg_finalize_init(instance, module);
 }
 
-async function __wbg_init(input) {
+async function __wbg_init(module_or_path) {
     if (wasm !== undefined) return wasm;
 
-    if (typeof input === 'undefined') {
-        input = new URL('gba_emulator_wasm_bg.wasm', import.meta.url);
+
+    if (typeof module_or_path !== 'undefined' && Object.getPrototypeOf(module_or_path) === Object.prototype)
+    ({module_or_path} = module_or_path)
+    else
+    console.warn('using deprecated parameters for the initialization function; pass a single object instead')
+
+    if (typeof module_or_path === 'undefined') {
+        module_or_path = new URL('gba_emulator_wasm_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 
-    if (typeof input === 'string' || (typeof Request === 'function' && input instanceof Request) || (typeof URL === 'function' && input instanceof URL)) {
-        input = fetch(input);
+    if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
+        module_or_path = fetch(module_or_path);
     }
 
     __wbg_init_memory(imports);
 
-    const { instance, module } = await __wbg_load(await input, imports);
+    const { instance, module } = await __wbg_load(await module_or_path, imports);
 
     return __wbg_finalize_init(instance, module);
 }
 
-export { initSync }
+export { initSync };
 export default __wbg_init;

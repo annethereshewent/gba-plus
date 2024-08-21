@@ -62,17 +62,17 @@ export class WasmEmulator {
 */
   load_bios(bios: Uint8Array): void;
 /**
-* @param {number} button_event
+* @param {ButtonEvent} button_event
 * @param {boolean} is_pressed
 */
-  update_input(button_event: number, is_pressed: boolean): void;
+  update_input(button_event: ButtonEvent, is_pressed: boolean): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_wasmemulator_free: (a: number) => void;
+  readonly __wbg_wasmemulator_free: (a: number, b: number) => void;
   readonly wasmemulator_new: () => number;
   readonly wasmemulator_load_save: (a: number, b: number, c: number) => void;
   readonly wasmemulator_backup_file_pointer: (a: number) => number;
@@ -93,18 +93,18 @@ export type SyncInitInput = BufferSource | WebAssembly.Module;
 * Instantiates the given `module`, which can either be bytes or
 * a precompiled `WebAssembly.Module`.
 *
-* @param {SyncInitInput} module
+* @param {{ module: SyncInitInput }} module - Passing `SyncInitInput` directly is deprecated.
 *
 * @returns {InitOutput}
 */
-export function initSync(module: SyncInitInput): InitOutput;
+export function initSync(module: { module: SyncInitInput } | SyncInitInput): InitOutput;
 
 /**
 * If `module_or_path` is {RequestInfo} or {URL}, makes a request and
 * for everything else, calls `WebAssembly.instantiate` directly.
 *
-* @param {InitInput | Promise<InitInput>} module_or_path
+* @param {{ module_or_path: InitInput | Promise<InitInput> }} module_or_path - Passing `InitInput` directly is deprecated.
 *
 * @returns {Promise<InitOutput>}
 */
-export default function __wbg_init (module_or_path?: InitInput | Promise<InitInput>): Promise<InitOutput>;
+export default function __wbg_init (module_or_path?: { module_or_path: InitInput | Promise<InitInput> } | InitInput | Promise<InitInput>): Promise<InitOutput>;

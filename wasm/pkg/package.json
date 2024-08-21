@@ -1,5 +1,6 @@
 {
   "name": "gba-emulator-wasm",
+  "type": "module",
   "collaborators": [
     "Anne Castrillon <anne.castrillon@gmail.com>"
   ],
@@ -9,7 +10,7 @@
     "gba_emulator_wasm.js",
     "gba_emulator_wasm.d.ts"
   ],
-  "module": "gba_emulator_wasm.js",
+  "main": "gba_emulator_wasm.js",
   "types": "gba_emulator_wasm.d.ts",
   "sideEffects": [
     "./snippets/*"

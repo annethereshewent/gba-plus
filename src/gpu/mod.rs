@@ -187,7 +187,7 @@ impl GPU {
     }
   }
 
-  pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
+  pub fn handle_hdraw(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
     self.update_vcount(self.vcount + 1);
 
@@ -198,12 +198,13 @@ impl GPU {
         self.frame_finished = true;
         // entering vblank
         self.dispstat.insert(DisplayStatusRegister::VBLANK);
-      }
 
-      // latch bg2/bg3 internal coordinates
-      for bg_prop in &mut self.bg_props {
-        bg_prop.internal_x = bg_prop.x;
-        bg_prop.internal_y = bg_prop.y;
+        // latch bg2/bg3 internal coordinates
+        for bg_prop in &mut self.bg_props {
+          bg_prop.internal_x = bg_prop.x;
+          bg_prop.internal_y = bg_prop.y;
+        }
+        self.clear_obj_lines();
       }
 
       if self.dispstat.contains(DisplayStatusRegister::VBLANK_ENABLE) {
@@ -218,7 +219,7 @@ impl GPU {
 
       self.dma_channels.set(dma);
 
-      self.clear_obj_lines();
+
     } else {
       // render scanline here
       self.render_scanline();
@@ -236,7 +237,7 @@ impl GPU {
     }
   }
 
-  pub fn handle_hdraw(&mut self, scheduler: &mut Scheduler) {
+  pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::Hblank, HBLANK_CYCLES as usize);
     self.dispstat.insert(DisplayStatusRegister::HBLANK);
 

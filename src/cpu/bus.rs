@@ -460,13 +460,13 @@ impl CPU {
         self.dma_channels.set(dma);
       }
       0x400_0100 => self.timers.t[0].reload_timer_value(value),
-      0x400_0102 => self.timers.t[0].write_timer_control(value),
+      0x400_0102 => self.timers.t[0].write_timer_control(value, &mut self.scheduler),
       0x400_0104 => self.timers.t[1].reload_timer_value(value),
-      0x400_0106 => self.timers.t[1].write_timer_control(value),
+      0x400_0106 => self.timers.t[1].write_timer_control(value, &mut self.scheduler),
       0x400_0108 => self.timers.t[2].reload_timer_value(value),
-      0x400_010a => self.timers.t[2].write_timer_control(value),
+      0x400_010a => self.timers.t[2].write_timer_control(value, &mut self.scheduler),
       0x400_010c => self.timers.t[3].reload_timer_value(value),
-      0x400_010e => self.timers.t[3].write_timer_control(value),
+      0x400_010e => self.timers.t[3].write_timer_control(value, &mut self.scheduler),
       0x400_0200 => self.interrupt_enable = InterruptEnableRegister::from_bits_retain(value),
       0x400_0202 => self.clear_interrupts(value),
       0x400_0204 => {

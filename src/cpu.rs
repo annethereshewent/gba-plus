@@ -393,6 +393,7 @@ impl CPU {
           self.step_arm();
         }
       } else {
+        println!("cpu is halted :-(");
         // just keep cycling until an interrupt is triggered
         self.cycles = cycles;
 
@@ -407,10 +408,16 @@ impl CPU {
         EventType::Hdraw => self.gpu.handle_hdraw(&mut self.scheduler),
         EventType::Hblank => self.gpu.handle_hblank(&mut self.scheduler),
         EventType::DMA(channel_id) => {
+          println!("handling dma");
           dma.channels[channel_id].pending = true;
           self.dma_channels.set(dma);
         }
-        _ => ()
+        EventType::Timer(timer_id) =>  {
+          self.timers.t[timer_id].handle_overflow(&mut self.scheduler, cycles_left);
+          self.timers.handle_overflow(timer_id, &mut dma, &mut self.scheduler, cycles_left);
+
+          self.dma_channels.set(dma);
+        }
       }
     }
 
@@ -489,18 +496,6 @@ impl CPU {
 
   fn add_cycles(&mut self, cycles: u32) {
     self.cycles += cycles as usize;
-    // self.gpu.tick(cycles);
-    // self.apu.tick(cycles);
-
-    // let mut dma = self.dma_channels.get();
-
-    // self.timers.tick(cycles, &mut self.apu, &mut dma);
-
-    // for channel in &mut dma.channels {
-    //   channel.tick(cycles);
-    // }
-
-    // self.dma_channels.set(dma);
   }
 
   pub fn reload_pipeline16(&mut self) {

@@ -6,7 +6,7 @@ use priority_queue::PriorityQueue;
 pub enum EventType {
   Hblank,
   Hdraw,
-  Vblank,
+  Timer(usize),
   DMA(usize),
 }
 

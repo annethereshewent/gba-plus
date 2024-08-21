@@ -63,8 +63,6 @@ impl ObjectPixel {
 }
 
 pub struct GPU {
-  cycles: u32,
-  mode: GpuMode,
   pub vcount: u16,
   pub dispstat: DisplayStatusRegister,
   pub dispcnt: DisplayControlRegister,
@@ -130,9 +128,7 @@ impl GPU {
     dma_channels: Rc<Cell<DmaChannels>>,
   ) -> Self {
     Self {
-      cycles: 0,
       vcount: 0,
-      mode: GpuMode::Hdraw,
       bg_props: [BgProps::new(); 2],
       dispstat: DisplayStatusRegister::from_bits_retain(0),
       dispcnt: DisplayControlRegister::from_bits_retain(0x80),
@@ -190,23 +186,6 @@ impl GPU {
       *x = ObjectPixel::new();
     }
   }
-
-  // fn handle_visible_hblank(&mut self) {
-
-  // }
-
-  // fn handle_vblank_hblank(&mut self) {
-  //   self.dispstat.remove(DisplayStatusRegister::HBLANK);
-  //   if self.vcount < VISIBLE_LINES + VBLANK_LINES - 1 {
-  //     self.update_vcount(self.vcount + 1);
-  //   } else {
-  //     self.update_vcount(0);
-
-  //     self.render_scanline();
-  //     self.dispstat.remove(DisplayStatusRegister::VBLANK);
-
-  //   }
-  // }
 
   pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
@@ -274,31 +253,6 @@ impl GPU {
 
       self.dma_channels.set(dma);
     }
-  }
-
-  pub fn tick(&mut self, cycles: u32) {
-    // self.cycles += cycles;
-    // match self.mode {
-    //   GpuMode::Hdraw => {
-    //     if self.cycles >= HDRAW_CYCLES {
-    //       self.cycles -= HDRAW_CYCLES;
-    //       self.handle_hdraw();
-    //     }
-    //   }
-    //   GpuMode::Hblank => {
-    //     if self.cycles >= HBLANK_CYCLES {
-    //       self.cycles -= HBLANK_CYCLES;
-    //       if self.vcount <= VISIBLE_LINES {
-    //         // hblank within visible lines
-    //         self.handle_visible_hblank();
-    //       } else {
-    //         // hblank within vblank
-    //         self.handle_vblank_hblank();
-    //       }
-    //       self.mode = GpuMode::Hdraw;
-    //     }
-    //   }
-    // }
   }
 
   pub fn cap_fps(&mut self) {

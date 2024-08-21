@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell};
 
-use crate::apu::APU;
+use crate::{apu::APU, scheduler::Scheduler};
 
 use self::timer::{Timer, TimerControl};
 
@@ -19,32 +19,25 @@ impl Timers {
     }
   }
 
-  pub fn tick(&mut self, cycles: u32, apu: &mut APU, dma: &mut DmaChannels) {
-    for i in 0..self.t.len() {
-      let timer = &mut self.t[i];
-
-      let timer_overflowed = timer.tick(cycles);
-
-      let timer_id = timer.id;
-      if timer_overflowed {
-        self.handle_overflow(timer_id, apu, dma);
-      }
-    }
-  }
-
-  pub fn handle_overflow(&mut self, timer_id: usize, apu: &mut APU, dma: &mut DmaChannels) {
+  pub fn handle_overflow(
+    &mut self,
+    timer_id: usize,
+    dma: &mut DmaChannels,
+    scheduler: &mut Scheduler,
+    apu: &mut APU,
+    cycles_left: usize
+  ) {
     if timer_id != 3 {
       let next_timer_id = timer_id + 1;
 
       let next_timer = &mut self.t[next_timer_id];
 
-      if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.count_up_timer() {
-        self.handle_overflow(next_timer_id, apu, dma);
+      if next_timer.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) && next_timer.count_up_timer(scheduler, cycles_left) {
+        self.handle_overflow(next_timer_id, dma, scheduler, apu, cycles_left);
       }
-    }
-
-    if timer_id == 0 || timer_id == 1 {
-      apu.handle_timer_overflow(timer_id, dma);
+      if timer_id == 0 || timer_id == 1 {
+        apu.handle_timer_overflow(timer_id, dma);
+      }
     }
   }
 }

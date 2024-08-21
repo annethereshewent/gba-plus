@@ -1,4 +1,4 @@
-use crate::{cpu::{CPU, MemoryAccess}, cartridge::BackupMedia};
+use crate::{cartridge::BackupMedia, cpu::{MemoryAccess, CPU}, scheduler::{EventType, Scheduler}};
 
 use self::registers::dma_control_register::DmaControlRegister;
 
@@ -77,7 +77,6 @@ impl DmaChannel {
       }
     }
 
-
     let mut access = MemoryAccess::NonSequential;
 
     if self.fifo_mode {
@@ -122,19 +121,6 @@ impl DmaChannel {
     should_trigger_irq
   }
 
-  pub fn tick(&mut self, cycles: u32) {
-    if self.cycles_to_transfer > 0 {
-      self.cycles += cycles;
-
-      if self.cycles >= self.cycles_to_transfer {
-        self.cycles_to_transfer = 0;
-        self.cycles -= self.cycles_to_transfer;
-
-        self.pending = true;
-      }
-    }
-  }
-
   pub fn write_control(&mut self, value: u16) {
     let dma_control = DmaControlRegister::from_bits_retain(value);
 
@@ -148,7 +134,7 @@ impl DmaChannel {
       let timing = dma_control.dma_start_timing();
 
       if timing == 0 {
-        self.cycles_to_transfer = 3;
+        self.pending = true;
       } else {
         self.pending = false;
       }

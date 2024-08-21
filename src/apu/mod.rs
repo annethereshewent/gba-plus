@@ -1,4 +1,4 @@
-use crate::cpu::{CPU_CLOCK_SPEED, dma::dma_channels::DmaChannels};
+use crate::{cpu::{dma::dma_channels::DmaChannels, CPU_CLOCK_SPEED}, scheduler::{EventType, Scheduler}};
 
 use self::{registers::{sound_control_dma::SoundControlDma, sound_control_enable::SoundControlEnable}, dma_fifo::DmaFifo};
 
@@ -21,7 +21,6 @@ pub struct APU {
   pub cycles_per_sample: u32,
   pub sample_rate: u32,
   pub sound_bias: u16,
-  cycles: u32,
   pub audio_samples: [f32; NUM_SAMPLES],
   pub buffer_index: usize,
   pub previous_value: f32,
@@ -43,7 +42,6 @@ impl APU {
       sample_rate: GBA_SAMPLE_RATE,
       cycles_per_sample: CPU_CLOCK_SPEED / GBA_SAMPLE_RATE,
       sound_bias: 0x200,
-      cycles: 0,
       audio_samples: [0.0; NUM_SAMPLES],
       buffer_index: 0,
       previous_value: 0.0,
@@ -63,17 +61,13 @@ impl APU {
     }
   }
 
-  pub fn tick(&mut self, cycles: u32) {
-    self.cycles += cycles;
-
-    if self.cycles >= self.cycles_per_sample {
-      self.cycles -= self.cycles_per_sample;
-
-      self.sample_audio();
-    }
+  pub fn schedule_samples(&self, scheduler: &mut Scheduler) {
+    scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
   }
 
-  pub fn sample_audio(&mut self) {
+  pub fn sample_audio(&mut self, scheduler: &mut Scheduler) {
+    scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
+
     let mut left_sample: i16 = 0;
     let mut right_sample: i16 = 0;
 

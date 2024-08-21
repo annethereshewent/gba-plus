@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell};
 
-use crate::cpu::registers::interrupt_request_register::InterruptRequestRegister;
+use crate::{cpu::registers::interrupt_request_register::InterruptRequestRegister, scheduler::{EventType, Scheduler}};
 
 pub const CYCLE_LUT: [u32; 4] = [1, 64, 256, 1024];
 
@@ -13,7 +13,8 @@ pub struct Timer {
   pub prescalar_frequency: u32,
   pub running: bool,
   pub cycles: u32,
-  interrupt_request: Rc<Cell<InterruptRequestRegister>>
+  interrupt_request: Rc<Cell<InterruptRequestRegister>>,
+  start_cycles: usize
 }
 
 impl Timer {
@@ -26,36 +27,12 @@ impl Timer {
       running: false,
       cycles: 0,
       id,
-      interrupt_request
+      interrupt_request,
+      start_cycles: 0
     }
   }
 
-  pub fn tick(&mut self, cycles: u32) -> bool {
-    if self.running && !self.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) {
-      self.cycles += cycles;
-
-      let temp = if self.cycles >= self.prescalar_frequency {
-        let to_add = self.cycles / self.prescalar_frequency;
-        self.cycles = 0;
-        self.value.wrapping_add(to_add as u16)
-      } else {
-        self.value
-      };
-
-      // timer has overflown
-      if temp < self.value  {
-        self.handle_overflow();
-
-        return true;
-      } else {
-        self.value = temp;
-      }
-    }
-
-    false
-  }
-
-  pub fn count_up_timer(&mut self) -> bool {
+  pub fn count_up_timer(&mut self, scheduler: &mut Scheduler, cycles_left: usize) -> bool {
     let mut return_val = false;
 
     if self.running {
@@ -63,7 +40,7 @@ impl Timer {
 
       // overflow has happened
       if temp < self.value {
-        self.handle_overflow();
+        self.handle_overflow(scheduler, cycles_left);
 
         return_val = true;
       } else {
@@ -74,14 +51,19 @@ impl Timer {
     return_val
   }
 
-  fn handle_overflow(&mut self) {
-    self.value = self.reload_value;
-    self.cycles = 0;
+  pub fn handle_overflow(&mut self, scheduler: &mut Scheduler, cycles_left: usize) {
+    if !self.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) {
+      let event_type = EventType::Timer(self.id);
+
+      self.value = self.reload_value;
+      let cycles_till_overflow = self.prescalar_frequency * (0x1_0000 - self.value as u32);
+      scheduler.schedule(event_type, cycles_till_overflow as usize - cycles_left);
+      self.start_cycles = scheduler.cycles;
+    }
 
     if self.timer_ctl.contains(TimerControl::IRQ_ENABLE) {
-      // trigger irq
       let mut interrupt_request = self.interrupt_request.get();
-
+      // trigger irq
       interrupt_request.request_timer(self.id);
 
       self.interrupt_request.set(interrupt_request);
@@ -92,18 +74,21 @@ impl Timer {
     self.reload_value = value;
   }
 
-  pub fn write_timer_control(&mut self, value: u16) {
+  pub fn write_timer_control(&mut self, value: u16, scheduler: &mut Scheduler) {
     let new_ctl = TimerControl::from_bits_retain(value);
 
     self.prescalar_frequency = CYCLE_LUT[new_ctl.prescalar_selection() as usize];
 
     if new_ctl.contains(TimerControl::ENABLED) && !self.timer_ctl.contains(TimerControl::ENABLED) {
       self.value = self.reload_value;
-      self.cycles = 0;
+
+      let cycles_till_overflow = self.prescalar_frequency * (0x1_0000 - self.value as u32);
+
+      scheduler.schedule(EventType::Timer(self.id), cycles_till_overflow as usize);
+
       self.running = true;
-    } else if !new_ctl.contains(TimerControl::ENABLED) {
-      self.running = false;
-      self.cycles = 0;
+    } else if !new_ctl.contains(TimerControl::ENABLED) || new_ctl.contains(TimerControl::COUNT_UP_TIMING) {
+      scheduler.remove(EventType::Timer(self.id));
     }
 
     self.timer_ctl = new_ctl;

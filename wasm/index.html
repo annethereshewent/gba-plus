@@ -18,6 +18,7 @@
   <div id="gba">
     <input type="file" id="rom-input">
     <input type="file" id="bios-input">
+    <p id="fps-counter"></p>
     <canvas width="240" height="160" id="canvas" />
   </div>
   <div id="modal">
@@ -340,8 +341,12 @@
       function run(time) {
         const diff = time - previousTime
 
+        const fps = Math.floor(1000 / diff)
+
         if (diff >= FPS_INTERVAL || previousTime == 0) {
           previousTime = time - (diff % FPS_INTERVAL)
+
+          document.getElementById("fps-counter").innerText = `FPS = ${fps}`
 
           emulator.step_frame()
           context.putImageData(getImageData(), 0, 0)

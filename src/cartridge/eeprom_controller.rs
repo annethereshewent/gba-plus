@@ -119,7 +119,7 @@ impl EepromChip {
     let mut tx_buffer = 0;
     for i in 0..8 {
       tx_buffer <<= 8;
-      tx_buffer |= self.memory.read(self.address + i) as u64
+      tx_buffer |= self.memory.read::<u8>(self.address + i) as u64
     }
 
     self.tx_buffer = tx_buffer;

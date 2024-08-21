@@ -1,10 +1,13 @@
-use crate::{gpu::{registers::{display_status_register::DisplayStatusRegister, bg_control_register::BgControlRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, cpu::{registers::interrupt_enable_register::InterruptEnableRegister, dma::dma_channels::AddressType}, cartridge::BackupMedia, apu::registers::sound_control_dma::SoundControlDma};
+use crate::{apu::registers::sound_control_dma::SoundControlDma, cartridge::BackupMedia, cpu::{dma::dma_channels::AddressType, registers::interrupt_enable_register::InterruptEnableRegister}, gpu::{registers::{bg_control_register::BgControlRegister, display_status_register::DisplayStatusRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, number::Number};
 
 use super::CPU;
 
 impl CPU {
   pub fn mem_read_32(&mut self, address: u32) -> u32 {
-    self.mem_read_16(address) as u32 | ((self.mem_read_16(address + 2) as u32) << 16)
+    match address {
+      0x400_0000..=0x4ff_ffff => self.io_read_16(address) as u32 | (self.io_read_16(address + 2) as u32) << 16,
+      _ => self.mem_read::<u32>(address)
+    }
   }
 
   pub fn mem_read_16(&mut self, address: u32) -> u16 {
@@ -16,19 +19,18 @@ impl CPU {
         }
         0
       },
-      _ => self.mem_read_8(address) as u16 | ((self.mem_read_8(address + 1) as u16) << 8)
+      _ => self.mem_read::<u16>(address)
     }
   }
 
-  pub fn mem_read_8(&mut self, address: u32) -> u8 {
+  pub fn mem_read<T: Number>(&mut self, address: u32) -> T {
     match address {
-      0..=0x3fff => self.bios[address as usize],
-      0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize],
+      0..=0x3fff => unsafe { *(&self.bios[address as usize] as *const u8 as *const T) },
+      0x200_0000..=0x2ff_ffff => unsafe { *(&self.board_wram[(address & 0x3_ffff) as usize] as *const u8 as *const T) },
       0x300_0000..=0x3ff_ffff => {
-        self.chip_wram[(address & 0x7fff) as usize]
+        unsafe { *(&self.chip_wram[(address & 0x7fff) as usize] as *const u8 as *const T) }
       },
-      0x400_0000..=0x4ff_ffff => self.io_read_8(address),
-      0x500_0000..=0x5ff_ffff => self.gpu.palette_ram[(address & 0x3ff) as usize],
+      0x500_0000..=0x5ff_ffff => unsafe { *(&self.gpu.palette_ram[(address & 0x3ff) as usize] as *const u8 as *const T) },
       0x600_0000..=0x6ff_ffff => {
         let mut offset = address % VRAM_SIZE as u32;
 
@@ -36,20 +38,20 @@ impl CPU {
           offset -= 0x8000
         }
 
-        self.gpu.vram[offset as usize]
+        unsafe { *(&self.gpu.vram[offset as usize] as *const u8 as *const T) }
       }
-      0x700_0000..=0x7ff_ffff => self.gpu.oam_ram[(address & 0x3ff) as usize],
+      0x700_0000..=0x7ff_ffff => unsafe { *(self.gpu.oam_ram[(address & 0x3ff) as usize] as *const u8 as *const T) },
       0x800_0000..=0xdff_ffff => {
         let offset = address & 0x01ff_ffff;
         if offset >= self.cartridge.rom.len() as u32 {
           let x = (address / 2) & 0xffff;
           if address & 1 != 0 {
-              (x >> 8) as u8
+            num::cast::<u32, T>(x >> 8).unwrap()
           } else {
-              x as u8
+            num::cast::<u32, T>(x).unwrap()
           }
         } else {
-          self.cartridge.rom[offset as usize]
+          unsafe { *(&self.cartridge.rom[offset as usize] as *const u8 as *const T) }
         }
       }
       0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
@@ -58,14 +60,22 @@ impl CPU {
         } else if let BackupMedia::Flash(flash) = &mut self.cartridge.backup {
           flash.read(address)
         } else {
-          0
+          num::zero()
         }
       }
       // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
       _ => {
         // println!("reading from unsupported address: {:X}", address);
-        0
+        num::zero()
       }
+    }
+  }
+
+  pub fn mem_read_8(&mut self, address: u32) -> u8 {
+    match address {
+      0x400_0000..=0x4ff_ffff => self.io_read_8(address),
+      // 0x1000_0000..=0xffff_ffff => panic!("unused memory"),
+      _ => self.mem_read::<u8>(address)
     }
   }
 

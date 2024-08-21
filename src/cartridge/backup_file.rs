@@ -1,5 +1,7 @@
 use std::{fs::{File, self}, io::{Read, SeekFrom, Seek, Write}, path::PathBuf};
 
+use crate::number::Number;
+
 pub struct BackupFile {
   pub size: usize,
   file: Option<File>,
@@ -39,8 +41,8 @@ impl BackupFile {
     }
   }
 
-  pub fn read(&self, offset: usize) -> u8 {
-    self.buffer[offset]
+  pub fn read<T: Number>(&self, offset: usize) -> T {
+    unsafe { *(&self.buffer[offset] as *const u8 as *const T) }
   }
 
   pub fn write(&mut self, offset: usize, value: u8) {

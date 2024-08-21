@@ -6,3 +6,4 @@ pub mod gpu;
 pub mod cartridge;
 pub mod apu;
 pub mod scheduler;
+pub mod number;

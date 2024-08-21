@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::number::Number;
+
 use super::backup_file::BackupFile;
 
 const BANK_SIZE: usize = 0x10000;
@@ -43,12 +45,12 @@ impl Flash {
     }
   }
 
-  pub fn read(&self, address: u32) -> u8 {
+  pub fn read<T: Number>(&self, address: u32) -> T {
     let offset = address & 0xffff;
     if matches!(self.mode, FlashMode::ChipId) {
       match offset {
-        0 => (self.chip_id & 0xff) as u8,
-        1 => (self.chip_id >> 8) as u8,
+        0 => num::cast::<u16, T>(self.chip_id & 0xff).unwrap(),
+        1 => num::cast::<u16, T>((self.chip_id >> 8)).unwrap(),
         _ => panic!("invalid offset specified for chip id mode")
       }
     } else {

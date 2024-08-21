@@ -144,8 +144,17 @@ impl CPU {
     let upper = (val >> 16) as u16;
     let lower = (val & 0xffff) as u16;
 
-    self.mem_write_16(address, lower);
-    self.mem_write_16(address + 2, upper);
+    match address {
+      0x400_0000..=0x4ff_ffff => {
+        self.io_write_16(address, lower);
+        self.io_write_16(address + 2, upper);
+      }
+      0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
+        self.mem_write_16(address, lower);
+        self.mem_write_16(address + 2, upper);
+      }
+      _ => self.mem_write::<u32>(address, val)
+    }
   }
 
   pub fn mem_write_16(&mut self, address: u32, val: u16) {
@@ -154,55 +163,22 @@ impl CPU {
 
     match address {
       0x400_0000..=0x4ff_ffff => self.io_write_16(address, val),
-      0x500_0000..=0x5ff_ffff => {
-        let base_address = address & 0x3fe;
-        self.gpu.palette_ram[base_address as usize] = lower;
-        self.gpu.palette_ram[(base_address + 1) as usize] = upper;
-      }
-      0x600_0000..=0x6ff_ffff => {
-        let mut offset = address % VRAM_SIZE as u32;
-
-        if offset > 0x18000 {
-          offset -= 0x8000
-        }
-
-        self.gpu.vram[offset as usize] = lower;
-        self.gpu.vram[(offset + 1) as usize] = upper;
-      }
-      0x700_0000..=0x7ff_ffff => {
-        let base_address = address & 0x3fe;
-        self.gpu.oam_ram[base_address as usize] = lower;
-        self.gpu.oam_ram[(base_address+ 1) as usize] = upper;
-      }
       0xd00_0000..=0xdff_ffff if self.cartridge.rom.len() <= (16 * 1024 * 1024) || address >= 0xdff_ff00 => {
         if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
           eeprom_controller.write(address, val);
         }
       }
-      _ => {
+      0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
         self.mem_write_8(address, lower);
         self.mem_write_8(address + 1, upper);
       }
+      _ => self.mem_write::<u16>(address, val)
     }
   }
 
   pub fn mem_write_8(&mut self, address: u32, val: u8) {
     match address {
-      0x200_0000..=0x2ff_ffff => self.board_wram[(address & 0x3_ffff) as usize] = val,
-      0x300_0000..=0x3ff_ffff => {
-        self.chip_wram[(address & 0x7fff) as usize] = val
-      },
       0x400_0000..=0x4ff_ffff => self.io_write_8(address, val),
-      0x500_0000..=0x5ff_ffff => self.mem_write_16(address & 0x3fe, (val as u16) * 0x101),
-      0x600_0000..=0x6ff_ffff => {
-        let mut offset = address % VRAM_SIZE as u32;
-
-        if offset > 0x18000 {
-          offset -= 0x8000
-        }
-
-        self.mem_write_16(offset & !(0b1), (val as u16) * 0x101);
-      }
       0xe00_0000..=0xeff_ffff | 0xf00_0000..=0xfff_ffff => {
         if let BackupMedia::Sram(sram) = &mut self.cartridge.backup {
           sram.write((address & 0x7fff) as usize, val);
@@ -210,6 +186,41 @@ impl CPU {
           flash.write(address, val);
         }
       }
+      _ => self.mem_write::<u8>(address, val)
+    }
+  }
+
+  pub fn mem_write<T: Number>(&mut self, address: u32, val: T) {
+    match address {
+      0x200_0000..=0x2ff_ffff => {
+        unsafe { *(&mut self.board_wram[(address & 0x3_ffff) as usize] as *mut u8 as *mut T) = val };
+      }
+      0x500_0000..=0x5ff_ffff => {
+        let base_address = address & 0x3fe;
+        // self.gpu.palette_ram[base_address as usize] = lower;
+        // self.gpu.palette_ram[(base_address + 1) as usize] = upper;
+
+        unsafe { *(&mut self.gpu.palette_ram[base_address as usize] as *mut u8 as *mut T) = val };
+      }
+      0x600_0000..=0x6ff_ffff => {
+        let mut offset = address % VRAM_SIZE as u32;
+
+        if offset > 0x18000 {
+          offset -= 0x8000
+        }
+
+        unsafe { *(&mut self.gpu.vram[offset as usize] as *mut u8 as *mut T) = val };
+      }
+      0x700_0000..=0x7ff_ffff => {
+        let base_address = address & 0x3fe;
+        // self.gpu.oam_ram[base_address as usize] = lower;
+        // self.gpu.oam_ram[(base_address+ 1) as usize] = upper;
+
+        unsafe { *(&mut self.gpu.oam_ram[base_address as usize] as *mut u8 as *mut T) = val };
+      }
+      0x300_0000..=0x3ff_ffff => {
+        unsafe { *(&mut self.chip_wram[(address & 0x7fff) as usize] as *mut u8 as *mut T) = val };
+      },
       _ => {
         // println!("writing go unsupported address: {:X}", address);
       }

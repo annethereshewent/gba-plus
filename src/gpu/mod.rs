@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep};
 
-use crate::cpu::{registers::{interrupt_request_register::InterruptRequestRegister, interrupt_enable_register::{FLAG_VBLANK, FLAG_VCOUNTER_MATCH, FLAG_HBLANK}}, CPU, dma::dma_channels::{DmaChannels, VBLANK_TIMING, HBLANK_TIMING}};
+use crate::{cpu::{dma::dma_channels::{DmaChannels, HBLANK_TIMING, VBLANK_TIMING}, registers::{interrupt_enable_register::{FLAG_HBLANK, FLAG_VBLANK, FLAG_VCOUNTER_MATCH}, interrupt_request_register::InterruptRequestRegister}, CPU}, scheduler::{EventType, Scheduler}};
 
 use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister, color_effects_register::ColorEffectsRegister, alpha_blend_register::AlphaBlendRegister, brightness_register::BrightnessRegister, window_horizontal_register::WindowHorizontalRegister, window_vertical_register::WindowVerticalRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, picture::Picture};
 
@@ -9,8 +9,8 @@ pub mod picture;
 pub mod rendering;
 pub mod pixel_processing;
 
-const HDRAW_CYCLES: u32 = 960;
-const HBLANK_CYCLES: u32 = 272;
+pub const HDRAW_CYCLES: u32 = 960;
+pub const HBLANK_CYCLES: u32 = 272;
 
 const VISIBLE_LINES: u16 = 160;
 const VBLANK_LINES: u16 = 68;
@@ -125,7 +125,10 @@ impl BgProps {
 }
 
 impl GPU {
-  pub fn new(interrupt_request: Rc<Cell<InterruptRequestRegister>>, dma_channels: Rc<Cell<DmaChannels>>) -> Self {
+  pub fn new(
+    interrupt_request: Rc<Cell<InterruptRequestRegister>>,
+    dma_channels: Rc<Cell<DmaChannels>>,
+  ) -> Self {
     Self {
       cycles: 0,
       vcount: 0,
@@ -188,7 +191,25 @@ impl GPU {
     }
   }
 
-  fn handle_visible_hblank(&mut self) {
+  // fn handle_visible_hblank(&mut self) {
+
+  // }
+
+  // fn handle_vblank_hblank(&mut self) {
+  //   self.dispstat.remove(DisplayStatusRegister::HBLANK);
+  //   if self.vcount < VISIBLE_LINES + VBLANK_LINES - 1 {
+  //     self.update_vcount(self.vcount + 1);
+  //   } else {
+  //     self.update_vcount(0);
+
+  //     self.render_scanline();
+  //     self.dispstat.remove(DisplayStatusRegister::VBLANK);
+
+  //   }
+  // }
+
+  pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
+    scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
     self.update_vcount(self.vcount + 1);
 
     self.dispstat.remove(DisplayStatusRegister::HBLANK);
@@ -229,22 +250,15 @@ impl GPU {
         bg_prop.internal_y += bg_prop.dmy as i32;
       }
     }
-  }
-
-  fn handle_vblank_hblank(&mut self) {
-    self.dispstat.remove(DisplayStatusRegister::HBLANK);
-    if self.vcount < VISIBLE_LINES + VBLANK_LINES - 1 {
-      self.update_vcount(self.vcount + 1);
-    } else {
+    if self.vcount == VISIBLE_LINES + VBLANK_LINES {
       self.update_vcount(0);
 
-      self.render_scanline();
       self.dispstat.remove(DisplayStatusRegister::VBLANK);
-
     }
   }
 
-  fn handle_hdraw(&mut self) {
+  pub fn handle_hdraw(&mut self, scheduler: &mut Scheduler) {
+    scheduler.schedule(EventType::Hblank, HBLANK_CYCLES as usize);
     self.dispstat.insert(DisplayStatusRegister::HBLANK);
 
     if self.dispstat.contains(DisplayStatusRegister::HBLANK_ENABLE) {
@@ -260,32 +274,31 @@ impl GPU {
 
       self.dma_channels.set(dma);
     }
-    self.mode = GpuMode::Hblank;
   }
 
   pub fn tick(&mut self, cycles: u32) {
-    self.cycles += cycles;
-    match self.mode {
-      GpuMode::Hdraw => {
-        if self.cycles >= HDRAW_CYCLES {
-          self.cycles -= HDRAW_CYCLES;
-          self.handle_hdraw();
-        }
-      }
-      GpuMode::Hblank => {
-        if self.cycles >= HBLANK_CYCLES {
-          self.cycles -= HBLANK_CYCLES;
-          if self.vcount <= VISIBLE_LINES {
-            // hblank within visible lines
-            self.handle_visible_hblank();
-          } else {
-            // hblank within vblank
-            self.handle_vblank_hblank();
-          }
-          self.mode = GpuMode::Hdraw;
-        }
-      }
-    }
+    // self.cycles += cycles;
+    // match self.mode {
+    //   GpuMode::Hdraw => {
+    //     if self.cycles >= HDRAW_CYCLES {
+    //       self.cycles -= HDRAW_CYCLES;
+    //       self.handle_hdraw();
+    //     }
+    //   }
+    //   GpuMode::Hblank => {
+    //     if self.cycles >= HBLANK_CYCLES {
+    //       self.cycles -= HBLANK_CYCLES;
+    //       if self.vcount <= VISIBLE_LINES {
+    //         // hblank within visible lines
+    //         self.handle_visible_hblank();
+    //       } else {
+    //         // hblank within vblank
+    //         self.handle_vblank_hblank();
+    //       }
+    //       self.mode = GpuMode::Hdraw;
+    //     }
+    //   }
+    // }
   }
 
   pub fn cap_fps(&mut self) {

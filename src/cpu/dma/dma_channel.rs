@@ -1,4 +1,4 @@
-use crate::{cpu::{CPU, MemoryAccess}, cartridge::BackupMedia};
+use crate::{cartridge::BackupMedia, cpu::{MemoryAccess, CPU}, scheduler::{EventType, Scheduler}};
 
 use self::registers::dma_control_register::DmaControlRegister;
 
@@ -122,20 +122,20 @@ impl DmaChannel {
     should_trigger_irq
   }
 
-  pub fn tick(&mut self, cycles: u32) {
-    if self.cycles_to_transfer > 0 {
-      self.cycles += cycles;
+  // pub fn tick(&mut self, cycles: u32) {
+  //   if self.cycles_to_transfer > 0 {
+  //     self.cycles += cycles;
 
-      if self.cycles >= self.cycles_to_transfer {
-        self.cycles_to_transfer = 0;
-        self.cycles -= self.cycles_to_transfer;
+  //     if self.cycles >= self.cycles_to_transfer {
+  //       self.cycles_to_transfer = 0;
+  //       self.cycles -= self.cycles_to_transfer;
 
-        self.pending = true;
-      }
-    }
-  }
+  //       self.pending = true;
+  //     }
+  //   }
+  // }
 
-  pub fn write_control(&mut self, value: u16) {
+  pub fn write_control(&mut self, value: u16, scheduler: &mut Scheduler) {
     let dma_control = DmaControlRegister::from_bits_retain(value);
 
     if dma_control.contains(DmaControlRegister::DMA_ENABLE) && !self.dma_control.contains(DmaControlRegister::DMA_ENABLE) {
@@ -148,7 +148,7 @@ impl DmaChannel {
       let timing = dma_control.dma_start_timing();
 
       if timing == 0 {
-        self.cycles_to_transfer = 3;
+        scheduler.schedule(EventType::DMA(self.id), 3);
       } else {
         self.pending = false;
       }

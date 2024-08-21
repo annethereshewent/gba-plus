@@ -5,3 +5,4 @@ pub mod cpu;
 pub mod gpu;
 pub mod cartridge;
 pub mod apu;
+pub mod scheduler;

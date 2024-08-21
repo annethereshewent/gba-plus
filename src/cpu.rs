@@ -5,11 +5,38 @@
 // R15 are zero and bits [31:2] contain the PC. In THUMB state,
 // bit [0] is zero and bits [31:1] contain the PC.
 
-use std::{rc::Rc, cell::Cell};
+use std::{
+  rc::Rc,
+  cell::Cell
+};
 
-use crate::{gpu::GPU, cartridge::{Cartridge, BackupMedia}, apu::APU};
+use crate::{
+  apu::APU,
+  cartridge::{
+    BackupMedia,
+    Cartridge
+  },
+  gpu::{
+    GPU,
+    HDRAW_CYCLES
+  },
+  scheduler::{
+    EventType,
+    Scheduler
+  }
+};
 
-use self::{cycle_lookup_tables::CycleLookupTables, registers::{interrupt_enable_register::InterruptEnableRegister, interrupt_request_register::InterruptRequestRegister, key_input_register::KeyInputRegister, waitstate_control_register::WaitstateControlRegister}, dma::dma_channels::DmaChannels, timers::Timers};
+use self::{
+  cycle_lookup_tables::CycleLookupTables,
+  registers::{
+    interrupt_enable_register::InterruptEnableRegister,
+    interrupt_request_register::InterruptRequestRegister,
+    key_input_register::KeyInputRegister,
+    waitstate_control_register::WaitstateControlRegister
+  },
+  dma::dma_channels::DmaChannels,
+  timers::Timers
+};
 
 pub mod arm_instructions;
 pub mod thumb_instructions;
@@ -73,7 +100,9 @@ pub struct CPU {
   dma_channels: Rc<Cell<DmaChannels>>,
   pub key_input: KeyInputRegister,
   pub timers: Timers,
-  pub apu: APU
+  pub apu: APU,
+  pub scheduler: Scheduler,
+  cycles: usize
 }
 
 
@@ -174,11 +203,15 @@ impl CPU {
       key_input: KeyInputRegister::from_bits_retain(0x3ff),
       timers: Timers::new(interrupt_request.clone()),
       waitcnt: WaitstateControlRegister::new(),
-      apu: APU::new()
+      apu: APU::new(),
+      scheduler: Scheduler::new(),
+      cycles: 0
     };
 
     cpu.populate_thumb_lut();
     cpu.populate_arm_lut();
+
+    cpu.scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
 
     cpu
   }
@@ -333,32 +366,55 @@ impl CPU {
 
   pub fn step(&mut self) {
     // first check interrupts
+
     self.check_interrupts();
 
     let mut dma = self.dma_channels.get();
 
-    if dma.has_pending_transfers() {
-      let should_trigger_irqs = dma.do_transfers(self);
-      let mut interrupt_request = self.interrupt_request.get();
+    let cycles = self.scheduler.get_cycles_to_next_event();
 
-      for i in 0..4 {
-        if should_trigger_irqs[i] {
-          interrupt_request.request_dma(i);
+    while self.cycles < cycles {
+      if dma.has_pending_transfers() {
+        let should_trigger_irqs = dma.do_transfers(self);
+        let mut interrupt_request = self.interrupt_request.get();
+
+        for i in 0..4 {
+          if should_trigger_irqs[i] {
+            interrupt_request.request_dma(i);
+          }
         }
-      }
 
-      self.interrupt_request.set(interrupt_request);
-      self.dma_channels.set(dma);
-    } else if !self.is_halted {
-      if self.cpsr.contains(PSRRegister::STATE_BIT) {
-        self.step_thumb();
+        self.interrupt_request.set(interrupt_request);
+        self.dma_channels.set(dma);
+      } else if !self.is_halted {
+        if self.cpsr.contains(PSRRegister::STATE_BIT) {
+          self.step_thumb();
+        } else {
+          self.step_arm();
+        }
       } else {
-        self.step_arm();
+        // just keep cycling until an interrupt is triggered
+        self.cycles = cycles;
+
+        break;
       }
-    } else {
-      // just keep cycling until an interrupt is triggered
-      self.add_cycles(1);
     }
+
+    self.scheduler.update_cycles(cycles);
+
+    while let Some((event_type, cycles_left)) = self.scheduler.get_next_event() {
+      match event_type {
+        EventType::Hdraw => self.gpu.handle_hdraw(&mut self.scheduler),
+        EventType::Hblank => self.gpu.handle_hblank(&mut self.scheduler),
+        EventType::DMA(channel_id) => {
+          dma.channels[channel_id].pending = true;
+          self.dma_channels.set(dma);
+        }
+        _ => ()
+      }
+    }
+
+
   }
 
   fn step_thumb(&mut self) {
@@ -432,18 +488,19 @@ impl CPU {
   }
 
   fn add_cycles(&mut self, cycles: u32) {
-    self.gpu.tick(cycles);
-    self.apu.tick(cycles);
+    self.cycles += cycles as usize;
+    // self.gpu.tick(cycles);
+    // self.apu.tick(cycles);
 
-    let mut dma = self.dma_channels.get();
+    // let mut dma = self.dma_channels.get();
 
-    self.timers.tick(cycles, &mut self.apu, &mut dma);
+    // self.timers.tick(cycles, &mut self.apu, &mut dma);
 
-    for channel in &mut dma.channels {
-      channel.tick(cycles);
-    }
+    // for channel in &mut dma.channels {
+    //   channel.tick(cycles);
+    // }
 
-    self.dma_channels.set(dma);
+    // self.dma_channels.set(dma);
   }
 
   pub fn reload_pipeline16(&mut self) {

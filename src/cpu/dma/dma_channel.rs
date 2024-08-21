@@ -121,7 +121,7 @@ impl DmaChannel {
     should_trigger_irq
   }
 
-  pub fn write_control(&mut self, value: u16, scheduler: &mut Scheduler) {
+  pub fn write_control(&mut self, value: u16) {
     let dma_control = DmaControlRegister::from_bits_retain(value);
 
     if dma_control.contains(DmaControlRegister::DMA_ENABLE) && !self.dma_control.contains(DmaControlRegister::DMA_ENABLE) {
@@ -134,7 +134,7 @@ impl DmaChannel {
       let timing = dma_control.dma_start_timing();
 
       if timing == 0 {
-        scheduler.schedule(EventType::DMA(self.id), 3);
+        self.pending = true;
       } else {
         self.pending = false;
       }

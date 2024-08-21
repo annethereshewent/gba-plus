@@ -329,7 +329,7 @@ impl CPU {
       0x400_00ba => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[0].write_control(value, &mut self.scheduler);
+        dma.channels[0].write_control(value);
 
         self.dma_channels.set(dma);
       }
@@ -371,7 +371,7 @@ impl CPU {
       0x400_00c6 => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[1].write_control(value, &mut self.scheduler);
+        dma.channels[1].write_control(value);
 
         self.dma_channels.set(dma);
       }
@@ -413,7 +413,7 @@ impl CPU {
       0x400_00d2 => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[2].write_control(value, &mut self.scheduler);
+        dma.channels[2].write_control(value);
 
         self.dma_channels.set(dma);
       }
@@ -455,7 +455,7 @@ impl CPU {
       0x400_00de => {
         let mut dma = self.dma_channels.get();
 
-        dma.channels[3].write_control(value, &mut self.scheduler);
+        dma.channels[3].write_control(value);
 
         self.dma_channels.set(dma);
       }

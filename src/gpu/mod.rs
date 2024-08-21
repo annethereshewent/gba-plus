@@ -196,9 +196,9 @@ impl GPU {
     if self.vcount >= VISIBLE_LINES {
       if self.vcount == VISIBLE_LINES {
         self.frame_finished = true;
+        // entering vblank
+        self.dispstat.insert(DisplayStatusRegister::VBLANK);
       }
-      // entering vblank
-      self.dispstat.insert(DisplayStatusRegister::VBLANK);
 
       // latch bg2/bg3 internal coordinates
       for bg_prop in &mut self.bg_props {

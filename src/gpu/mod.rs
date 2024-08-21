@@ -187,8 +187,16 @@ impl GPU {
     }
   }
 
-  pub fn handle_hdraw(&mut self, scheduler: &mut Scheduler) {
+  pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
+    if self.vcount < VISIBLE_LINES {
+      self.handle_visible_hblank();
+    } else {
+      self.handle_vblank_hblank();
+    }
+  }
+
+  fn handle_visible_hblank(&mut self) {
     self.update_vcount(self.vcount + 1);
 
     self.dispstat.remove(DisplayStatusRegister::HBLANK);
@@ -196,15 +204,14 @@ impl GPU {
     if self.vcount >= VISIBLE_LINES {
       if self.vcount == VISIBLE_LINES {
         self.frame_finished = true;
-        // entering vblank
-        self.dispstat.insert(DisplayStatusRegister::VBLANK);
+      }
+      // entering vblank
+      self.dispstat.insert(DisplayStatusRegister::VBLANK);
 
-        // latch bg2/bg3 internal coordinates
-        for bg_prop in &mut self.bg_props {
-          bg_prop.internal_x = bg_prop.x;
-          bg_prop.internal_y = bg_prop.y;
-        }
-        self.clear_obj_lines();
+      // latch bg2/bg3 internal coordinates
+      for bg_prop in &mut self.bg_props {
+        bg_prop.internal_x = bg_prop.x;
+        bg_prop.internal_y = bg_prop.y;
       }
 
       if self.dispstat.contains(DisplayStatusRegister::VBLANK_ENABLE) {
@@ -219,7 +226,7 @@ impl GPU {
 
       self.dma_channels.set(dma);
 
-
+      self.clear_obj_lines();
     } else {
       // render scanline here
       self.render_scanline();
@@ -230,14 +237,22 @@ impl GPU {
         bg_prop.internal_y += bg_prop.dmy as i32;
       }
     }
-    if self.vcount == VISIBLE_LINES + VBLANK_LINES {
+  }
+
+  fn handle_vblank_hblank(&mut self) {
+    self.dispstat.remove(DisplayStatusRegister::HBLANK);
+    if self.vcount < VISIBLE_LINES + VBLANK_LINES - 1 {
+      self.update_vcount(self.vcount + 1);
+    } else {
       self.update_vcount(0);
 
+      self.render_scanline();
       self.dispstat.remove(DisplayStatusRegister::VBLANK);
+
     }
   }
 
-  pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
+  pub fn handle_hdraw(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::Hblank, HBLANK_CYCLES as usize);
     self.dispstat.insert(DisplayStatusRegister::HBLANK);
 

@@ -62,12 +62,10 @@ impl APU {
   }
 
   pub fn schedule_samples(&self, scheduler: &mut Scheduler) {
-    println!("scheduled audio");
     scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
   }
 
   pub fn sample_audio(&mut self, scheduler: &mut Scheduler) {
-    println!("sampling audio");
     scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
 
     let mut left_sample: i16 = 0;

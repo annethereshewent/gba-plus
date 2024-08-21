@@ -403,13 +403,6 @@ impl CPU {
       match event_type {
         EventType::Hdraw => self.gpu.handle_hdraw(&mut self.scheduler),
         EventType::Hblank => self.gpu.handle_hblank(&mut self.scheduler),
-        EventType::DMA(channel_id) => {
-          let mut dma = self.dma_channels.get();
-
-          dma.channels[channel_id].pending = true;
-
-          self.dma_channels.set(dma);
-        }
         EventType::Timer(timer_id) =>  {
           let mut dma = self.dma_channels.get();
 

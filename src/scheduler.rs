@@ -7,7 +7,6 @@ pub enum EventType {
   Hblank,
   Hdraw,
   Timer(usize),
-  DMA(usize),
   SampleAudio
 }
 

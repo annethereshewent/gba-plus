@@ -40,7 +40,7 @@ impl CPU {
 
         unsafe { *(&self.gpu.vram[offset as usize] as *const u8 as *const T) }
       }
-      0x700_0000..=0x7ff_ffff => unsafe { *(self.gpu.oam_ram[(address & 0x3ff) as usize] as *const u8 as *const T) },
+      0x700_0000..=0x7ff_ffff => unsafe { *(&self.gpu.oam_ram[(address & 0x3ff) as usize] as *const u8 as *const T) },
       0x800_0000..=0xdff_ffff => {
         let offset = address & 0x01ff_ffff;
         if offset >= self.cartridge.rom.len() as u32 {

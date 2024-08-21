@@ -414,7 +414,7 @@ impl CPU {
           let mut dma = self.dma_channels.get();
 
           self.timers.t[timer_id].handle_overflow(&mut self.scheduler, cycles_left);
-          self.timers.handle_overflow(timer_id, &mut dma, &mut self.scheduler, cycles_left);
+          self.timers.handle_overflow(timer_id, &mut dma, &mut self.scheduler, &mut self.apu, cycles_left);
 
           self.dma_channels.set(dma);
         }

@@ -96,6 +96,14 @@
       const romInput = document.getElementById("rom-input")
       const biosInput = document.getElementById("bios-input")
 
+      const biosJson = JSON.parse(localStorage.getItem('gba_bios'))
+
+      if (biosJson != null) {
+        emulator.load_bios(new Uint8Array(biosJson))
+        document.getElementById("load-game-btn").removeAttribute("disabled")
+        document.getElementById("load-bios-btn").setAttribute("disabled", "true")
+      }
+
       romInput.addEventListener("change", (e) => {
         handleFileChange(e)
       })
@@ -240,12 +248,16 @@
         let bios = await getBinaryData(e)
 
         if (bios != null) {
-          emulator.load_bios(new Uint8Array(bios));
+          const biosUintArray = new Uint8Array(bios)
+          emulator.load_bios(biosUintArray);
 
           const toast = document.getElementById("toast")
           toast.style.display = "block"
 
           document.getElementById("load-game-btn").removeAttribute("disabled")
+          document.getElementById("load-bios-btn").setAttribute("disabled", "true")
+
+          localStorage.setItem("gba_bios", JSON.stringify(Array.from(biosUintArray)))
 
           setTimeout(() => toast.style.display = "none", 1000)
         }

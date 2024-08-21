@@ -365,15 +365,13 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
-    // first check interrupts
-
-    self.check_interrupts();
-
     let mut dma = self.dma_channels.get();
 
     let cycles = self.scheduler.get_cycles_to_next_event();
 
     while self.cycles < cycles {
+       // first check interrupts
+      self.check_interrupts();
       if dma.has_pending_transfers() {
         let should_trigger_irqs = dma.do_transfers(self);
         let mut interrupt_request = self.interrupt_request.get();
@@ -393,8 +391,6 @@ impl CPU {
           self.step_arm();
         }
       } else {
-        println!("cpu is halted :-(");
-        // just keep cycling until an interrupt is triggered
         self.cycles = cycles;
 
         break;

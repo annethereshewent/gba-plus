@@ -211,6 +211,7 @@ impl CPU {
     cpu.populate_thumb_lut();
     cpu.populate_arm_lut();
 
+    cpu.apu.schedule_samples(&mut cpu.scheduler);
     cpu.scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
 
     cpu
@@ -417,6 +418,7 @@ impl CPU {
 
           self.dma_channels.set(dma);
         }
+        EventType::SampleAudio => self.apu.sample_audio(&mut self.scheduler)
       }
     }
 

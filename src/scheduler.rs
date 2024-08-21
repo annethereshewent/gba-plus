@@ -8,6 +8,7 @@ pub enum EventType {
   Hdraw,
   Timer(usize),
   DMA(usize),
+  SampleAudio
 }
 
 pub struct Scheduler {

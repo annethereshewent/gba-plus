@@ -365,11 +365,10 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
-    let mut dma = self.dma_channels.get();
-
     let cycles = self.scheduler.get_cycles_to_next_event();
 
     while self.cycles < cycles {
+      let mut dma = self.dma_channels.get();
        // first check interrupts
       self.check_interrupts();
       if dma.has_pending_transfers() {
@@ -404,11 +403,15 @@ impl CPU {
         EventType::Hdraw => self.gpu.handle_hdraw(&mut self.scheduler),
         EventType::Hblank => self.gpu.handle_hblank(&mut self.scheduler),
         EventType::DMA(channel_id) => {
-          println!("handling dma");
+          let mut dma = self.dma_channels.get();
+
           dma.channels[channel_id].pending = true;
+
           self.dma_channels.set(dma);
         }
         EventType::Timer(timer_id) =>  {
+          let mut dma = self.dma_channels.get();
+
           self.timers.t[timer_id].handle_overflow(&mut self.scheduler, cycles_left);
           self.timers.handle_overflow(timer_id, &mut dma, &mut self.scheduler, cycles_left);
 

@@ -77,7 +77,6 @@ impl DmaChannel {
       }
     }
 
-
     let mut access = MemoryAccess::NonSequential;
 
     if self.fifo_mode {
@@ -121,19 +120,6 @@ impl DmaChannel {
 
     should_trigger_irq
   }
-
-  // pub fn tick(&mut self, cycles: u32) {
-  //   if self.cycles_to_transfer > 0 {
-  //     self.cycles += cycles;
-
-  //     if self.cycles >= self.cycles_to_transfer {
-  //       self.cycles_to_transfer = 0;
-  //       self.cycles -= self.cycles_to_transfer;
-
-  //       self.pending = true;
-  //     }
-  //   }
-  // }
 
   pub fn write_control(&mut self, value: u16, scheduler: &mut Scheduler) {
     let dma_control = DmaControlRegister::from_bits_retain(value);

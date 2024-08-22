@@ -167,6 +167,12 @@ impl WasmEmulator {
     while !self.cpu.gpu.frame_finished {
       self.cpu.step();
     }
+
+    if self.cpu.scheduler.cycles >= 0xfff0_0000  {
+      let to_subtract = self.cpu.scheduler.rebase_cycles();
+      self.cpu.cycles -= to_subtract;
+    }
+
     self.cpu.gpu.frame_finished = false;
   }
 

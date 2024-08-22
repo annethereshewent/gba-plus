@@ -102,7 +102,7 @@ pub struct CPU {
   pub timers: Timers,
   pub apu: APU,
   pub scheduler: Scheduler,
-  cycles: usize
+  pub cycles: usize
 }
 
 

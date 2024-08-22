@@ -145,12 +145,6 @@ fn main() {
 
     cpu.gpu.cap_fps();
 
-    if cpu.scheduler.cycles >= 0xffff_ffff_fff0_0000 {
-      let to_subtract = cpu.scheduler.rebase_cycles();
-
-      cpu.cycles -= to_subtract;
-    }
-
     texture.update(None, &cpu.gpu.picture.data, SCREEN_WIDTH as usize * 3).unwrap();
 
     canvas.copy(&texture, None, None).unwrap();

@@ -5,3 +5,5 @@
 .vscode
 *.bin
 *.gba
+/mobile/GBAEmulatorMobile
+/mobile/generated/

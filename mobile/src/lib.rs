@@ -45,14 +45,19 @@ mod ffi {
     #[swift_bridge(swift_name = "setSaved")]
     fn set_saved(&mut self, val: bool);
 
-    #[swift_bridge(swift_name = "updateBuffer")]
+    #[swift_bridge(swift_name = "audioBufferPtr")]
     fn audio_buffer_ptr(&mut self) -> *const f32;
 
     fn load(&mut self, rom: &[u8]);
 
+    #[swift_bridge(swift_name = "loadBios")]
     fn load_bios(&mut self, bios: &[u8]);
 
+    #[swift_bridge(swift_name = "updateInput")]
     fn update_input(&mut self, button_event: GBAButtonEvent, is_pressed: bool);
+
+    #[swift_bridge(swift_name = "audioBufferLength")]
+    fn audio_buffer_length(&self) -> usize;
   }
 }
 
@@ -150,7 +155,7 @@ impl GBAEmulator {
     let mut vec = Vec::new();
 
     for i in 0..self.cpu.apu.buffer_index {
-      let sample = audio_buffer[i];
+      let sample = audio_buffer[i]  * 0.0005;
 
       vec.push(sample);
     }
@@ -160,15 +165,16 @@ impl GBAEmulator {
     vec.as_ptr()
   }
 
+  pub fn audio_buffer_length(&self) -> usize {
+    self.cpu.apu.buffer_index
+  }
+
   pub fn step_frame(&mut self) {
     while !self.cpu.gpu.frame_finished {
       self.cpu.step();
     }
 
-    if self.cpu.scheduler.cycles >= 0xfff0_0000  {
-      let to_subtract = self.cpu.scheduler.rebase_cycles();
-      self.cpu.cycles -= to_subtract;
-    }
+    self.cpu.gpu.cap_fps();
 
     self.cpu.gpu.frame_finished = false;
   }

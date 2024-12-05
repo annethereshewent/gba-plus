@@ -174,7 +174,6 @@ impl GBAEmulator {
   }
 
   pub fn step_frame(&mut self) {
-    println!("{}", self.cpu.paused);
     while !self.cpu.gpu.frame_finished {
       if !self.cpu.paused {
         self.cpu.step();

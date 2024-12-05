@@ -102,7 +102,8 @@ pub struct CPU {
   pub timers: Timers,
   pub apu: APU,
   pub scheduler: Scheduler,
-  pub cycles: usize
+  pub cycles: usize,
+  pub paused: bool
 }
 
 
@@ -205,7 +206,8 @@ impl CPU {
       waitcnt: WaitstateControlRegister::new(),
       apu: APU::new(),
       scheduler: Scheduler::new(),
-      cycles: 0
+      cycles: 0,
+      paused: false
     };
 
     cpu.populate_thumb_lut();

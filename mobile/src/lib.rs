@@ -15,7 +15,8 @@ mod ffi {
     Up,
     Down,
     Left,
-    Right
+    Right,
+    ButtonHome
   }
 
   extern "Rust" {
@@ -58,6 +59,9 @@ mod ffi {
 
     #[swift_bridge(swift_name = "audioBufferLength")]
     fn audio_buffer_length(&self) -> usize;
+
+    #[swift_bridge(swift_name="setPaused")]
+    fn set_paused(&mut self, paused: bool);
   }
 }
 
@@ -170,8 +174,13 @@ impl GBAEmulator {
   }
 
   pub fn step_frame(&mut self) {
+    println!("{}", self.cpu.paused);
     while !self.cpu.gpu.frame_finished {
-      self.cpu.step();
+      if !self.cpu.paused {
+        self.cpu.step();
+      } else {
+        break;
+      }
     }
 
     self.cpu.gpu.cap_fps();
@@ -192,6 +201,10 @@ impl GBAEmulator {
     self.cpu.load_bios(bios.to_vec());
   }
 
+  pub fn set_paused(&mut self, paused: bool) {
+    self.cpu.paused = paused;
+  }
+
   pub fn update_input(&mut self, button_event: GBAButtonEvent, is_pressed: bool) {
     use self::GBAButtonEvent::*;
     match button_event {
@@ -205,6 +218,7 @@ impl GBAEmulator {
       Right => self.cpu.key_input.set(KeyInputRegister::Right, !is_pressed),
       ButtonL => self.cpu.key_input.set(KeyInputRegister::ButtonL, !is_pressed),
       ButtonR => self.cpu.key_input.set(KeyInputRegister::ButtonR, !is_pressed),
+      _ => ()
     }
   }
 }

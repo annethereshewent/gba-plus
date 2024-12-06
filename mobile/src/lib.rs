@@ -16,7 +16,10 @@ mod ffi {
     Down,
     Left,
     Right,
-    ButtonHome
+    ButtonHome,
+    GameMenu,
+    QuickSave,
+    QuickLoad
   }
 
   extern "Rust" {

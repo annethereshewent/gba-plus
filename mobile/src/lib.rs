@@ -187,6 +187,13 @@ impl GBAEmulator {
     self.cpu.apu.audio_samples = vec![0.0; 8192].into_boxed_slice();
     self.cpu.apu.buffer_index = 0;
 
+    for timer in &mut self.cpu.timers.t {
+      timer.interrupt_request = self.cpu.interrupt_request.clone();
+    }
+
+    self.cpu.gpu.interrupt_request = self.cpu.interrupt_request.clone();
+    self.cpu.gpu.dma_channels = self.cpu.dma_channels.clone();
+
     // repopulate arm and thumb luts
     self.cpu.populate_arm_lut();
     self.cpu.populate_thumb_lut();

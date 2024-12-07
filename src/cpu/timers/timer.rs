@@ -15,7 +15,7 @@ pub struct Timer {
   pub prescalar_frequency: u32,
   pub running: bool,
   pub cycles: u32,
-  interrupt_request: Rc<Cell<InterruptRequestRegister>>,
+  pub interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   start_cycles: usize
 }
 

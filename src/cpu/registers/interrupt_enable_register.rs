@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 bitflags! {
-  #[derive(Copy, Clone)]
+  #[derive(Copy, Clone, Serialize, Deserialize)]
+  #[serde(transparent)]
   pub struct InterruptEnableRegister: u16 {
     const VBLANK = 0b1;
     const HBLANK = 0b1 << 1;

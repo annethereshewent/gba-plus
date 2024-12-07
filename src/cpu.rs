@@ -10,6 +10,8 @@ use std::{
   cell::Cell
 };
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
   apu::APU,
   cartridge::{
@@ -56,7 +58,7 @@ pub const IRQ_VECTOR: u32 = 0x18;
 
 pub const CPU_CLOCK_SPEED: u32 = 2u32.pow(24);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum MemoryAccess {
   Sequential,
   NonSequential
@@ -68,6 +70,7 @@ enum MemoryWidth {
   Width32
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct CPU {
   r: [u32; 15],
   pc: u32,
@@ -83,7 +86,11 @@ pub struct CPU {
   spsr: PSRRegister,
   pub cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
+  #[serde(skip_deserializing)]
+  #[serde(skip_serializing)]
   thumb_lut: Vec<fn(&mut CPU, instruction: u16) -> Option<MemoryAccess>>,
+  #[serde(skip_deserializing)]
+  #[serde(skip_serializing)]
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
   bios: Vec<u8>,
@@ -132,7 +139,8 @@ impl OperatingMode {
 }
 
 bitflags! {
-  #[derive(Copy, Clone)]
+  #[derive(Copy, Clone, Serialize, Deserialize)]
+  #[serde(transparent)]
   pub struct PSRRegister: u32 {
     const STATE_BIT = 0b1 << 5;
     const FIQ_DISABLE = 0b1 << 6;
@@ -641,6 +649,18 @@ impl CPU {
     } else {
       4
     }
+  }
+
+  pub fn create_save_state(&mut self) -> Vec<u8> {
+    self.scheduler.create_save_state();
+
+    bincode::serialize(self).unwrap()
+  }
+
+  pub fn load_save_state(&mut self, buf: &[u8]) {
+    *self = bincode::deserialize(&buf).unwrap();
+
+    self.scheduler.load_save_state();
   }
 
 }

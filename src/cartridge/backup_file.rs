@@ -1,9 +1,14 @@
 use std::{fs::{File, self}, io::{Read, SeekFrom, Seek, Write}, path::PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use crate::number::Number;
 
+#[derive(Serialize, Deserialize)]
 pub struct BackupFile {
   pub size: usize,
+  #[serde(skip_deserializing)]
+  #[serde(skip_serializing)]
   file: Option<File>,
   pub buffer: Vec<u8>,
   pub has_saved: bool

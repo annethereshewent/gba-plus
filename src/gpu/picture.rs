@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use super::{SCREEN_WIDTH, SCREEN_HEIGHT};
 
+#[derive(Serialize, Deserialize)]
 pub struct Picture {
   pub data: Vec<u8>
 }

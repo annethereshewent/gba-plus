@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 bitflags! {
-  #[derive(Copy, Clone)]
+  #[derive(Copy, Clone, Serialize, Deserialize)]
+  #[serde(transparent)]
   pub struct DisplayControlRegister: u16 {
     const DISPLAY_FRAME_SELECT = 0b1 << 4;
     const HBLANK_INTERVAL_FREE = 0b1 << 5;

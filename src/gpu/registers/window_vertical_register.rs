@@ -1,4 +1,6 @@
-#[derive(Clone, Copy)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
 pub struct WindowVerticalRegister {
   pub y1: u16,
   pub y2: u16

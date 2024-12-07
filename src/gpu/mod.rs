@@ -1,8 +1,39 @@
 use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep};
 
-use crate::{cpu::{dma::dma_channels::{DmaChannels, HBLANK_TIMING, VBLANK_TIMING}, registers::{interrupt_enable_register::{FLAG_HBLANK, FLAG_VBLANK, FLAG_VCOUNTER_MATCH}, interrupt_request_register::InterruptRequestRegister}, CPU}, scheduler::{EventType, Scheduler}};
+use serde::{Deserialize, Serialize};
 
-use self::{registers::{display_status_register::DisplayStatusRegister, display_control_register::DisplayControlRegister, bg_control_register::BgControlRegister, color_effects_register::ColorEffectsRegister, alpha_blend_register::AlphaBlendRegister, brightness_register::BrightnessRegister, window_horizontal_register::WindowHorizontalRegister, window_vertical_register::WindowVerticalRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, picture::Picture};
+use crate::{
+  cpu::{
+    dma::dma_channels::{
+      DmaChannels, HBLANK_TIMING, VBLANK_TIMING
+    }, registers::{
+      interrupt_enable_register::{
+        FLAG_HBLANK, FLAG_VBLANK, FLAG_VCOUNTER_MATCH
+      },
+      interrupt_request_register::InterruptRequestRegister
+    },
+    CPU
+  },
+  scheduler::{
+    EventType, Scheduler
+  }
+};
+
+use self::{
+  registers::{
+    display_status_register::DisplayStatusRegister,
+    display_control_register::DisplayControlRegister,
+    bg_control_register::BgControlRegister,
+    color_effects_register::ColorEffectsRegister,
+    alpha_blend_register::AlphaBlendRegister,
+    brightness_register::BrightnessRegister,
+    window_horizontal_register::WindowHorizontalRegister,
+    window_vertical_register::WindowVerticalRegister,
+    window_in_register::WindowInRegister,
+    window_out_register::WindowOutRegister
+  },
+  picture::Picture
+};
 
 pub mod registers;
 pub mod picture;
@@ -43,7 +74,14 @@ enum WindowType {
   None = 4
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Color {
+  pub r: u8,
+  pub g: u8,
+  pub b: u8
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ObjectPixel {
   pub priority: u16,
   pub color: Option<(u8, u8, u8)>,
@@ -62,6 +100,7 @@ impl ObjectPixel {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct GPU {
   pub vcount: u16,
   pub dispstat: DisplayStatusRegister,
@@ -76,7 +115,8 @@ pub struct GPU {
   pub bg_props: [BgProps; 2],
   interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
-  bg_lines: [[Option<(u8, u8, u8)>; SCREEN_WIDTH as usize]; 4],
+  // TODO: change this to use Color struct instead of tuple
+  bg_lines: [Box<[Option<(u8, u8, u8)>]>; 4],
   obj_lines: Box<[ObjectPixel]>,
   dma_channels: Rc<Cell<DmaChannels>>,
   previous_time: u128,
@@ -90,12 +130,7 @@ pub struct GPU {
   pub frame_finished: bool
 }
 
-enum GpuMode {
-  Hblank,
-  Hdraw
-}
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct BgProps {
   pub x: i32,
   pub y: i32,
@@ -139,7 +174,7 @@ impl GPU {
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
       interrupt_request,
       vram_obj_start: 0x1_0000,
-      bg_lines: [[None; SCREEN_WIDTH as usize]; 4],
+      bg_lines: Self::generate_bg_lines(),
       bgxofs: [0; 4],
       bgyofs: [0; 4],
       dma_channels,
@@ -154,6 +189,17 @@ impl GPU {
       winout: WindowOutRegister::from_bits_retain(0),
       frame_finished: false
     }
+  }
+
+  pub fn generate_bg_lines() -> [Box<[Option<(u8, u8, u8)>]>; 4] {
+    let mut result = Vec::new();
+
+    for i in 0..4 {
+      let vec: Vec<Option<(u8, u8, u8)>> = vec![None; SCREEN_WIDTH as usize];
+      result.push(vec.into_boxed_slice());
+    }
+
+    result.try_into().unwrap()
   }
 
   pub fn write_dispcnt(&mut self, value: u16) {

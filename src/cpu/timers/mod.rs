@@ -1,5 +1,7 @@
 use std::{rc::Rc, cell::Cell};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{apu::APU, scheduler::Scheduler};
 
 use self::timer::{Timer, TimerControl};
@@ -8,6 +10,7 @@ use super::{dma::dma_channels::DmaChannels, registers::interrupt_request_registe
 
 pub mod timer;
 
+#[derive(Serialize, Deserialize)]
 pub struct Timers {
   pub t: [Timer; 4],
 }

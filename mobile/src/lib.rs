@@ -31,8 +31,8 @@ mod ffi {
     #[swift_bridge(swift_name = "stepFrame")]
     fn step_frame(&mut self);
 
-    #[swift_bridge(swift_name = "getPicturePointer")]
-    fn get_picture_pointer(&self) -> *const u8;
+    #[swift_bridge(swift_name = "getPicturePtr")]
+    fn get_picture_ptr(&self) -> *const u8;
 
     #[swift_bridge(swift_name = "loadSave")]
     fn load_save(&mut self, data: &[u8]);
@@ -65,17 +65,28 @@ mod ffi {
 
     #[swift_bridge(swift_name="setPaused")]
     fn set_paused(&mut self, paused: bool);
+
+    #[swift_bridge(swift_name="createSaveState")]
+    fn create_save_state(&mut self) -> *const u8;
+
+    #[swift_bridge(swift_name="loadSaveState")]
+    fn load_save_state(&mut self, buf: &[u8]);
+
+    #[swift_bridge(swift_name="compressedLength")]
+    fn compressed_len(&self) -> usize;
   }
 }
 
 pub struct GBAEmulator {
-  cpu: CPU
+  cpu: CPU,
+  compressed_len: usize
 }
 
 impl GBAEmulator {
   pub fn new() -> Self {
     GBAEmulator {
-      cpu: CPU::new()
+      cpu: CPU::new(),
+      compressed_len: 0
     }
   }
 
@@ -154,8 +165,35 @@ impl GBAEmulator {
     }
   }
 
+  pub fn create_save_state(&mut self) -> *const u8 {
+    let buf = self.cpu.create_save_state();
+
+    let compressed = zstd::encode_all(&*buf, 9).unwrap();
+
+    self.compressed_len  = compressed.len();
+
+    compressed.as_ptr()
+  }
+
+  pub fn compressed_len(&self) -> usize {
+    self.compressed_len
+  }
+
+  pub fn load_save_state(&mut self, data: &[u8]) {
+    let buf = zstd::decode_all(&*data).unwrap();
+
+    self.cpu.load_save_state(&buf);
+
+    self.cpu.apu.audio_samples = vec![0.0; 8192].into_boxed_slice();
+    self.cpu.apu.buffer_index = 0;
+
+    // repopulate arm and thumb luts
+    self.cpu.populate_arm_lut();
+    self.cpu.populate_thumb_lut();
+  }
+
   pub fn audio_buffer_ptr(&mut self) -> *const f32 {
-    let audio_buffer = self.cpu
+    let audio_buffer = &self.cpu
       .apu
       .audio_samples;
 
@@ -190,7 +228,7 @@ impl GBAEmulator {
     self.cpu.gpu.frame_finished = false;
   }
 
-  pub fn get_picture_pointer(&self) -> *const u8 {
+  pub fn get_picture_ptr(&self) -> *const u8 {
     self.cpu.gpu.picture.data.as_ptr()
   }
 

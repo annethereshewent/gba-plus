@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::cpu::CPU;
 
 use super::dma_channel::{DmaChannel, registers::dma_control_register::DmaControlRegister};
@@ -6,7 +8,7 @@ pub const VBLANK_TIMING: u16 = 1;
 pub const HBLANK_TIMING: u16 = 2;
 const FIFO_TIMING: u16 = 3;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct DmaChannels {
   pub channels: [DmaChannel; 4]
 }

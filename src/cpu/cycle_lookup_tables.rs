@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::registers::waitstate_control_register::WaitstateControlRegister;
 
 const LUT_SIZE: usize = 0x100;
@@ -14,20 +16,21 @@ const WAITSTATE_0_PAGE: usize = 0x8;
 const WAITSTATE_1_PAGE: usize = 0xa;
 const WAITSTATE_2_PAGE: usize = 0xc;
 
+#[derive(Serialize, Deserialize)]
 pub struct CycleLookupTables {
-  pub n_cycles_32: [u32; LUT_SIZE],
-  pub s_cycles_32: [u32; LUT_SIZE],
-  pub n_cycles_16: [u32; LUT_SIZE],
-  pub s_cycles_16: [u32; LUT_SIZE]
+  pub n_cycles_32: Box<[u32]>,
+  pub s_cycles_32: Box<[u32]>,
+  pub n_cycles_16: Box<[u32]>,
+  pub s_cycles_16: Box<[u32]>
 }
 
 impl CycleLookupTables {
   pub fn new() -> Self {
     Self {
-      n_cycles_32: [1; LUT_SIZE],
-      s_cycles_32: [1; LUT_SIZE],
-      n_cycles_16: [1; LUT_SIZE],
-      s_cycles_16: [1; LUT_SIZE]
+      n_cycles_32: vec![1; LUT_SIZE].into_boxed_slice(),
+      s_cycles_32: vec![1; LUT_SIZE].into_boxed_slice(),
+      n_cycles_16: vec![1; LUT_SIZE].into_boxed_slice(),
+      s_cycles_16: vec![1; LUT_SIZE].into_boxed_slice()
     }
   }
 

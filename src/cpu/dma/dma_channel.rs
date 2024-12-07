@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{cartridge::BackupMedia, cpu::{MemoryAccess, CPU}, scheduler::{EventType, Scheduler}};
 
 use self::registers::dma_control_register::DmaControlRegister;
@@ -7,7 +9,7 @@ pub mod registers;
 const FIFO_REGISTER_A: u32 = 0x400_00a0;
 const FIFO_REGISTER_B: u32 = 0x400_00a4;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Deserialize, Serialize)]
 pub struct DmaChannel {
   id: usize,
   pub source_address: u32,

@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct SoundControlEnable {
   pub value: u16,
   pub sound_master_volume_right: u16,

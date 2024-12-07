@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 const FIFO_CAPACITY: usize = 32; // 32 signed bytes
 
+#[derive(Serialize, Deserialize)]
 pub struct DmaFifo {
   pub data: [i8; FIFO_CAPACITY],
   pub value: i8, // current value read from buffer

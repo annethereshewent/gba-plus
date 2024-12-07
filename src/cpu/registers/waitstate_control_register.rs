@@ -1,4 +1,7 @@
+use serde::{Deserialize, Serialize};
 
+
+#[derive(Serialize, Deserialize)]
 pub struct WaitstateControlRegister {
   pub value: u16
 }

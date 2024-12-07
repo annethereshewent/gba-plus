@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 bitflags! {
-  #[derive(Clone, Copy)]
+  #[derive(Clone, Copy, Serialize, Deserialize)]
   pub struct KeyInputRegister: u16 {
     const ButtonA = 0b1;
     const ButtonB = 0b1 << 1;

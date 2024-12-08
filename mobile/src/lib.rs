@@ -241,7 +241,7 @@ impl GBAEmulator {
   }
 
   pub fn reload_rom(&mut self, rom: &[u8]) {
-    self.cpu.load_game(rom.to_vec(), None);
+    self.cpu.reload_game(rom.to_vec());
   }
 
   pub fn load_bios(&mut self, bios: &[u8]) {

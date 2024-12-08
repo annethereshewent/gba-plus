@@ -300,6 +300,10 @@ impl CPU {
     self.cartridge.detect_backup_media();
   }
 
+  pub fn reload_game(&mut self, rom: Vec<u8>) {
+    self.cartridge.rom = rom;
+  }
+
   pub fn execute_thumb(&mut self, instr: u16) -> Option<MemoryAccess> {
     let handler_fn = self.thumb_lut[(instr >> 8) as usize];
 

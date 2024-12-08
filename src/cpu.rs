@@ -88,6 +88,8 @@ pub struct CPU {
   #[serde(skip_serializing)]
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
+  #[serde(skip_serializing)]
+  #[serde(skip_deserializing)]
   bios: Vec<u8>,
   board_wram: Box<[u8]>,
   chip_wram: Box<[u8]>,

@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::Cell, time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep};
+use std::{time::{SystemTime, UNIX_EPOCH, Duration}, thread::sleep};
 
 use serde::{Deserialize, Serialize};
 
@@ -113,12 +113,10 @@ pub struct GPU {
   pub bgxofs: [u16; 4],
   pub bgyofs: [u16; 4],
   pub bg_props: [BgProps; 2],
-  pub interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   vram_obj_start: u32,
   // TODO: change this to use Color struct instead of tuple
   bg_lines: [Box<[Option<(u8, u8, u8)>]>; 4],
   obj_lines: Box<[ObjectPixel]>,
-  pub dma_channels: Rc<Cell<DmaChannels>>,
   previous_time: u128,
   pub bldcnt: ColorEffectsRegister,
   pub bldalpha: AlphaBlendRegister,
@@ -158,10 +156,7 @@ impl BgProps {
 }
 
 impl GPU {
-  pub fn new(
-    interrupt_request: Rc<Cell<InterruptRequestRegister>>,
-    dma_channels: Rc<Cell<DmaChannels>>,
-  ) -> Self {
+  pub fn new() -> Self {
     Self {
       vcount: 0,
       bg_props: [BgProps::new(); 2],
@@ -172,12 +167,10 @@ impl GPU {
       oam_ram: vec![0; OAM_RAM_SIZE].into_boxed_slice(),
       picture: Picture::new(),
       bgcnt: [BgControlRegister::from_bits_retain(0); 4],
-      interrupt_request,
       vram_obj_start: 0x1_0000,
       bg_lines: Self::generate_bg_lines(),
       bgxofs: [0; 4],
       bgyofs: [0; 4],
-      dma_channels,
       obj_lines: vec![ObjectPixel::new(); (SCREEN_WIDTH * SCREEN_HEIGHT) as usize].into_boxed_slice(),
       previous_time: 0,
       bldcnt: ColorEffectsRegister::new(),
@@ -194,7 +187,7 @@ impl GPU {
   pub fn generate_bg_lines() -> [Box<[Option<(u8, u8, u8)>]>; 4] {
     let mut result = Vec::new();
 
-    for i in 0..4 {
+    for _ in 0..4 {
       let vec: Vec<Option<(u8, u8, u8)>> = vec![None; SCREEN_WIDTH as usize];
       result.push(vec.into_boxed_slice());
     }
@@ -217,13 +210,13 @@ impl GPU {
     }
   }
 
-  fn update_vcount(&mut self, count: u16) {
+  fn update_vcount(&mut self, count: u16, interrupt_request: &mut InterruptRequestRegister) {
     self.vcount = count;
 
     self.dispstat.set(DisplayStatusRegister::VCOUNTER, self.dispstat.vcount_setting() == self.vcount);
 
     if self.dispstat.contains(DisplayStatusRegister::VCOUNTER_ENABLE) && self.dispstat.contains(DisplayStatusRegister::VCOUNTER) {
-      CPU::trigger_interrupt(&self.interrupt_request, FLAG_VCOUNTER_MATCH);
+      CPU::trigger_interrupt(interrupt_request, FLAG_VCOUNTER_MATCH);
     }
   }
 
@@ -233,17 +226,22 @@ impl GPU {
     }
   }
 
-  pub fn handle_hblank(&mut self, scheduler: &mut Scheduler) {
+  pub fn handle_hblank(
+    &mut self,
+    scheduler: &mut Scheduler,
+    interrupt_request: &mut InterruptRequestRegister,
+    dma: &mut DmaChannels
+  ) {
     scheduler.schedule(EventType::Hdraw, HDRAW_CYCLES as usize);
     if self.vcount < VISIBLE_LINES {
-      self.handle_visible_hblank();
+      self.handle_visible_hblank(interrupt_request, dma);
     } else {
-      self.handle_vblank_hblank();
+      self.handle_vblank_hblank(interrupt_request);
     }
   }
 
-  fn handle_visible_hblank(&mut self) {
-    self.update_vcount(self.vcount + 1);
+  fn handle_visible_hblank(&mut self, interrupt_request: &mut InterruptRequestRegister, dma: &mut DmaChannels) {
+    self.update_vcount(self.vcount + 1, interrupt_request);
 
     self.dispstat.remove(DisplayStatusRegister::HBLANK);
 
@@ -262,15 +260,10 @@ impl GPU {
 
       if self.dispstat.contains(DisplayStatusRegister::VBLANK_ENABLE) {
         // send vblank interrupt
-        CPU::trigger_interrupt(&self.interrupt_request, FLAG_VBLANK)
+        CPU::trigger_interrupt(interrupt_request, FLAG_VBLANK)
       }
 
-      // notify dma that vblank has started
-      let mut dma = self.dma_channels.get();
-
       dma.notify_gpu_event(VBLANK_TIMING);
-
-      self.dma_channels.set(dma);
 
       self.clear_obj_lines();
     } else {
@@ -285,12 +278,12 @@ impl GPU {
     }
   }
 
-  fn handle_vblank_hblank(&mut self) {
+  fn handle_vblank_hblank(&mut self, interrupt_request: &mut InterruptRequestRegister) {
     self.dispstat.remove(DisplayStatusRegister::HBLANK);
     if self.vcount < VISIBLE_LINES + VBLANK_LINES - 1 {
-      self.update_vcount(self.vcount + 1);
+      self.update_vcount(self.vcount + 1, interrupt_request);
     } else {
-      self.update_vcount(0);
+      self.update_vcount(0, interrupt_request);
 
       self.render_scanline();
       self.dispstat.remove(DisplayStatusRegister::VBLANK);
@@ -298,22 +291,22 @@ impl GPU {
     }
   }
 
-  pub fn handle_hdraw(&mut self, scheduler: &mut Scheduler) {
+  pub fn handle_hdraw(
+    &mut self,
+    scheduler: &mut Scheduler,
+    interrupt_request: &mut InterruptRequestRegister,
+    dma: &mut DmaChannels
+  ) {
     scheduler.schedule(EventType::Hblank, HBLANK_CYCLES as usize);
     self.dispstat.insert(DisplayStatusRegister::HBLANK);
 
     if self.dispstat.contains(DisplayStatusRegister::HBLANK_ENABLE) {
       // send hblank interrupt
-      CPU::trigger_interrupt(&self.interrupt_request, FLAG_HBLANK);
+      CPU::trigger_interrupt(interrupt_request, FLAG_HBLANK);
     }
 
     if self.vcount <= VISIBLE_LINES {
-      // notify dma that hblank has started
-      let mut dma = self.dma_channels.get();
-
       dma.notify_gpu_event(HBLANK_TIMING);
-
-      self.dma_channels.set(dma);
     }
   }
 

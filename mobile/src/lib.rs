@@ -1,5 +1,5 @@
 use ffi::GBAButtonEvent;
-use gba_emulator::{cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}};
+use gba_emulator::{apu::NUM_SAMPLES, cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}};
 
 extern crate gba_emulator;
 
@@ -184,15 +184,8 @@ impl GBAEmulator {
 
     self.cpu.load_save_state(&buf);
 
-    self.cpu.apu.audio_samples = vec![0.0; 8192].into_boxed_slice();
+    self.cpu.apu.audio_samples = vec![0.0; NUM_SAMPLES].into_boxed_slice();
     self.cpu.apu.buffer_index = 0;
-
-    for timer in &mut self.cpu.timers.t {
-      timer.interrupt_request = self.cpu.interrupt_request.clone();
-    }
-
-    self.cpu.gpu.interrupt_request = self.cpu.interrupt_request.clone();
-    self.cpu.gpu.dma_channels = self.cpu.dma_channels.clone();
 
     // repopulate arm and thumb luts
     self.cpu.populate_arm_lut();

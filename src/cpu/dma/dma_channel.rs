@@ -9,19 +9,30 @@ pub mod registers;
 const FIFO_REGISTER_A: u32 = 0x400_00a0;
 const FIFO_REGISTER_B: u32 = 0x400_00a4;
 
+pub struct DmaParams {
+  pub source_adjust: i32,
+  pub destination_adjust: i32,
+  pub count: u32,
+  pub internal_source_address: u32,
+  pub internal_destination_address: u32,
+  pub word_size: u32,
+  pub fifo_mode: bool,
+  pub should_trigger_irq: bool
+}
+
 #[derive(Copy, Clone, Deserialize, Serialize)]
 pub struct DmaChannel {
-  id: usize,
+  pub id: usize,
   pub source_address: u32,
   pub destination_address: u32,
-  internal_source_address: u32,
-  internal_destination_address: u32,
-  internal_count: u16,
+  pub internal_source_address: u32,
+  pub internal_destination_address: u32,
+  pub internal_count: u16,
   pub dma_control: DmaControlRegister,
   pub word_count: u16,
   pub pending: bool,
   pub running: bool,
-  fifo_mode: bool,
+  pub fifo_mode: bool,
   cycles: u32,
   cycles_to_transfer: u32
 }

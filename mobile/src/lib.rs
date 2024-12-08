@@ -54,6 +54,9 @@ mod ffi {
 
     fn load(&mut self, rom: &[u8]);
 
+    #[swift_bridge(swift_name = "reloadRom")]
+    fn reload_rom(&mut self, rom: &[u8]);
+
     #[swift_bridge(swift_name = "loadBios")]
     fn load_bios(&mut self, bios: &[u8]);
 
@@ -235,6 +238,10 @@ impl GBAEmulator {
   pub fn load(&mut self, rom: &[u8]) {
     self.cpu.load_game(rom.to_vec(), None);
     self.cpu.skip_bios();
+  }
+
+  pub fn reload_rom(&mut self, rom: &[u8]) {
+    self.cpu.load_game(rom.to_vec(), None);
   }
 
   pub fn load_bios(&mut self, bios: &[u8]) {

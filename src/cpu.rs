@@ -4,11 +4,8 @@
 // in ARM state, bits [1:0] of
 // R15 are zero and bits [31:2] contain the PC. In THUMB state,
 // bit [0] is zero and bits [31:1] contain the PC.
-
-use std::{
-  rc::Rc,
-  cell::Cell
-};
+use dma::dma_channel::{registers::dma_control_register::DmaControlRegister, DmaParams};
+use serde::{Deserialize, Serialize};
 
 use crate::{
   apu::APU,
@@ -56,7 +53,7 @@ pub const IRQ_VECTOR: u32 = 0x18;
 
 pub const CPU_CLOCK_SPEED: u32 = 2u32.pow(24);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum MemoryAccess {
   Sequential,
   NonSequential
@@ -68,6 +65,7 @@ enum MemoryWidth {
   Width32
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct CPU {
   r: [u32; 15],
   pc: u32,
@@ -83,9 +81,15 @@ pub struct CPU {
   spsr: PSRRegister,
   pub cpsr: PSRRegister,
   spsr_banks: [PSRRegister; 6],
+  #[serde(skip_deserializing)]
+  #[serde(skip_serializing)]
   thumb_lut: Vec<fn(&mut CPU, instruction: u16) -> Option<MemoryAccess>>,
+  #[serde(skip_deserializing)]
+  #[serde(skip_serializing)]
   arm_lut: Vec<fn(&mut CPU, instruction: u32) -> Option<MemoryAccess>>,
   pipeline: [u32; 2],
+  #[serde(skip_serializing)]
+  #[serde(skip_deserializing)]
   bios: Vec<u8>,
   board_wram: Box<[u8]>,
   chip_wram: Box<[u8]>,
@@ -94,15 +98,16 @@ pub struct CPU {
   cycle_luts: CycleLookupTables,
   pub gpu: GPU,
   interrupt_enable: InterruptEnableRegister,
-  interrupt_request: Rc<Cell<InterruptRequestRegister>>,
+  pub interrupt_request: InterruptRequestRegister,
   waitcnt: WaitstateControlRegister,
   is_halted: bool,
-  dma_channels: Rc<Cell<DmaChannels>>,
+  pub dma: DmaChannels,
   pub key_input: KeyInputRegister,
   pub timers: Timers,
   pub apu: APU,
   pub scheduler: Scheduler,
-  pub cycles: usize
+  pub cycles: usize,
+  pub paused: bool
 }
 
 
@@ -131,7 +136,8 @@ impl OperatingMode {
 }
 
 bitflags! {
-  #[derive(Copy, Clone)]
+  #[derive(Copy, Clone, Serialize, Deserialize)]
+  #[serde(transparent)]
   pub struct PSRRegister: u32 {
     const STATE_BIT = 0b1 << 5;
     const FIQ_DISABLE = 0b1 << 6;
@@ -164,9 +170,6 @@ impl PSRRegister {
 
 impl CPU {
   pub fn new() -> Self {
-    let interrupt_request = Rc::new(Cell::new(InterruptRequestRegister::from_bits_retain(0)));
-    let dma_channels = Rc::new(Cell::new(DmaChannels::new()));
-
     let mut cpu = Self {
       r: [0; 15],
       pc: 0,
@@ -193,19 +196,20 @@ impl CPU {
       board_wram: vec![0; 256 * 1024].into_boxed_slice(),
       chip_wram: vec![0; 32 * 1024].into_boxed_slice(),
       post_flag: 0,
-      gpu: GPU::new(interrupt_request.clone(), dma_channels.clone()),
-      interrupt_request: interrupt_request.clone(),
+      gpu: GPU::new(),
+      interrupt_request: InterruptRequestRegister::from_bits_retain(0),
       cycle_luts: CycleLookupTables::new(),
       interrupt_master_enable: false,
       interrupt_enable: InterruptEnableRegister::from_bits_retain(0),
-      dma_channels,
+      dma: DmaChannels::new(),
       is_halted: false,
       key_input: KeyInputRegister::from_bits_retain(0x3ff),
-      timers: Timers::new(interrupt_request.clone()),
+      timers: Timers::new(),
       waitcnt: WaitstateControlRegister::new(),
       apu: APU::new(),
       scheduler: Scheduler::new(),
-      cycles: 0
+      cycles: 0,
+      paused: false
     };
 
     cpu.populate_thumb_lut();
@@ -217,12 +221,8 @@ impl CPU {
     cpu
   }
 
-  pub fn trigger_interrupt(interrupt_request_ref: &Rc<Cell<InterruptRequestRegister>>, flags: u16) {
-    let mut interrupt_request = interrupt_request_ref.get();
-
-    interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() | flags);
-
-    interrupt_request_ref.set(interrupt_request);
+  pub fn trigger_interrupt(interrupt_request: &mut InterruptRequestRegister, flags: u16) {
+    *interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() | flags);
   }
 
   pub fn set_mode(&mut self, new_mode: OperatingMode) {
@@ -300,6 +300,10 @@ impl CPU {
     self.cartridge.detect_backup_media();
   }
 
+  pub fn reload_game(&mut self, rom: Vec<u8>) {
+    self.cartridge.rom = rom;
+  }
+
   pub fn execute_thumb(&mut self, instr: u16) -> Option<MemoryAccess> {
     let handler_fn = self.thumb_lut[(instr >> 8) as usize];
 
@@ -358,10 +362,118 @@ impl CPU {
   }
 
   fn check_interrupts(&mut self) {
-    if self.interrupt_master_enable && (self.interrupt_enable.bits() & self.interrupt_request.get().bits()) != 0 {
+    if self.interrupt_master_enable && (self.interrupt_enable.bits() & self.interrupt_request.bits()) != 0 {
       self.trigger_irq();
 
       self.is_halted = false;
+    }
+  }
+
+  fn handle_dma(&mut self) -> Vec<bool> {
+    let mut trigger_irqs = Vec::new();
+    for i in 0..self.dma.channels.len() {
+      if self.dma.channels[i].pending {
+        let mut dma_params = self.get_params(i);
+        self.do_transfer(&mut dma_params, i);
+        trigger_irqs.push(dma_params.should_trigger_irq);
+        self.dma.channels[i].pending = false;
+      } else {
+        trigger_irqs.push(false);
+      }
+    }
+
+    trigger_irqs
+  }
+
+  fn do_transfer(&mut self, params: &mut DmaParams, channel_id: usize) {
+    let mut access = MemoryAccess::NonSequential;
+
+    if params.fifo_mode {
+      for _ in 0..4 {
+        let value = self.load_32(params.internal_source_address & !(0b11), access);
+        self.store_32(params.internal_destination_address & !(0b11), value, access);
+        access = MemoryAccess::Sequential;
+        params.internal_source_address += 4;
+      }
+    } else if params.word_size == 4 {
+      for _ in 0..params.count {
+        let word = self.load_32(params.internal_source_address & !(0b11), access);
+        self.store_32(params.internal_destination_address & !(0b11), word, access);
+        access = MemoryAccess::Sequential;
+        params.internal_source_address = (params.internal_source_address as i32).wrapping_add(params.source_adjust) as u32;
+        params.internal_destination_address = (params.internal_destination_address as i32).wrapping_add(params.destination_adjust) as u32;
+      }
+    } else {
+      for _ in 0..params.count {
+        let half_word = self.load_16(params.internal_source_address & !(0b1), access);
+        self.store_16(params.internal_destination_address & !(0b1), half_word, access);
+        access = MemoryAccess::Sequential;
+        params.internal_source_address = (params.internal_source_address as i32).wrapping_add(params.source_adjust) as u32;
+        params.internal_destination_address = (params.internal_destination_address as i32).wrapping_add(params.destination_adjust) as u32;
+      }
+    }
+
+    self.dma.channels[channel_id].internal_source_address = params.internal_source_address;
+    self.dma.channels[channel_id].internal_destination_address = params.internal_destination_address;
+  }
+
+  pub fn get_params(&mut self, channel_id: usize) -> DmaParams {
+    let channel = &mut self.dma.channels[channel_id];
+    let mut should_trigger_irq = false;
+
+    let word_size: u32 = if channel.dma_control.contains(DmaControlRegister::DMA_TRANSFER_TYPE) {
+      4 // 32 bit
+    } else {
+      2 // 16 bit
+    };
+
+    let count = match channel.internal_count {
+      0 => if channel.id == 3 { 0x1_0000 } else { 0x4000 },
+      _ => channel.internal_count as u32
+    };
+
+    let destination_adjust = match channel.dma_control.dest_addr_control() {
+      0 | 3 => word_size as i32,
+      1 => -(word_size as i32),
+      2 => 0,
+      _ => unreachable!("can't be")
+    };
+
+    let source_adjust = match channel.dma_control.source_addr_control() {
+      0 => word_size as i32,
+      1 => -(word_size as i32),
+      2 => 0,
+      _ => panic!("illegal value specified for source address control")
+    };
+
+    if channel.id == 3 && word_size == 2 {
+      if let BackupMedia::Eeprom(eeprom_controller) = &mut self.cartridge.backup {
+        eeprom_controller.handle_dma(channel.internal_destination_address, channel.internal_source_address, channel.internal_count.into());
+      }
+    }
+
+    if channel.dma_control.contains(DmaControlRegister::IRQ_ENABLE) {
+      should_trigger_irq = true;
+    }
+
+    if channel.dma_control.contains(DmaControlRegister::DMA_REPEAT) {
+      if channel.dma_control.dest_addr_control() == 3 {
+        channel.internal_destination_address = channel.destination_address;
+      }
+    } else {
+      channel.running = false;
+      channel.dma_control.remove(DmaControlRegister::DMA_ENABLE);
+    }
+
+    DmaParams {
+      source_adjust,
+      destination_adjust,
+      count,
+      internal_source_address: channel.internal_source_address,
+      internal_destination_address: channel.internal_destination_address,
+      word_size,
+      fifo_mode: channel.fifo_mode,
+      should_trigger_irq
     }
   }
 
@@ -369,21 +481,15 @@ impl CPU {
     let cycles = self.scheduler.get_cycles_to_next_event();
 
     while self.cycles < cycles {
-      let mut dma = self.dma_channels.get();
        // first check interrupts
       self.check_interrupts();
-      if dma.has_pending_transfers() {
-        let should_trigger_irqs = dma.do_transfers(self);
-        let mut interrupt_request = self.interrupt_request.get();
-
+      if self.dma.has_pending_transfers() {
+        let should_trigger_irqs = self.handle_dma();
         for i in 0..4 {
           if should_trigger_irqs[i] {
-            interrupt_request.request_dma(i);
+            self.interrupt_request.request_dma(i);
           }
         }
-
-        self.interrupt_request.set(interrupt_request);
-        self.dma_channels.set(dma);
       } else if !self.is_halted {
         if self.cpsr.contains(PSRRegister::STATE_BIT) {
           self.step_thumb();
@@ -401,15 +507,13 @@ impl CPU {
 
     while let Some((event_type, cycles_left)) = self.scheduler.get_next_event() {
       match event_type {
-        EventType::Hdraw => self.gpu.handle_hdraw(&mut self.scheduler),
-        EventType::Hblank => self.gpu.handle_hblank(&mut self.scheduler),
+        EventType::Hdraw => self.gpu.handle_hdraw(&mut self.scheduler, &mut self.interrupt_request, &mut self.dma),
+        EventType::Hblank => self.gpu.handle_hblank(&mut self.scheduler, &mut self.interrupt_request, &mut self.dma),
         EventType::Timer(timer_id) =>  {
-          let mut dma = self.dma_channels.get();
+          let dma = &mut self.dma;
 
-          self.timers.t[timer_id].handle_overflow(&mut self.scheduler, cycles_left);
-          self.timers.handle_overflow(timer_id, &mut dma, &mut self.scheduler, &mut self.apu, cycles_left);
-
-          self.dma_channels.set(dma);
+          self.timers.t[timer_id].handle_overflow(&mut self.scheduler, &mut self.interrupt_request, cycles_left);
+          self.timers.handle_overflow(timer_id, dma, &mut self.scheduler, &mut self.apu, &mut self.interrupt_request, cycles_left);
         }
         EventType::SampleAudio => self.apu.sample_audio(&mut self.scheduler)
       }
@@ -622,11 +726,7 @@ impl CPU {
   }
 
   fn clear_interrupts(&mut self, value: u16) {
-    let mut interrupt_request = self.interrupt_request.get();
-
-    interrupt_request = InterruptRequestRegister::from_bits_retain(interrupt_request.bits() & !value);
-
-    self.interrupt_request.set(interrupt_request);
+    self.interrupt_request = InterruptRequestRegister::from_bits_retain(self.interrupt_request.bits() & !value);
   }
 
   pub fn get_multiplier_cycles(&self, operand: u32) -> u32 {
@@ -639,6 +739,18 @@ impl CPU {
     } else {
       4
     }
+  }
+
+  pub fn create_save_state(&mut self) -> Vec<u8> {
+    self.scheduler.create_save_state();
+
+    bincode::serialize(self).unwrap()
+  }
+
+  pub fn load_save_state(&mut self, buf: &[u8]) {
+    *self = bincode::deserialize(&buf).unwrap();
+
+    self.scheduler.load_save_state();
   }
 
 }

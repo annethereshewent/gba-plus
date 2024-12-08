@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{cpu::{dma::dma_channels::DmaChannels, CPU_CLOCK_SPEED}, scheduler::{EventType, Scheduler}};
 
 use self::{registers::{sound_control_dma::SoundControlDma, sound_control_enable::SoundControlEnable}, dma_fifo::DmaFifo};
@@ -11,7 +13,7 @@ pub const NUM_SAMPLES: usize = 4096*2;
 const FIFO_REGISTER_A: u32 = 0x400_00a0;
 const FIFO_REGISTER_B: u32 = 0x400_00a4;
 
-
+#[derive(Serialize, Deserialize)]
 pub struct APU {
   pub fifo_a: DmaFifo,
   pub fifo_b: DmaFifo,
@@ -21,7 +23,7 @@ pub struct APU {
   pub cycles_per_sample: u32,
   pub sample_rate: u32,
   pub sound_bias: u16,
-  pub audio_samples: [f32; NUM_SAMPLES],
+  pub audio_samples: Box<[f32]>,
   pub buffer_index: usize,
   pub previous_value: f32,
 
@@ -42,7 +44,7 @@ impl APU {
       sample_rate: GBA_SAMPLE_RATE,
       cycles_per_sample: CPU_CLOCK_SPEED / GBA_SAMPLE_RATE,
       sound_bias: 0x200,
-      audio_samples: [0.0; NUM_SAMPLES],
+      audio_samples: vec![0.0; NUM_SAMPLES].into_boxed_slice(),
       buffer_index: 0,
       previous_value: 0.0,
       in_frequency: GBA_SAMPLE_RATE as f32,

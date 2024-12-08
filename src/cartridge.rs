@@ -1,17 +1,23 @@
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+
 use self::{eeprom_controller::EepromController, flash::{Flash, FlashSize}, backup_file::BackupFile};
 
 pub mod eeprom_controller;
 pub mod flash;
 pub mod backup_file;
 
+#[derive(Serialize, Deserialize)]
 pub struct Cartridge {
+  #[serde(skip_deserializing)]
+  #[serde(skip_serializing)]
   pub rom: Vec<u8>,
   pub backup: BackupMedia,
   pub file_path: Option<String>
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum BackupMedia {
   Eeprom(EepromController),
   Flash(Flash),

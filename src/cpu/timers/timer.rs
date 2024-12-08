@@ -1,10 +1,10 @@
-use std::{rc::Rc, cell::Cell};
+use serde::{Deserialize, Serialize};
 
 use crate::{cpu::registers::interrupt_request_register::InterruptRequestRegister, scheduler::{EventType, Scheduler}};
 
 pub const CYCLE_LUT: [u32; 4] = [1, 64, 256, 1024];
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Timer {
   pub id: usize,
   pub reload_value: u16,
@@ -13,12 +13,11 @@ pub struct Timer {
   pub prescalar_frequency: u32,
   pub running: bool,
   pub cycles: u32,
-  interrupt_request: Rc<Cell<InterruptRequestRegister>>,
   start_cycles: usize
 }
 
 impl Timer {
-  pub fn new(id: usize, interrupt_request: Rc<Cell<InterruptRequestRegister>>) -> Self {
+  pub fn new(id: usize) -> Self {
     Self {
       reload_value: 0,
       value: 0,
@@ -27,20 +26,23 @@ impl Timer {
       running: false,
       cycles: 0,
       id,
-      interrupt_request,
       start_cycles: 0
     }
   }
 
-  pub fn count_up_timer(&mut self, scheduler: &mut Scheduler, cycles_left: usize) -> bool {
+  pub fn count_up_timer(
+    &mut self,
+    scheduler: &mut Scheduler,
+    interrupt_request: &mut InterruptRequestRegister,
+    cycles_left: usize
+  ) -> bool {
     let mut return_val = false;
-
     if self.running {
       let temp = self.value.wrapping_add(1);
 
       // overflow has happened
       if temp < self.value {
-        self.handle_overflow(scheduler, cycles_left);
+        self.handle_overflow(scheduler, interrupt_request, cycles_left);
 
         return_val = true;
       } else {
@@ -51,7 +53,12 @@ impl Timer {
     return_val
   }
 
-  pub fn handle_overflow(&mut self, scheduler: &mut Scheduler, cycles_left: usize) {
+  pub fn handle_overflow(
+    &mut self, scheduler:
+    &mut Scheduler, interrupt_request:
+    &mut InterruptRequestRegister,
+    cycles_left: usize
+  ) {
     if !self.timer_ctl.contains(TimerControl::COUNT_UP_TIMING) {
       let event_type = EventType::Timer(self.id);
 
@@ -62,11 +69,8 @@ impl Timer {
     }
 
     if self.timer_ctl.contains(TimerControl::IRQ_ENABLE) {
-      let mut interrupt_request = self.interrupt_request.get();
       // trigger irq
       interrupt_request.request_timer(self.id);
-
-      self.interrupt_request.set(interrupt_request);
     }
   }
 
@@ -96,7 +100,8 @@ impl Timer {
 }
 
 bitflags! {
-  #[derive(Copy, Clone)]
+  #[derive(Copy, Clone, Serialize, Deserialize)]
+  #[serde(transparent)]
   pub struct TimerControl: u16 {
     const COUNT_UP_TIMING = 0b1 << 2;
     const IRQ_ENABLE = 0b1 << 6;

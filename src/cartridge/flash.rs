@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use crate::number::Number;
 
 use super::backup_file::BackupFile;
@@ -7,6 +9,7 @@ use super::backup_file::BackupFile;
 const BANK_SIZE: usize = 0x10000;
 const SECTOR_SIZE: usize = 4 * 1024;
 
+#[derive(Serialize, Deserialize)]
 pub struct Flash {
   pub memory: BackupFile,
   size: usize,
@@ -16,6 +19,7 @@ pub struct Flash {
   state: FlashState
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum FlashMode {
   Initial,
   ChipId,
@@ -24,6 +28,7 @@ pub enum FlashMode {
   BankSwitch
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum FlashState {
   Initial,
   Initial2,

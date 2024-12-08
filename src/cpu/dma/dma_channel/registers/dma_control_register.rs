@@ -1,6 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 
 bitflags! {
-  #[derive(Copy, Clone)]
+  #[derive(Copy, Clone, Deserialize, Serialize)]
+  #[serde(transparent)]
   pub struct DmaControlRegister: u16 {
     const DMA_REPEAT = 0b1 << 9;
     const DMA_TRANSFER_TYPE = 0b1 << 10;

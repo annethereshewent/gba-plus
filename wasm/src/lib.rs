@@ -135,7 +135,7 @@ impl WasmEmulator {
   }
 
   pub fn update_buffer(&mut self, left_buffer: &mut [f32], right_buffer: &mut [f32]) {
-    let mut apu = &mut self.cpu.apu;
+    let apu = &mut self.cpu.apu;
 
     let mut previous_sample = 0.0;
 

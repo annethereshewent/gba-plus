@@ -1,7 +1,10 @@
 use std::{fs, path::PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use super::backup_file::BackupFile;
 
+#[derive(Serialize, Deserialize)]
 pub struct EepromController {
   pub chip: EepromChip,
   detected: bool
@@ -76,6 +79,7 @@ impl EepromController {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct EepromChip {
   pub memory: BackupFile,
   address_bits: EepromAddressBits,
@@ -244,13 +248,13 @@ impl EepromChip {
   }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 enum SpiInstruction {
   Read = 0b11,
   Write = 0b10,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 enum SpiState {
   RxInstruction,
   RxAddress(SpiInstruction),
@@ -280,6 +284,7 @@ impl EepromType {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 enum EepromAddressBits {
   Eeprom6bit,
   Eeprom14bit,

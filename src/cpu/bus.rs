@@ -1,4 +1,18 @@
-use crate::{apu::registers::sound_control_dma::SoundControlDma, cartridge::BackupMedia, cpu::{dma::dma_channels::AddressType, registers::interrupt_enable_register::InterruptEnableRegister}, gpu::{registers::{bg_control_register::BgControlRegister, display_status_register::DisplayStatusRegister, window_in_register::WindowInRegister, window_out_register::WindowOutRegister}, VRAM_SIZE}, number::Number};
+use crate::{
+  apu::registers::sound_control_dma::SoundControlDma, cartridge::BackupMedia, cpu::{
+    dma::dma_channels::AddressType, registers::interrupt_enable_register::InterruptEnableRegister
+  },
+  gpu::{
+    registers::{
+      bg_control_register::BgControlRegister,
+      display_status_register::DisplayStatusRegister,
+      window_in_register::WindowInRegister,
+      window_out_register::WindowOutRegister
+    },
+    VRAM_SIZE
+  },
+  number::Number
+};
 
 use super::CPU;
 
@@ -98,10 +112,10 @@ impl CPU {
       0x400_004a => self.gpu.winout.bits(),
       0x400_0050 => self.gpu.bldcnt.value,
       0x400_0088 => self.apu.sound_bias,
-      0x400_00ba => self.dma_channels.get().channels[0].dma_control.bits(),
-      0x400_00c6 => self.dma_channels.get().channels[1].dma_control.bits(),
-      0x400_00d2 => self.dma_channels.get().channels[2].dma_control.bits(),
-      0x400_00de => self.dma_channels.get().channels[3].dma_control.bits(),
+      0x400_00ba => self.dma.channels[0].dma_control.bits(),
+      0x400_00c6 => self.dma.channels[1].dma_control.bits(),
+      0x400_00d2 => self.dma.channels[2].dma_control.bits(),
+      0x400_00de => self.dma.channels[3].dma_control.bits(),
       0x400_0100 => self.timers.t[0].value,
       0x400_0102 => self.timers.t[0].timer_ctl.bits(),
       0x400_0104 => self.timers.t[1].value,
@@ -119,7 +133,7 @@ impl CPU {
       0x400_010e => self.timers.t[3].timer_ctl.bits(),
       0x400_0130 => self.key_input.bits(),
       0x400_0200 => self.interrupt_enable.bits(),
-      0x400_0202 => self.interrupt_request.get().bits(),
+      0x400_0202 => self.interrupt_request.bits(),
       0x400_0204 => self.waitcnt.value,
       0x400_0208 => if self.interrupt_master_enable { 1 } else { 0 },
       0x400_0300 => self.post_flag,
@@ -312,174 +326,30 @@ impl CPU {
         self.apu.fifo_b.write((value & 0xff) as i8);
         self.apu.fifo_b.write(((value >> 8) & 0xff) as i8);
       },
-      0x400_00b0 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(0, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00b2 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(0, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00b4 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(0, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00b6 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(0, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00b8 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[0].word_count = value;
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00ba => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[0].write_control(value);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00bc => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(1, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00be => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(1, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00c0 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(1, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00c2 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(1, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00c4 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[1].word_count = value;
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00c6 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[1].write_control(value);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00c8 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(2, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00ca => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(2, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00cc => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(2, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00ce => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(2, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00d0 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[2].word_count = value;
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00d2 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[2].write_control(value);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00d4 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(3, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00d6 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_source_address(3, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00d8 => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(3, value, AddressType::Low);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00da => {
-        let mut dma = self.dma_channels.get();
-
-        dma.set_destination_address(3, value, AddressType::High);
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00dc => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[3].word_count = value;
-
-        self.dma_channels.set(dma);
-      }
-      0x400_00de => {
-        let mut dma = self.dma_channels.get();
-
-        dma.channels[3].write_control(value);
-
-        self.dma_channels.set(dma);
-      }
+      0x400_00b0 => self.dma.set_source_address(0, value, AddressType::Low),
+      0x400_00b2 => self.dma.set_source_address(0, value, AddressType::High),
+      0x400_00b4 => self.dma.set_destination_address(0, value, AddressType::Low),
+      0x400_00b6 => self.dma.set_destination_address(0, value, AddressType::High),
+      0x400_00b8 => self.dma.channels[0].word_count = value,
+      0x400_00ba => self.dma.channels[0].write_control(value),
+      0x400_00bc => self.dma.set_source_address(1, value, AddressType::Low),
+      0x400_00be => self.dma.set_source_address(1, value, AddressType::High),
+      0x400_00c0 => self.dma.set_destination_address(1, value, AddressType::Low),
+      0x400_00c2 => self.dma.set_destination_address(1, value, AddressType::High),
+      0x400_00c4 => self.dma.channels[1].word_count = value,
+      0x400_00c6 => self.dma.channels[1].write_control(value),
+      0x400_00c8 => self.dma.set_source_address(2, value, AddressType::Low),
+      0x400_00ca => self.dma.set_source_address(2, value, AddressType::High),
+      0x400_00cc => self.dma.set_destination_address(2, value, AddressType::Low),
+      0x400_00ce => self.dma.set_destination_address(2, value, AddressType::High),
+      0x400_00d0 => self.dma.channels[2].word_count = value,
+      0x400_00d2 => self.dma.channels[2].write_control(value),
+      0x400_00d4 => self.dma.set_source_address(3, value, AddressType::Low),
+      0x400_00d6 => self.dma.set_source_address(3, value, AddressType::High),
+      0x400_00d8 => self.dma.set_destination_address(3, value, AddressType::Low),
+      0x400_00da => self.dma.set_destination_address(3, value, AddressType::High),
+      0x400_00dc => self.dma.channels[3].word_count = value,
+      0x400_00de => self.dma.channels[3].write_control(value),
       0x400_0100 => self.timers.t[0].reload_timer_value(value),
       0x400_0102 => self.timers.t[0].write_timer_control(value, &mut self.scheduler),
       0x400_0104 => self.timers.t[1].reload_timer_value(value),

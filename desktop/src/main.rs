@@ -145,6 +145,7 @@ fn main() {
 
     cpu.gpu.cap_fps();
 
+    // TODO: change this to use opengl.
     texture.update(None, &cpu.gpu.picture.data, SCREEN_WIDTH as usize * 3).unwrap();
 
     canvas.copy(&texture, None, None).unwrap();

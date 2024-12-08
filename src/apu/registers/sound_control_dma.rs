@@ -1,4 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 bitflags! {
+  #[derive(Serialize, Deserialize)]
+  #[serde(transparent)]
   pub struct SoundControlDma: u16 {
     const DMA_SOUND_A_VOLUME = 0b1 << 2;
     const DMA_SOUND_B_VOLUME = 0b1 << 3;

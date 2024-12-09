@@ -34,13 +34,7 @@ export class UI {
 
   addEventListeners() {
     document.getElementById("game-button")!.addEventListener("click", () => this.loadRom())
-
-    document.getElementById("close-btn")!.addEventListener("click", () => this.hideHelpModal())
-
-    document.getElementById("help-btn")!.addEventListener("click", () => this.showHelpModal())
     document.getElementById("load-bios-btn")!.addEventListener("click", () => this.loadBios())
-
-    document.getElementById("full-screen")!.addEventListener("click", (e) => document.documentElement.requestFullscreen())
   }
 
   async init() {
@@ -110,11 +104,10 @@ export class UI {
       const biosUintArray = new Uint8Array(bios)
       this.emulator!.load_bios(biosUintArray);
 
-      const toast = document.getElementById("toast")
+      const toast = document.getElementById("bios-notification")
       toast!.style.display = "block"
 
-      document.getElementById("load-game-btn")!.removeAttribute("disabled")
-      document.getElementById("load-bios-btn")!.setAttribute("disabled", "true")
+      document.getElementById("load-bios-btn")?.setAttribute("disabled", "true")
 
       localStorage.setItem("gba_bios", JSON.stringify(Array.from(biosUintArray)))
 

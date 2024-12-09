@@ -110,17 +110,18 @@
               <li><label>Down:</label> S key</li>
               <li><label>Left:</label> A key</li>
               <li><label>Right:</label> D key</li>
-              <li><label>A button:</label> L Key</li>
-              <li><label>B button:</label> K Key</li>
+              <li><label>A button:</label> K Key</li>
+              <li><label>B button:</label> J Key</li>
               <li><label>L button:</label> C Key</li>
               <li><label>R button:</label> V Key</li>
               <li><label>Select:</label> Tab</li>
               <li><label>Start:</label> Enter</li>
             </ul>
             <h3>Keyboard hotkeys</h3>
-            <li><label>T key</label> Toggle control stick mode on/off</li>
-            <li><label>F5</label> Quick save state</li>
-            <li><label>F7</label> Quick load state</li>
+            <ul>
+              <li><label>F5:</label> Quick save state</li>
+              <li><label>F7:</label> Quick load state</li>
+            </ul>
             <h3>PS5 controller:</h3>
             <ul>
               <li><label>Directions:</label> Control pad</li>
@@ -190,6 +191,7 @@
     }
     function displayHelpModal() {
       document.getElementById("help-modal").className = "modal show"
+      document.getElementById("help-modal").style.display = "show"
     }
 
     function hideHelpModal() {

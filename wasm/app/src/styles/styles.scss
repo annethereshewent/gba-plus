@@ -9,6 +9,12 @@ canvas {
 .logo {
   font-size: 32px;
 }
+.hide {
+  display: none;
+}
+.show {
+  display: block;
+}
 .menu-bar {
   position: fixed;
   top: 0;
@@ -49,15 +55,28 @@ canvas {
     margin-top: 0px;
     margin-left: 3%;
   }
+  #fps-counter {
+    display: none;
+  }
   canvas {
     height: 100vh;
     width: auto;
   }
-  .menu-bar {
+  .navbar {
+    height: 0 !important;
+    width: 0 !important;
+    display: none !important;
+  }
+  .navbar-brand {
+    display: none !important;
+  }
+  #navbar-main {
     display: none;
   }
   body {
     background: #000000;
+    height: 100vh;
+    overflow: none;
   }
 }
 .title {
@@ -66,44 +85,10 @@ canvas {
   line-height: 0;
 }
 
-#modal {
-  display: none; /* Hidden by default */
-  position: fixed; /* Stay in place */
-  z-index: 100; /* Sit on top */
-  left: 0;
-  top: 0;
-  width: 100%; /* Full width */
-  height: 100%; /* Full height */
-  overflow: auto; /* Enable scroll if needed */
-  background-color: rgb(0,0,0); /* Fallback color */
-  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
-}
-
 .controls {
   padding: 20px;
   background: #ffffff;
   margin: 15% auto;
   width: 400px;
   border: 1px solid black;
-}
-.close {
-  float: right;
-  cursor: pointer;
-  font-size: 20px;
-}
-
-#toast {
-  display: none;
-  position: absolute;
-  bottom: 80px;
-  left: 80px;
-  background: #50C878;
-  border-radius: 3px;
-  border: 1px solid #5F8575;
-  color: white;
-  padding-left: 20px;
-  padding-right: 20px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  box-shadow: 2px 2px 2px grey;
 }

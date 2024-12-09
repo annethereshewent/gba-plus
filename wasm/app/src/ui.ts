@@ -4,6 +4,7 @@ import JSZip from "jszip"
 import { AudioManager } from "./audio_manager"
 import { Renderer } from "./renderer"
 import { Joypad } from "./joypad"
+import { CloudService } from "./cloud_service"
 
 const FPS_INTERVAL = 1000 / 60
 
@@ -16,6 +17,7 @@ export class UI {
   previousTime = 0
   wasm: InitOutput|null = null
   joypad: Joypad|null = null
+  cloudService = new CloudService()
 
   constructor() {
     this.init()
@@ -30,6 +32,10 @@ export class UI {
     biosInput!.addEventListener("change", (e) => {
       this.handleBiosChange(e)
     })
+  }
+
+  checkOauth() {
+    this.cloudService.checkAuthentication()
   }
 
   addEventListeners() {
@@ -86,10 +92,10 @@ export class UI {
       let gameName = this.fileName.split('/').pop()
       gameName = gameName?.substring(0, gameName.lastIndexOf('.'))
 
-      let saveData = JSON.parse(localStorage.getItem(gameName ?? "") ?? "null")
+      let saveData = this.cloudService.usingCloud ? (await this.cloudService.getSave(gameName!)).data : new Uint8Array(JSON.parse(localStorage.getItem(gameName ?? "") ?? "null"))
 
       if (saveData != null) {
-        this.emulator!.load_save(new Uint8Array(saveData))
+        this.emulator!.load_save(saveData)
       }
 
       this.audioManager!.startAudio()
@@ -174,7 +180,9 @@ export class UI {
       let gameName = this.fileName.split('/').pop()
       gameName = gameName!.substring(0, gameName!.lastIndexOf('.'))
 
-      localStorage.setItem(gameName, JSON.stringify(Array.from(saveMemory)))
+      const clonedSave = new Uint8Array(Array.from(saveMemory))
+
+      this.cloudService.usingCloud ?  this.cloudService.uploadSave(gameName, clonedSave) : localStorage.setItem(gameName, JSON.stringify(Array.from(saveMemory)))
     }
 
     this.frames++

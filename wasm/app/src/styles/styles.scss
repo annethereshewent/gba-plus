@@ -46,7 +46,7 @@ canvas {
 .title-container h3 {
   display: inline;
 }
-#rom-input, #bios-input {
+#game-input, #bios-input, #save-input {
   display: none;
 }
 @media all and (display-mode: fullscreen) {
@@ -75,8 +75,8 @@ canvas {
   }
   body {
     background: #000000;
-    height: 100vh;
-    overflow: none;
+    height: 100vh !important;
+    overflow: none !important;
   }
 }
 .title {

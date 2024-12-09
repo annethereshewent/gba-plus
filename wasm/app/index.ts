@@ -3,6 +3,5 @@ import "bulma/css/bulma"
 import "./src/styles/styles"
 
 const ui = new UI()
-ui.init()
 ui.addEventListeners()
 

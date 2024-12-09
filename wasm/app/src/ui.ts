@@ -73,6 +73,18 @@ export class UI {
     document.getElementById("save-input")?.addEventListener("change", (e) => this.handleSaveChange(e))
     document.getElementById("save-states")?.addEventListener("click", () => this.displaySaveStatesModal())
     document.getElementById("create-save-state")?.addEventListener("click", () => this.createSaveState())
+    document.getElementById("states-modal-close")?.addEventListener("click", () => this.closeStatesModal())
+    document.getElementById("hide-saves-modal")?.addEventListener("click", () => this.closeSavesModal())
+  }
+
+  closeSavesModal() {
+    this.emulator?.set_pause(false)
+    const savesModal = document.getElementById("saves-modal")
+
+    if (savesModal != null) {
+      savesModal.className = "modal hide"
+      savesModal.style.display = "none"
+    }
   }
 
   async init() {

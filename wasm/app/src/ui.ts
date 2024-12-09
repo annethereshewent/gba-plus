@@ -18,6 +18,7 @@ export class UI {
   wasm: InitOutput|null = null
   joypad: Joypad|null = null
   cloudService = new CloudService()
+  updateSaveGame = ""
 
   constructor() {
     this.init()
@@ -39,8 +40,10 @@ export class UI {
   }
 
   addEventListeners() {
-    document.getElementById("game-button")!.addEventListener("click", () => this.loadRom())
-    document.getElementById("load-bios-btn")!.addEventListener("click", () => this.loadBios())
+    document.getElementById("game-button")?.addEventListener("click", () => this.loadRom())
+    document.getElementById("load-bios-btn")?.addEventListener("click", () => this.loadBios())
+    document.getElementById("save-management")?.addEventListener("click", () => this.displaySavesModal())
+    document.getElementById("save-input")?.addEventListener("change", (e) => this.handleSaveChange(e))
   }
 
   async init() {
@@ -81,6 +84,163 @@ export class UI {
 
   hideHelpModal() {
     document.getElementById("modal")!.style.display = "none"
+  }
+
+  async handleSaveChange(e: Event) {
+    if (!this.cloudService.usingCloud) {
+      return
+    }
+    let saveName = (e.target as HTMLInputElement)?.files?.[0].name?.split('/')?.pop()
+
+    if (saveName != this.updateSaveGame) {
+      if (!confirm("Warning! Save file does not match selected game name. are you sure you want to continue?")) {
+        return
+      }
+    }
+    const data = await this.getBinaryData(e)
+
+    if (data != null) {
+      const bytes = new Uint8Array(data as ArrayBuffer)
+
+      if (this.updateSaveGame != "") {
+        this.cloudService.uploadSave(this.updateSaveGame, bytes)
+      }
+
+      const notification = document.getElementById("save-notification")
+
+      if (notification != null) {
+        notification.style.display = "block"
+
+        let opacity = 1.0
+
+        let interval = setInterval(() => {
+          opacity -= 0.1
+          notification.style.opacity = `${opacity}`
+
+          if (opacity <= 0) {
+            clearInterval(interval)
+          }
+        }, 100)
+      }
+
+      const savesModal = document.getElementById("saves-modal")
+
+      if (savesModal != null) {
+        savesModal.style.display = "none"
+        savesModal.className = "modal hide"
+      }
+    }
+  }
+
+  async displaySavesModal() {
+    if (!this.cloudService.usingCloud) {
+      return
+    }
+    const saves = await this.cloudService.getSaves()
+    const savesModal = document.getElementById("saves-modal")
+    const savesList = document.getElementById("saves-list")
+
+    if (saves != null && savesModal != null && savesList != null) {
+      savesModal.className = "modal show"
+      savesModal.style.display = "block"
+
+      // this.emulator?.set_pause(true)
+
+      savesList.innerHTML = ''
+      for (const save of saves) {
+        const divEl = document.createElement("div")
+
+        divEl.className = "save-entry"
+
+        const spanEl = document.createElement("span")
+
+        spanEl.innerText = save.gameName.length > 50 ? save.gameName.substring(0, 50) + "..." : save.gameName
+
+        const deleteSaveEl = document.createElement('i')
+
+        deleteSaveEl.className = "fa-solid fa-x save-icon delete-save"
+
+        deleteSaveEl.addEventListener('click', () => this.deleteSave(save.gameName))
+
+        const updateSaveEl = document.createElement('i')
+
+        updateSaveEl.className = "fa-solid fa-file-pen save-icon update"
+
+        updateSaveEl.addEventListener("click", () => this.updateSave(save.gameName))
+
+        const downloadSaveEl = document.createElement("div")
+
+        downloadSaveEl.className = "fa-solid fa-download save-icon download"
+
+        downloadSaveEl.addEventListener("click", () => this.downloadSave(save.gameName))
+
+        divEl.append(spanEl)
+        divEl.append(downloadSaveEl)
+        divEl.append(deleteSaveEl)
+        divEl.append(updateSaveEl)
+
+        savesList.append(divEl)
+      }
+    }
+  }
+
+  async downloadSave(gameName: string) {
+    if (!this.cloudService.usingCloud) {
+      return
+    }
+    const entry = await this.cloudService.getSave(gameName)
+
+    if (entry != null) {
+      this.generateFile(entry.data!!, gameName)
+    }
+  }
+
+  updateSave(gameName: string) {
+    this.updateSaveGame = gameName
+
+    document.getElementById("save-input")?.click()
+  }
+
+  async deleteSave(gameName: string) {
+    if (this.cloudService.usingCloud && confirm("are you sure you want to delete this save?")) {
+      const result = await this.cloudService.deleteSave(gameName)
+
+      if (result) {
+        const savesList = document.getElementById("saves-list")
+
+        if (savesList != null) {
+          for (const child of savesList.children) {
+            const children = [...child.children]
+            const spanElement = (children.filter((childEl) => childEl.tagName.toLowerCase() == 'span')[0] as HTMLSpanElement)
+
+            if (spanElement?.innerText == gameName) {
+              child.remove()
+              break
+            }
+          }
+        }
+      }
+    }
+  }
+
+  generateFile(data: Uint8Array, gameName: string) {
+    const blob = new Blob([data], {
+      type: "application/octet-stream"
+    })
+
+    const objectUrl = URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+
+    a.href = objectUrl
+    a.download = gameName.match(/\.sav$/) ? gameName : `${gameName}.sav`
+    document.body.append(a)
+    a.style.display = "none"
+
+    a.click()
+    a.remove()
+
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
 
   async handleFileChange(e: Event) {

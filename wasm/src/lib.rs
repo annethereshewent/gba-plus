@@ -33,7 +33,8 @@ pub enum ButtonEvent {
 #[wasm_bindgen]
 pub struct WasmEmulator {
   cpu: CPU,
-  key_map: HashMap<ButtonEvent, KeyInputRegister>
+  key_map: HashMap<ButtonEvent, KeyInputRegister>,
+  state_len: usize
 }
 
 #[wasm_bindgen]
@@ -55,8 +56,37 @@ impl WasmEmulator {
 
     WasmEmulator {
       cpu: CPU::new(),
-      key_map
+      key_map,
+      state_len: 0
     }
+  }
+
+  pub fn create_save_state(&mut self) -> *const u8 {
+    let buf = self.cpu.create_save_state();
+
+    self.state_len = buf.len();
+
+    buf.as_ptr()
+  }
+
+  pub fn load_save_state(&mut self, data: &[u8]) {
+    self.cpu.load_save_state(&data);
+
+    // repopulate arm and thumb luts
+    self.cpu.populate_arm_lut();
+    self.cpu.populate_thumb_lut();
+  }
+
+  pub fn save_state_length(&self) -> usize {
+    self.state_len
+  }
+
+  pub fn set_pause(&mut self, val: bool) {
+    self.cpu.paused = val;
+  }
+
+  pub fn reload_rom(&mut self, rom: &[u8]) {
+    self.cpu.reload_game(rom.to_vec());
   }
 
   pub fn load_save(&mut self, data: &[u8]) {

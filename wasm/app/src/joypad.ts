@@ -1,4 +1,5 @@
 import { WasmEmulator, ButtonEvent } from "../../pkg/gba_emulator_wasm"
+import { UI } from "./ui"
 
 
 const A_BUTTON = 0
@@ -15,6 +16,7 @@ const RIGHT = 15
 
 export class Joypad {
   emulator: WasmEmulator
+  ui: UI
   isPressingW = false
   isPressingA = false
   isPressingS = false
@@ -31,8 +33,9 @@ export class Joypad {
   isPressingTab = false
   isPressingShift = false
 
-  constructor(emulator: WasmEmulator) {
+  constructor(emulator: WasmEmulator, ui: UI) {
     this.emulator = emulator
+    this.ui = ui
     this.addKeyboardListeners()
   }
 
@@ -124,8 +127,34 @@ export class Joypad {
         case "v":
           this.isPressingV = true
           break
+        case "F5":
+          e.preventDefault()
+          this.createSaveState()
+          break
+        case "F7":
+          e.preventDefault()
+          this.loadSaveState()
+          break
       }
     })
+  }
+
+  createSaveState() {
+    const imageUrl = this.ui.getImageUrl()
+    if (imageUrl != null) {
+      this.ui.stateManager?.createSaveState(imageUrl)
+      .then(() => {
+        this.ui.showStateCreatedNotification()
+      })
+    }
+  }
+
+  async loadSaveState() {
+    const data = await this.ui.stateManager?.getSaveStateData()
+
+    if (data != null) {
+      this.ui.loadSaveState(data)
+    }
   }
 
   handleJoypadInput() {

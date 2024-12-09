@@ -2,9 +2,13 @@ import init, { WasmEmulator, InitOutput } from "../../pkg/gba_emulator_wasm.js"
 import wasmData from '../../pkg/gba_emulator_wasm_bg.wasm'
 import JSZip from "jszip"
 import { AudioManager } from "./audio_manager"
-import { Renderer } from "./renderer"
+import { Renderer, SCREEN_HEIGHT, SCREEN_WIDTH } from "./renderer"
 import { Joypad } from "./joypad"
 import { CloudService } from "./cloud_service"
+import { GbaDatabase } from "./gba_database"
+import moment from "moment"
+import { StateEntry } from "./game_state_entry"
+import { StateManager } from "./state_manager"
 
 const FPS_INTERVAL = 1000 / 60
 
@@ -19,6 +23,11 @@ export class UI {
   joypad: Joypad|null = null
   cloudService = new CloudService()
   updateSaveGame = ""
+  db = new GbaDatabase()
+  stateManager: StateManager|null = null
+  biosData: Uint8Array|null = null
+  gameData: Uint8Array|null = null
+  gameName = ""
 
   constructor() {
     this.init()
@@ -39,11 +48,31 @@ export class UI {
     this.cloudService.checkAuthentication()
   }
 
+  async createSaveState() {
+    const now = moment()
+
+    const stateName = `${now.unix()}.state`
+
+    if (this.gameName != "") {
+      const imageUrl = this.getImageUrl()
+      if (imageUrl != null) {
+        const entry = await this.stateManager?.createSaveState(imageUrl, stateName)
+        const statesList = document.getElementById("states-list")
+
+        if (entry != null && statesList != null) {
+          this.addStateElement(statesList, entry)
+        }
+      }
+    }
+  }
+
   addEventListeners() {
     document.getElementById("game-button")?.addEventListener("click", () => this.loadRom())
     document.getElementById("load-bios-btn")?.addEventListener("click", () => this.loadBios())
     document.getElementById("save-management")?.addEventListener("click", () => this.displaySavesModal())
     document.getElementById("save-input")?.addEventListener("change", (e) => this.handleSaveChange(e))
+    document.getElementById("save-states")?.addEventListener("click", () => this.displaySaveStatesModal())
+    document.getElementById("create-save-state")?.addEventListener("click", () => this.createSaveState())
   }
 
   async init() {
@@ -51,23 +80,27 @@ export class UI {
 
     this.emulator = new WasmEmulator()
     this.audioManager = new AudioManager(this.emulator)
-    this.joypad = new Joypad(this.emulator)
-
+    this.joypad = new Joypad(this.emulator, this)
     this.renderer = new Renderer(this.emulator, this.wasm)
 
     const biosJson = JSON.parse(localStorage.getItem('gba_bios') ?? "null")
 
+    let biosData = new Uint8Array()
+
     if (biosJson != null) {
-      this.emulator.load_bios(new Uint8Array(biosJson))
-      document.getElementById("game-button")!.removeAttribute("disabled")
+      biosData = new Uint8Array(biosJson)
+
       document.getElementById("load-bios-btn")!.setAttribute("disabled", "true")
     } else {
       // load open source bios instead
       const biosResponse = await fetch("./bios/gba_opensource_bios.bin")
       const biosBody = await biosResponse.arrayBuffer()
 
-      this.emulator.load_bios(new Uint8Array(biosBody))
+      biosData = new Uint8Array(biosBody)
     }
+
+    this.emulator.load_bios(biosData)
+    this.biosData = biosData
   }
 
   loadRom() {
@@ -132,6 +165,220 @@ export class UI {
     }
   }
 
+  async displaySaveStatesModal() {
+    if (this.gameName != "") {
+      const modal = document.getElementById("states-modal")
+      const statesList = document.getElementById("states-list")
+
+      if (modal != null && statesList != null) {
+        this.emulator?.set_pause(true)
+        modal.style.display = "block"
+
+        statesList.innerHTML = ""
+
+        const entry = await this.db.getSaveStates(this.gameName)
+
+        if (entry != null) {
+          for (const key in entry.states) {
+            const stateEntry = entry.states[key]
+
+            this.addStateElement(statesList, stateEntry)
+          }
+        }
+      }
+    }
+  }
+
+  displayMenu(stateName: string) {
+    const menus = document.getElementsByClassName("state-menu") as HTMLCollectionOf<HTMLElement>
+
+    for (const menu of menus) {
+      if (menu.id.indexOf(stateName) == -1) {
+        menu.style.display = "none"
+      }
+    }
+
+    const menu = document.getElementById(`menu-${stateName}`)
+
+    if (menu != null) {
+      if (menu.style.display == "block") {
+        menu.style.display = "none"
+      } else {
+        menu.style.display = "block"
+      }
+    }
+  }
+
+  addStateElement(statesList: HTMLElement, entry: StateEntry) {
+    const divEl = document.createElement("div")
+
+    divEl.className = "state-element"
+    divEl.id = entry.stateName
+
+    divEl.addEventListener("click", () => this.displayMenu(entry.stateName))
+
+    const imgEl = document.createElement("img")
+
+    imgEl.className = "state-image"
+    imgEl.id = `image-${entry.stateName}`
+
+    const pEl = document.createElement("p")
+    pEl.id = `title-${entry.stateName}`
+
+    if (entry.stateName != "quick_save.state") {
+
+      const timestamp = parseInt(entry.stateName.replace(".state", ""))
+
+      pEl.innerText = `Save on ${moment.unix(timestamp).format("lll")}`
+    } else {
+      pEl.innerText = "Quick save"
+    }
+
+    const menu = document.createElement("aside")
+
+    menu.className = "state-menu hide"
+    menu.id = `menu-${entry.stateName}`
+    menu.style.display = "none"
+
+    menu.innerHTML = `
+      <ul class="state-menu-list">
+        <li><a id="update-${entry.stateName}">Update State</a></li>
+        <li><a id="load-${entry.stateName}">Load state</a></li>
+        <li><a id="delete-${entry.stateName}">Delete state</a></li>
+      </ul>
+    `
+    imgEl.src = entry.imageUrl
+
+
+    divEl.append(imgEl)
+    divEl.append(pEl)
+    divEl.append(menu)
+
+    statesList.append(divEl)
+
+    // finally add event listeners for loading and deleting states
+    document.getElementById(`update-${entry.stateName}`)?.addEventListener("click", () => this.updateState(entry))
+    document.getElementById(`load-${entry.stateName}`)?.addEventListener("click", () => this.loadSaveState(entry.state))
+    document.getElementById(`delete-${entry.stateName}`)?.addEventListener("click", () => this.deleteState(entry.stateName))
+  }
+
+  updateStateElement(entry: StateEntry, oldStateName: string) {
+    const image = document.getElementById(`image-${oldStateName}`) as HTMLImageElement
+    const title = document.getElementById(`title-${oldStateName}`)
+
+    if (image != null && title != null) {
+      image.src = entry.imageUrl
+
+      if (entry.stateName != "quick_save.state") {
+        const timestamp = parseInt(entry.stateName.replace(".state", ""))
+
+        title.innerText = `Save on ${moment.unix(timestamp).format("lll")}`
+      }
+    }
+  }
+
+  getImageUrl() {
+    if (this.emulator != null && this.wasm != null) {
+      let screen = new Uint8Array(SCREEN_WIDTH * SCREEN_HEIGHT * 4)
+      screen = new Uint8Array(this.wasm.memory.buffer, this.emulator.get_picture_pointer(), SCREEN_WIDTH * SCREEN_HEIGHT * 4)
+      const canvas = document.getElementById("save-state-canvas") as HTMLCanvasElement
+
+      const context = canvas.getContext("2d")
+
+      if (context != null) {
+        const imageData = context.getImageData(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+        let screenIndex = 0
+        for (let i = 0; i < screen.length; i += 4) {
+          imageData.data[i] = screen[screenIndex]
+          imageData.data[i + 1] = screen[screenIndex + 1]
+          imageData.data[i + 2] = screen[screenIndex + 2]
+          imageData.data[i + 3] = screen[screenIndex + 3]
+
+          screenIndex += 4
+        }
+
+        context.putImageData(imageData, 0, 0)
+
+        return canvas.toDataURL()
+      }
+    }
+
+    return null
+  }
+
+  async updateState(entry: StateEntry) {
+    const imageUrl = this.getImageUrl()
+    if (imageUrl != null && this.stateManager != null) {
+      const oldStateName = entry.stateName
+
+      const updateEntry = await this.stateManager.createSaveState(imageUrl, entry.stateName, true)
+
+      if (updateEntry != null) {
+        this.updateStateElement(updateEntry, oldStateName)
+      }
+    }
+  }
+
+  async loadSaveState(compressed: Uint8Array) {
+    if (this.biosData != null && this.gameData != null) {
+      this.emulator?.set_pause(true)
+      if (this.emulator != null && this.stateManager != null) {
+        const data = await this.stateManager.decompress(compressed)
+
+        if (data != null) {
+          this.emulator.load_save_state(data)
+
+
+          this.emulator.load_bios(this.biosData)
+
+          this.emulator.reload_rom(this.gameData)
+        }
+
+        this.closeStatesModal()
+      }
+    }
+  }
+
+  showStateCreatedNotification() {
+    const notification = document.getElementById("state-notification")
+
+    if (notification != null) {
+      notification.style.display = "block"
+
+      let opacity = 1.0
+
+      let interval = setInterval(() => {
+        opacity -= 0.1
+        notification.style.opacity = `${opacity}`
+
+        if (opacity <= 0) {
+          clearInterval(interval)
+        }
+      }, 100)
+    }
+  }
+
+  closeStatesModal() {
+    this.emulator?.set_pause(false)
+    const statesModal = document.getElementById("states-modal")
+
+    if (statesModal != null) {
+      statesModal.className = "modal hide"
+      statesModal.style.display = "none"
+    }
+  }
+
+  async deleteState(stateName: string) {
+    if (confirm("Are you sure you want to delete this save state?")) {
+      await this.db.deleteState(this.fileName.substring(0, this.fileName.lastIndexOf('.')), stateName)
+
+      const el = document.getElementById(stateName)
+
+      el?.remove()
+    }
+  }
+
   async displaySavesModal() {
     if (!this.cloudService.usingCloud) {
       return
@@ -144,7 +391,7 @@ export class UI {
       savesModal.className = "modal show"
       savesModal.style.display = "block"
 
-      // this.emulator?.set_pause(true)
+      this.emulator?.set_pause(true)
 
       savesList.innerHTML = ''
       for (const save of saves) {
@@ -248,11 +495,14 @@ export class UI {
 
     if (rom != null) {
       this.emulator!.load(new Uint8Array(rom))
+      this.gameData = new Uint8Array(rom)
 
-      let gameName = this.fileName.split('/').pop()
-      gameName = gameName?.substring(0, gameName.lastIndexOf('.'))
+      this.gameName = this.fileName.split('/').pop() ?? ""
+      this.gameName = this.gameName.substring(0, this.gameName.lastIndexOf('.'))
 
-      let saveData = this.cloudService.usingCloud ? (await this.cloudService.getSave(gameName!)).data : new Uint8Array(JSON.parse(localStorage.getItem(gameName ?? "") ?? "null"))
+      this.stateManager = new StateManager(this.emulator!, this.wasm, this.gameName, this.db)
+
+      let saveData = this.cloudService.usingCloud ? (await this.cloudService.getSave(this.gameName!)).data : new Uint8Array(JSON.parse(localStorage.getItem(this.gameName) ?? "null"))
 
       if (saveData != null) {
         this.emulator!.load_save(saveData)
@@ -268,7 +518,9 @@ export class UI {
 
     if (bios != null) {
       const biosUintArray = new Uint8Array(bios)
-      this.emulator!.load_bios(biosUintArray);
+      this.emulator!.load_bios(biosUintArray)
+
+      this.biosData = biosUintArray
 
       const toast = document.getElementById("bios-notification")
       toast!.style.display = "block"

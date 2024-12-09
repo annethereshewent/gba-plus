@@ -1,7 +1,7 @@
 import { InitOutput, WasmEmulator } from "../../pkg/gba_emulator_wasm"
 
-const SCREEN_WIDTH = 240
-const SCREEN_HEIGHT = 160
+export const SCREEN_WIDTH = 240
+export const SCREEN_HEIGHT = 160
 
 export class Renderer {
   emulator: WasmEmulator

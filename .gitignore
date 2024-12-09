@@ -8,3 +8,4 @@ gba_bios.bin
 /mobile/GBAEmulatorMobile
 /mobile/generated/
 node_modules/
+dist/

@@ -8,19 +8,17 @@ import { Joypad } from "./joypad"
 const FPS_INTERVAL = 1000 / 60
 
 export class UI {
-  emulator: WasmEmulator
-  audioManager: AudioManager
+  emulator: WasmEmulator|null = null
+  audioManager: AudioManager|null = null
   renderer: Renderer|null = null
   fileName = ""
   frames = 0
   previousTime = 0
   wasm: InitOutput|null = null
-  joypad: Joypad
+  joypad: Joypad|null = null
 
   constructor() {
-    this.emulator = new WasmEmulator()
-    this.audioManager = new AudioManager(this.emulator)
-    this.joypad = new Joypad(this.emulator)
+    this.init()
 
     const romInput = document.getElementById("game-input")
     const biosInput = document.getElementById("bios-input")
@@ -35,7 +33,6 @@ export class UI {
   }
 
   addEventListeners() {
-    console.log("adding event listeners")
     document.getElementById("game-button")!.addEventListener("click", () => this.loadRom())
 
     document.getElementById("close-btn")!.addEventListener("click", () => this.hideHelpModal())
@@ -47,9 +44,11 @@ export class UI {
   }
 
   async init() {
-    console.log("initializing shit")
-
     this.wasm = await init(wasmData)
+
+    this.emulator = new WasmEmulator()
+    this.audioManager = new AudioManager(this.emulator)
+    this.joypad = new Joypad(this.emulator)
 
     this.renderer = new Renderer(this.emulator, this.wasm)
 
@@ -57,7 +56,7 @@ export class UI {
 
     if (biosJson != null) {
       this.emulator.load_bios(new Uint8Array(biosJson))
-      document.getElementById("load-game-btn")!.removeAttribute("disabled")
+      document.getElementById("game-button")!.removeAttribute("disabled")
       document.getElementById("load-bios-btn")!.setAttribute("disabled", "true")
     } else {
       // load open source bios instead
@@ -69,7 +68,6 @@ export class UI {
   }
 
   loadRom() {
-    console.log("loading rom")
     document.getElementById("game-input")?.click()
   }
 
@@ -89,7 +87,7 @@ export class UI {
     let rom = await this.getBinaryData(e)
 
     if (rom != null) {
-      this.emulator.load(new Uint8Array(rom))
+      this.emulator!.load(new Uint8Array(rom))
 
       let gameName = this.fileName.split('/').pop()
       gameName = gameName?.substring(0, gameName.lastIndexOf('.'))
@@ -97,10 +95,10 @@ export class UI {
       let saveData = JSON.parse(localStorage.getItem(gameName ?? "") ?? "null")
 
       if (saveData != null) {
-        this.emulator.load_save(new Uint8Array(saveData))
+        this.emulator!.load_save(new Uint8Array(saveData))
       }
 
-      this.audioManager.startAudio()
+      this.audioManager!.startAudio()
       requestAnimationFrame((time) => this.run(time))
     }
   }
@@ -110,7 +108,7 @@ export class UI {
 
     if (bios != null) {
       const biosUintArray = new Uint8Array(bios)
-      this.emulator.load_bios(biosUintArray);
+      this.emulator!.load_bios(biosUintArray);
 
       const toast = document.getElementById("toast")
       toast!.style.display = "block"
@@ -162,22 +160,23 @@ export class UI {
 
     const fps = Math.floor(1000 / diff)
 
+    if (this.frames == 60) {
+      this.frames = 0
+      document.getElementById("fps-counter")!.innerText = `FPS = ${fps}`
+    }
+
     if (diff >= FPS_INTERVAL || this.previousTime == 0) {
       this.previousTime = time - (diff % FPS_INTERVAL)
 
-      if (this.frames % 60 == 0) {
-        document.getElementById("fps-counter")!.innerText = `FPS = ${fps}`
-      }
-
-      this.emulator.step_frame()
+      this.emulator!.step_frame()
       this.renderer!.render()
 
-      this.joypad.handleJoypadInput()
+      this.joypad!.handleJoypadInput()
     }
-    if (this.emulator.has_saved()) {
-      this.emulator.set_saved(false)
+    if (this.emulator!.has_saved()) {
+      this.emulator!.set_saved(false)
 
-      const saveMemory = new Uint8Array(this.wasm!.memory.buffer, this.emulator.backup_file_pointer(), this.emulator.backup_file_size())
+      const saveMemory = new Uint8Array(this.wasm!.memory.buffer, this.emulator!.backup_file_pointer(), this.emulator!.backup_file_size())
 
       let gameName = this.fileName.split('/').pop()
       gameName = gameName!.substring(0, gameName!.lastIndexOf('.'))

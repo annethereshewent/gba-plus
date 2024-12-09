@@ -1,4 +1,5 @@
-import init, { WasmEmulator, ButtonEvent, InitOutput } from "./pkg/gba_emulator_wasm.js"
+import init, { WasmEmulator, InitOutput } from "../../pkg/gba_emulator_wasm.js"
+import wasmData from '../../pkg/gba_emulator_wasm_bg.wasm'
 import JSZip from "jszip"
 import { AudioManager } from "./audio_manager"
 import { Renderer } from "./renderer"
@@ -7,20 +8,21 @@ import { Joypad } from "./joypad"
 const FPS_INTERVAL = 1000 / 60
 
 export class UI {
-  emulator = new WasmEmulator()
-  audioManager = new AudioManager(this.emulator)
+  emulator: WasmEmulator
+  audioManager: AudioManager
   renderer: Renderer|null = null
   fileName = ""
   frames = 0
   previousTime = 0
   wasm: InitOutput|null = null
-  joypad = new Joypad(this.emulator)
+  joypad: Joypad
 
   constructor() {
-    this.init()
-    this.addEventListeners()
+    this.emulator = new WasmEmulator()
+    this.audioManager = new AudioManager(this.emulator)
+    this.joypad = new Joypad(this.emulator)
 
-    const romInput = document.getElementById("rom-input")
+    const romInput = document.getElementById("game-input")
     const biosInput = document.getElementById("bios-input")
 
     romInput!.addEventListener("change", (e) => {
@@ -33,6 +35,7 @@ export class UI {
   }
 
   addEventListeners() {
+    console.log("adding event listeners")
     document.getElementById("game-button")!.addEventListener("click", () => this.loadRom())
 
     document.getElementById("close-btn")!.addEventListener("click", () => this.hideHelpModal())
@@ -44,9 +47,9 @@ export class UI {
   }
 
   async init() {
-    const path = "pkg/gba_emulator_wasm_bg.wasm"
+    console.log("initializing shit")
 
-    this.wasm = await init(path)
+    this.wasm = await init(wasmData)
 
     this.renderer = new Renderer(this.emulator, this.wasm)
 
@@ -61,14 +64,13 @@ export class UI {
       const biosResponse = await fetch("./bios/gba_opensource_bios.bin")
       const biosBody = await biosResponse.arrayBuffer()
 
-
       this.emulator.load_bios(new Uint8Array(biosBody))
     }
   }
 
-
   loadRom() {
-    document.getElementById("rom-input")?.click()
+    console.log("loading rom")
+    document.getElementById("game-input")?.click()
   }
 
   loadBios() {

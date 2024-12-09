@@ -1,4 +1,4 @@
-import { WasmEmulator } from "./pkg/gba_emulator_wasm";
+import { WasmEmulator } from "../../pkg/gba_emulator_wasm"
 
 
 const SAMPLE_RATE = 44100

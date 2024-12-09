@@ -1,4 +1,4 @@
-import { WasmEmulator, ButtonEvent } from "./pkg/gba_emulator_wasm";
+import { WasmEmulator, ButtonEvent } from "../../pkg/gba_emulator_wasm"
 
 
 const A_BUTTON = 0

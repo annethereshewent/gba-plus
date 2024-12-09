@@ -1,4 +1,4 @@
-import { InitOutput, WasmEmulator } from "./pkg/gba_emulator_wasm";
+import { InitOutput, WasmEmulator } from "../../pkg/gba_emulator_wasm"
 
 const SCREEN_WIDTH = 240
 const SCREEN_HEIGHT = 160

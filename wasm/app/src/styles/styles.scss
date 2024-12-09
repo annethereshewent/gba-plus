@@ -14,6 +14,16 @@ canvas {
   width: 100%;
   height: 80px;
 }
+#cloud-logged-in {
+  display: none;
+}
+#bios-notification, #save-notification, #state-notification {
+  position: fixed;
+  top: 100px;
+  left: 25%;
+  display: none;
+  width: 60%;
+}
 .menu-bar .buttons {
   margin-left: 20px;
 }

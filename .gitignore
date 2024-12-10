@@ -3,7 +3,9 @@
 /wasm/target
 */target
 .vscode
-*.bin
+gba_bios.bin
 *.gba
 /mobile/GBAEmulatorMobile
 /mobile/generated/
+node_modules/
+dist/

@@ -1,8 +1,9 @@
 extern crate gba_emulator;
+extern crate console_error_panic_hook;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, panic};
 
-use gba_emulator::{cpu::{registers::key_input_register::KeyInputRegister, CPU}, gpu::CYCLES_PER_FRAME, cartridge::BackupMedia};
+use gba_emulator::{apu::NUM_SAMPLES, cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}, gpu::CYCLES_PER_FRAME};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -33,13 +34,15 @@ pub enum ButtonEvent {
 #[wasm_bindgen]
 pub struct WasmEmulator {
   cpu: CPU,
-  key_map: HashMap<ButtonEvent, KeyInputRegister>
+  key_map: HashMap<ButtonEvent, KeyInputRegister>,
+  state_len: usize
 }
 
 #[wasm_bindgen]
 impl WasmEmulator {
   #[wasm_bindgen(constructor)]
   pub fn new() -> Self {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
     let mut key_map = HashMap::new();
 
     key_map.insert(ButtonEvent::ButtonA, KeyInputRegister::ButtonA);
@@ -55,8 +58,40 @@ impl WasmEmulator {
 
     WasmEmulator {
       cpu: CPU::new(),
-      key_map
+      key_map,
+      state_len: 0
     }
+  }
+
+  pub fn create_save_state(&mut self) -> *const u8 {
+    let buf = self.cpu.create_save_state();
+
+    self.state_len = buf.len();
+
+    buf.as_ptr()
+  }
+
+  pub fn load_save_state(&mut self, data: &[u8]) {
+    self.cpu.load_save_state(&data);
+
+    self.cpu.apu.audio_samples = vec![0.0; NUM_SAMPLES].into_boxed_slice();
+    self.cpu.apu.buffer_index = 0;
+
+    // repopulate arm and thumb luts
+    self.cpu.populate_arm_lut();
+    self.cpu.populate_thumb_lut();
+  }
+
+  pub fn save_state_length(&self) -> usize {
+    self.state_len
+  }
+
+  pub fn set_pause(&mut self, val: bool) {
+    self.cpu.paused = val;
+  }
+
+  pub fn reload_rom(&mut self, rom: &[u8]) {
+    self.cpu.reload_game(rom.to_vec());
   }
 
   pub fn load_save(&mut self, data: &[u8]) {
@@ -165,6 +200,9 @@ impl WasmEmulator {
 
   pub fn step_frame(&mut self) {
     while !self.cpu.gpu.frame_finished {
+      if self.cpu.paused {
+        break;
+      }
       self.cpu.step();
     }
 
@@ -182,7 +220,7 @@ impl WasmEmulator {
 
   pub fn load(&mut self, rom: &[u8]) {
     self.cpu.load_game(rom.to_vec(), None);
-    // self.cpu.skip_bios();
+    self.cpu.skip_bios();
   }
 
   pub fn load_bios(&mut self, bios: &[u8]) {

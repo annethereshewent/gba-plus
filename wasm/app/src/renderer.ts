@@ -14,7 +14,7 @@ export class Renderer {
   }
 
   getImageData() {
-    const rustMemory = new Uint8Array(this.wasm.memory.buffer,this.emulator.get_picture_pointer())
+    const rustMemory = new Uint8Array(this.wasm.memory.buffer, this.emulator.get_picture_pointer())
 
     const imageData = this.context!.getImageData(0,0, SCREEN_WIDTH, SCREEN_HEIGHT);
 

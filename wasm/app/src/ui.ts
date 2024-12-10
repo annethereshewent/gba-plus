@@ -29,6 +29,8 @@ export class UI {
   gameData: Uint8Array|null = null
   gameName = ""
 
+  frameNumber = 0
+
   constructor() {
     this.init()
 
@@ -334,17 +336,19 @@ export class UI {
 
   async loadSaveState(compressed: Uint8Array) {
     if (this.biosData != null && this.gameData != null) {
-      this.emulator?.set_pause(true)
-      if (this.emulator != null && this.stateManager != null) {
+      cancelAnimationFrame(this.frameNumber)
+
+      if (this.stateManager != null) {
         const data = await this.stateManager.decompress(compressed)
 
         if (data != null) {
-          this.emulator.load_save_state(data)
+          this.emulator!.load_save_state(data)
 
+          this.emulator!.load_bios(this.biosData)
 
-          this.emulator.load_bios(this.biosData)
+          this.emulator!.reload_rom(this.gameData)
 
-          this.emulator.reload_rom(this.gameData)
+          this.frameNumber = requestAnimationFrame((time) => this.run(time))
         }
 
         this.closeStatesModal()
@@ -373,6 +377,7 @@ export class UI {
 
   closeStatesModal() {
     this.emulator?.set_pause(false)
+
     const statesModal = document.getElementById("states-modal")
 
     if (statesModal != null) {
@@ -517,11 +522,16 @@ export class UI {
       let saveData = this.cloudService.usingCloud ? (await this.cloudService.getSave(this.gameName!)).data : new Uint8Array(JSON.parse(localStorage.getItem(this.gameName) ?? "null"))
 
       if (saveData != null) {
+        if (saveData.length == 0) {
+          saveData = new Uint8Array(this.emulator!.backup_file_size())
+        }
         this.emulator!.load_save(saveData)
+      } else {
+        this.emulator!.load_save(new Uint8Array(this.emulator!.backup_file_size()))
       }
 
       this.audioManager!.startAudio()
-      requestAnimationFrame((time) => this.run(time))
+      this.frameNumber = requestAnimationFrame((time) => this.run(time))
     }
   }
 
@@ -611,6 +621,6 @@ export class UI {
 
     this.frames++
 
-    requestAnimationFrame((time) => this.run(time))
+    this.frameNumber = requestAnimationFrame((time) => this.run(time))
   }
 }

@@ -1,27 +1,22 @@
-use ffi::GBAButtonEvent;
 use gba_emulator::{apu::NUM_SAMPLES, cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}};
 
 extern crate gba_emulator;
 
+const BUTTON_CROSS: usize = 0;
+const BUTTON_CIRCLE: usize = 1;
+const BUTTON_SQUARE: usize = 2;
+const BUTTON_TRIANGLE: usize = 3;
+const SELECT: usize = 4;
+const START: usize = 6;
+const BUTTON_L: usize = 9;
+const BUTTON_R: usize = 10;
+const UP: usize = 12;
+const DOWN: usize = 13;
+const LEFT: usize = 14;
+const RIGHT: usize = 15;
+
 #[swift_bridge::bridge]
 mod ffi {
-  enum GBAButtonEvent {
-    ButtonA,
-    ButtonB,
-    ButtonL,
-    ButtonR,
-    Select,
-    Start,
-    Up,
-    Down,
-    Left,
-    Right,
-    ButtonHome,
-    GameMenu,
-    QuickSave,
-    QuickLoad
-  }
-
   extern "Rust" {
     type GBAEmulator;
 
@@ -61,7 +56,7 @@ mod ffi {
     fn load_bios(&mut self, bios: &[u8]);
 
     #[swift_bridge(swift_name = "updateInput")]
-    fn update_input(&mut self, button_event: GBAButtonEvent, is_pressed: bool);
+    fn update_input(&mut self, index: usize, is_pressed: bool);
 
     #[swift_bridge(swift_name = "audioBufferLength")]
     fn audio_buffer_length(&self) -> usize;
@@ -252,19 +247,18 @@ impl GBAEmulator {
     self.cpu.paused = paused;
   }
 
-  pub fn update_input(&mut self, button_event: GBAButtonEvent, is_pressed: bool) {
-    use self::GBAButtonEvent::*;
-    match button_event {
-      ButtonA => self.cpu.key_input.set(KeyInputRegister::ButtonA, !is_pressed),
-      ButtonB => self.cpu.key_input.set(KeyInputRegister::ButtonB, !is_pressed),
-      Start => self.cpu.key_input.set(KeyInputRegister::Start, !is_pressed),
-      Select => self.cpu.key_input.set(KeyInputRegister::Select, !is_pressed),
-      Up => self.cpu.key_input.set(KeyInputRegister::Up, !is_pressed),
-      Down => self.cpu.key_input.set(KeyInputRegister::Down, !is_pressed),
-      Left => self.cpu.key_input.set(KeyInputRegister::Left, !is_pressed),
-      Right => self.cpu.key_input.set(KeyInputRegister::Right, !is_pressed),
-      ButtonL => self.cpu.key_input.set(KeyInputRegister::ButtonL, !is_pressed),
-      ButtonR => self.cpu.key_input.set(KeyInputRegister::ButtonR, !is_pressed),
+  pub fn update_input(&mut self, index: usize, is_pressed: bool) {
+    match index {
+      BUTTON_CIRCLE => self.cpu.key_input.set(KeyInputRegister::ButtonA, !is_pressed),
+      BUTTON_CROSS => self.cpu.key_input.set(KeyInputRegister::ButtonB, !is_pressed),
+      START => self.cpu.key_input.set(KeyInputRegister::Start, !is_pressed),
+      SELECT => self.cpu.key_input.set(KeyInputRegister::Select, !is_pressed),
+      UP => self.cpu.key_input.set(KeyInputRegister::Up, !is_pressed),
+      DOWN => self.cpu.key_input.set(KeyInputRegister::Down, !is_pressed),
+      LEFT => self.cpu.key_input.set(KeyInputRegister::Left, !is_pressed),
+      RIGHT => self.cpu.key_input.set(KeyInputRegister::Right, !is_pressed),
+      BUTTON_L => self.cpu.key_input.set(KeyInputRegister::ButtonL, !is_pressed),
+      BUTTON_R => self.cpu.key_input.set(KeyInputRegister::ButtonR, !is_pressed),
       _ => ()
     }
   }

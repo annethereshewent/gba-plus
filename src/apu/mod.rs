@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use ringbuf::{storage::Heap, traits::Producer, wrap::caching::Caching, SharedRb};
 use serde::{Deserialize, Serialize};
 
 use crate::{cpu::{dma::dma_channels::DmaChannels, CPU_CLOCK_SPEED}, scheduler::{EventType, Scheduler}};
@@ -8,7 +10,7 @@ pub mod registers;
 pub mod dma_fifo;
 
 pub const GBA_SAMPLE_RATE: u32 = 32768;
-pub const NUM_SAMPLES: usize = 4096*2;
+pub const NUM_SAMPLES: usize = 8192*2;
 
 const FIFO_REGISTER_A: u32 = 0x400_00a0;
 const FIFO_REGISTER_B: u32 = 0x400_00a4;
@@ -23,10 +25,10 @@ pub struct APU {
   pub cycles_per_sample: u32,
   pub sample_rate: u32,
   pub sound_bias: u16,
-  pub audio_samples: Box<[f32]>,
   pub buffer_index: usize,
   pub previous_value: f32,
-
+  #[serde(skip_serializing, skip_deserializing)]
+  producer: Option<Caching<Arc<SharedRb<Heap<f32>>>, true, false>>,
   phase: f32,
   in_frequency: f32,
   out_frequency: f32,
@@ -34,7 +36,7 @@ pub struct APU {
 }
 
 impl APU {
-  pub fn new() -> Self {
+  pub fn new(producer: Caching<Arc<SharedRb<Heap<f32>>>, true, false>) -> Self {
     Self {
       fifo_a: DmaFifo::new(),
       fifo_b: DmaFifo::new(),
@@ -44,13 +46,13 @@ impl APU {
       sample_rate: GBA_SAMPLE_RATE,
       cycles_per_sample: CPU_CLOCK_SPEED / GBA_SAMPLE_RATE,
       sound_bias: 0x200,
-      audio_samples: vec![0.0; NUM_SAMPLES].into_boxed_slice(),
       buffer_index: 0,
       previous_value: 0.0,
       in_frequency: GBA_SAMPLE_RATE as f32,
       out_frequency: 44100 as f32,
       last_sample: [0.0; 2],
-      phase: 0.0
+      phase: 0.0,
+      producer: Some(producer)
     }
   }
 
@@ -99,21 +101,19 @@ impl APU {
   }
 
   fn push_sample(&mut self, sample: f32) {
-    if self.buffer_index < NUM_SAMPLES {
-      self.audio_samples[self.buffer_index] = sample;
-      self.buffer_index += 1;
-    }
+
   }
 
   fn resample(&mut self, sample: &mut [f32; 2]) {
-    while self.phase < 1.0 {
-      self.push_sample(sample[0]);
-      self.push_sample(sample[1]);
-
-      self.phase += self.in_frequency / self.out_frequency;
+    if let Some(producer) = &mut self.producer {
+      while self.phase < 1.0 {
+        producer.try_push(sample[0]);
+        producer.try_push(sample[1]);
+        self.phase += self.in_frequency / self.out_frequency;
+      }
+      self.phase -= 1.0;
+      self.last_sample = *sample;
     }
-    self.phase -= 1.0;
-    self.last_sample = *sample;
   }
 
   pub fn apply_bias(&mut self, sample: &mut i16) {

@@ -1,38 +1,33 @@
 extern crate gba_emulator;
 
-use std::{fs, env, collections::HashMap};
+use std::{collections::HashMap, env, fs, sync::Arc};
 
 use gba_emulator::{cpu::{CPU, registers::key_input_register::KeyInputRegister}, gpu::{SCREEN_WIDTH, SCREEN_HEIGHT, CYCLES_PER_FRAME}, apu::APU};
+use ringbuf::{storage::Heap, traits::{Consumer, Split}, wrap::caching::Caching, HeapRb, SharedRb};
 use sdl2::{pixels::PixelFormatEnum, event::Event, keyboard::Keycode, audio::{AudioSpecDesired, AudioCallback}};
 
-struct GbaAudioCallback<'a> {
-  apu: &'a mut APU
+const NUM_SAMPLES: usize = 8192 * 2;
+
+struct GbaAudioCallback {
+  consumer: Caching<Arc<SharedRb<Heap<f32>>>, false, true>
 }
 
-impl AudioCallback for GbaAudioCallback<'_> {
+impl AudioCallback for GbaAudioCallback {
   type Channel = f32;
 
   fn callback(&mut self, buf: &mut [Self::Channel]) {
-    let mut index = 0;
-
     for b in buf.iter_mut() {
-      *b = if index >= self.apu.buffer_index {
-        self.apu.previous_value
+      *b = if let Some(sample) = self.consumer.try_pop() {
+        sample *  0.0005
       } else {
-        self.apu.audio_samples[index] * 0.0005
+        0.0
       };
-
-      self.apu.previous_value = *b;
-      index += 1;
     }
-
-    self.apu.buffer_index = 0;
   }
 }
 
 
 fn main() {
-  let mut cpu = CPU::new();
 
   let args: Vec<String> = env::args().collect();
 
@@ -43,6 +38,12 @@ fn main() {
   let filepath = &args[1];
 
   let bytes: Vec<u8> = fs::read(filepath).unwrap();
+
+  let ringbuffer = HeapRb::<f32>::new(NUM_SAMPLES);
+
+  let (producer, consumer) = ringbuffer.split();
+
+  let mut cpu = CPU::new(producer);
 
   cpu.load_game(bytes, Some(filepath.to_string()));
   cpu.load_bios(fs::read("../gba_bios.bin").unwrap());
@@ -59,10 +60,12 @@ fn main() {
     samples: Some(4096)
   };
 
+
+
   let device = audio_subsystem.open_playback(
     None,
     &spec,
-    |_| GbaAudioCallback { apu: &mut cpu.apu }
+    |_| GbaAudioCallback { consumer }
   ).unwrap();
 
   device.resume();

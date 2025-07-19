@@ -1,10 +1,13 @@
 // general comments
 
+use std::sync::Arc;
+
 // per the ARM7tdmi manual,
 // in ARM state, bits [1:0] of
 // R15 are zero and bits [31:2] contain the PC. In THUMB state,
 // bit [0] is zero and bits [31:1] contain the PC.
 use dma::dma_channel::{registers::dma_control_register::DmaControlRegister, DmaParams};
+use ringbuf::{storage::Heap, wrap::caching::Caching, SharedRb};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -169,7 +172,7 @@ impl PSRRegister {
 }
 
 impl CPU {
-  pub fn new() -> Self {
+  pub fn new(producer: Caching<Arc<SharedRb<Heap<f32>>>, true, false>) -> Self {
     let mut cpu = Self {
       r: [0; 15],
       pc: 0,
@@ -206,7 +209,7 @@ impl CPU {
       key_input: KeyInputRegister::from_bits_retain(0x3ff),
       timers: Timers::new(),
       waitcnt: WaitstateControlRegister::new(),
-      apu: APU::new(),
+      apu: APU::new(producer),
       scheduler: Scheduler::new(),
       cycles: 0,
       paused: false

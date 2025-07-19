@@ -15,3 +15,4 @@ swift-bridge-build = "0.1"
 [dependencies]
 swift-bridge = "0.1"
 zstd = "0.13"
+ringbuf="0.4.8"

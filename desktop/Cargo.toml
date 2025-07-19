@@ -10,3 +10,6 @@ path = "../"
 [dependencies.sdl2]
 version = "0.35"
 features=["gfx"]
+
+[dependencies]
+ringbuf="0.4.8"

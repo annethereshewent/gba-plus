@@ -21,12 +21,11 @@ export class Renderer {
     for (let x = 0; x < SCREEN_WIDTH; x++) {
       for (let y = 0; y < SCREEN_HEIGHT; y++) {
         const imageIndex = x * 4 + y * SCREEN_WIDTH * 4;
-        const rustIndex = x * 3 + y * SCREEN_WIDTH * 3
 
-        imageData.data[imageIndex] = rustMemory[rustIndex]
-        imageData.data[imageIndex+1] = rustMemory[rustIndex+1]
-        imageData.data[imageIndex+2] = rustMemory[rustIndex+2]
-        imageData.data[imageIndex+3] = 0xff
+        imageData.data[imageIndex] = rustMemory[imageIndex]
+        imageData.data[imageIndex+1] = rustMemory[imageIndex+1]
+        imageData.data[imageIndex+2] = rustMemory[imageIndex+2]
+        imageData.data[imageIndex+3] = rustMemory[imageIndex+3]
       }
     }
 

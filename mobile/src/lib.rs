@@ -5,10 +5,10 @@ use ringbuf::{storage::Heap, traits::{Consumer, Split}, wrap::caching::Caching, 
 
 extern crate gba_emulator;
 
-const BUTTON_CROSS: usize = 0;
-const BUTTON_CIRCLE: usize = 1;
-const BUTTON_SQUARE: usize = 2;
-const BUTTON_TRIANGLE: usize = 3;
+const BUTTON_B: usize = 0;
+const BUTTON_A: usize = 1;
+const BUTTON_Y: usize = 2;
+const BUTTON_X: usize = 3;
 const SELECT: usize = 4;
 const START: usize = 6;
 const BUTTON_L: usize = 9;
@@ -254,8 +254,8 @@ impl GBAEmulator {
 
   pub fn update_input(&mut self, index: usize, is_pressed: bool) {
     match index {
-      BUTTON_CIRCLE => self.cpu.key_input.set(KeyInputRegister::ButtonA, !is_pressed),
-      BUTTON_CROSS => self.cpu.key_input.set(KeyInputRegister::ButtonB, !is_pressed),
+      BUTTON_A => self.cpu.key_input.set(KeyInputRegister::ButtonA, !is_pressed),
+      BUTTON_B => self.cpu.key_input.set(KeyInputRegister::ButtonB, !is_pressed),
       START => self.cpu.key_input.set(KeyInputRegister::Start, !is_pressed),
       SELECT => self.cpu.key_input.set(KeyInputRegister::Select, !is_pressed),
       UP => self.cpu.key_input.set(KeyInputRegister::Up, !is_pressed),

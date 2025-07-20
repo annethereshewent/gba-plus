@@ -1,9 +1,10 @@
 extern crate gba_emulator;
 extern crate console_error_panic_hook;
 
-use std::{collections::HashMap, panic};
+use std::{collections::HashMap, panic, sync::Arc};
 
 use gba_emulator::{apu::NUM_SAMPLES, cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}, gpu::CYCLES_PER_FRAME};
+use ringbuf::{storage::Heap, traits::{Consumer, Split}, wrap::caching::Caching, HeapRb, SharedRb};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -35,7 +36,9 @@ pub enum ButtonEvent {
 pub struct WasmEmulator {
   cpu: CPU,
   key_map: HashMap<ButtonEvent, KeyInputRegister>,
-  state_len: usize
+  state_len: usize,
+  consumer: Caching<Arc<SharedRb<Heap<f32>>>, false, true>,
+  audio_buffer: Vec<f32>
 }
 
 #[wasm_bindgen]
@@ -44,6 +47,9 @@ impl WasmEmulator {
   pub fn new() -> Self {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let mut key_map = HashMap::new();
+
+    let ringbuffer = HeapRb::<f32>::new(NUM_SAMPLES);
+    let (producer, consumer) = ringbuffer.split();
 
     key_map.insert(ButtonEvent::ButtonA, KeyInputRegister::ButtonA);
     key_map.insert(ButtonEvent::ButtonB, KeyInputRegister::ButtonB);
@@ -57,9 +63,11 @@ impl WasmEmulator {
     key_map.insert(ButtonEvent::Right, KeyInputRegister::Right);
 
     WasmEmulator {
-      cpu: CPU::new(),
+      cpu: CPU::new(producer),
       key_map,
-      state_len: 0
+      state_len: 0,
+      consumer,
+      audio_buffer: Vec::new()
     }
   }
 
@@ -74,8 +82,7 @@ impl WasmEmulator {
   pub fn load_save_state(&mut self, data: &[u8]) {
     self.cpu.load_save_state(&data);
 
-    self.cpu.apu.audio_samples = vec![0.0; NUM_SAMPLES].into_boxed_slice();
-    self.cpu.apu.buffer_index = 0;
+    self.consumer.clear();
 
     // repopulate arm and thumb luts
     self.cpu.populate_arm_lut();
@@ -170,16 +177,13 @@ impl WasmEmulator {
   }
 
   pub fn update_buffer(&mut self, left_buffer: &mut [f32], right_buffer: &mut [f32]) {
-    let apu = &mut self.cpu.apu;
-
-    let mut previous_sample = 0.0;
-
     let mut left_index = 0;
     let mut right_index = 0;
 
-    for i in 0..apu.buffer_index {
-      let sample = (apu.audio_samples[i] as f32) * 0.0005;
-      if i % 2 == 0 {
+    let mut is_left = true;
+
+    for sample in self.consumer.pop_iter() {
+      if is_left {
         left_buffer[left_index] = sample;
         left_index += 1;
       } else {
@@ -187,15 +191,8 @@ impl WasmEmulator {
         right_index += 1;
       }
 
-      previous_sample = sample;
+      is_left = !is_left;
     }
-
-    for i in apu.buffer_index..left_buffer.len() {
-      left_buffer[i] = previous_sample;
-      right_buffer[i] = previous_sample;
-    }
-
-    apu.buffer_index = 0;
   }
 
   pub fn step_frame(&mut self) {

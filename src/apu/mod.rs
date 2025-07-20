@@ -103,8 +103,8 @@ impl APU {
   fn resample(&mut self, sample: &mut [f32; 2]) {
     if let Some(producer) = &mut self.producer {
       while self.phase < 1.0 {
-        producer.try_push(sample[0]).unwrap();
-        producer.try_push(sample[1]).unwrap();
+        producer.try_push(sample[0]).unwrap_or(());
+        producer.try_push(sample[1]).unwrap_or(());
         self.phase += self.in_frequency / self.out_frequency;
       }
       self.phase -= 1.0;

@@ -28,7 +28,7 @@ pub struct APU {
   pub buffer_index: usize,
   pub previous_value: f32,
   #[serde(skip_serializing, skip_deserializing)]
-  producer: Option<Caching<Arc<SharedRb<Heap<f32>>>, true, false>>,
+  pub producer: Option<Caching<Arc<SharedRb<Heap<f32>>>, true, false>>,
   phase: f32,
   in_frequency: f32,
   out_frequency: f32,
@@ -100,15 +100,11 @@ impl APU {
     self.apply_bias(sample);
   }
 
-  fn push_sample(&mut self, sample: f32) {
-
-  }
-
   fn resample(&mut self, sample: &mut [f32; 2]) {
     if let Some(producer) = &mut self.producer {
       while self.phase < 1.0 {
-        producer.try_push(sample[0]);
-        producer.try_push(sample[1]);
+        producer.try_push(sample[0]).unwrap();
+        producer.try_push(sample[1]).unwrap();
         self.phase += self.in_frequency / self.out_frequency;
       }
       self.phase -= 1.0;

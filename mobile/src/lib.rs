@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use gba_emulator::{apu::NUM_SAMPLES, cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}};
+use ringbuf::{storage::Heap, traits::{Consumer, Split}, wrap::caching::Caching, HeapRb, SharedRb};
 
 extern crate gba_emulator;
 
@@ -77,14 +80,23 @@ mod ffi {
 
 pub struct GBAEmulator {
   cpu: CPU,
-  compressed_len: usize
+  compressed_len: usize,
+  consumer: Caching<Arc<SharedRb<Heap<f32>>>, false, true>,
+  audio_buffer: Vec<f32>
 }
 
 impl GBAEmulator {
+
   pub fn new() -> Self {
+    let ringbuffer = HeapRb::<f32>::new(NUM_SAMPLES);
+    let (producer, consumer) = ringbuffer.split();
+
+
     GBAEmulator {
-      cpu: CPU::new(),
-      compressed_len: 0
+      cpu: CPU::new(producer),
+      compressed_len: 0,
+      consumer,
+      audio_buffer: Vec::new()
     }
   }
 
@@ -182,8 +194,7 @@ impl GBAEmulator {
 
     self.cpu.load_save_state(&buf);
 
-    self.cpu.apu.audio_samples = vec![0.0; NUM_SAMPLES].into_boxed_slice();
-    self.cpu.apu.buffer_index = 0;
+    self.consumer.clear();
 
     // repopulate arm and thumb luts
     self.cpu.populate_arm_lut();
@@ -191,25 +202,19 @@ impl GBAEmulator {
   }
 
   pub fn audio_buffer_ptr(&mut self) -> *const f32 {
-    let audio_buffer = &self.cpu
-      .apu
-      .audio_samples;
+    self.audio_buffer = Vec::new();
 
-    let mut vec = Vec::new();
 
-    for i in 0..self.cpu.apu.buffer_index {
-      let sample = audio_buffer[i]  * 0.0005;
 
-      vec.push(sample);
+    for sample in self.consumer.pop_iter() {
+      self.audio_buffer.push(sample * 0.0005);
     }
 
-    self.cpu.apu.buffer_index = 0;
-
-    vec.as_ptr()
+    self.audio_buffer.as_ptr()
   }
 
   pub fn audio_buffer_length(&self) -> usize {
-    self.cpu.apu.buffer_index
+    self.audio_buffer.len()
   }
 
   pub fn step_frame(&mut self) {

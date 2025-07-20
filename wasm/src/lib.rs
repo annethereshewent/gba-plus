@@ -183,6 +183,9 @@ impl WasmEmulator {
     let mut is_left = true;
 
     for sample in self.consumer.pop_iter() {
+      if left_index >= left_buffer.len() {
+        break;
+      }
       if is_left {
         left_buffer[left_index] = sample;
         left_index += 1;

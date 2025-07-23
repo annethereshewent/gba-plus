@@ -194,7 +194,12 @@ impl GBAEmulator {
 
     self.cpu.load_save_state(&buf);
 
-    self.consumer.clear();
+    let ringbuffer = HeapRb::<f32>::new(NUM_SAMPLES);
+
+    let (producer, consumer) = ringbuffer.split();
+
+    self.consumer = consumer;
+    self.cpu.apu.producer = Some(producer);
 
     // repopulate arm and thumb luts
     self.cpu.populate_arm_lut();
@@ -203,8 +208,6 @@ impl GBAEmulator {
 
   pub fn audio_buffer_ptr(&mut self) -> *const f32 {
     self.audio_buffer = Vec::new();
-
-
 
     for sample in self.consumer.pop_iter() {
       self.audio_buffer.push(sample * 0.0005);

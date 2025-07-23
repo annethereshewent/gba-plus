@@ -75,6 +75,9 @@ mod ffi {
 
     #[swift_bridge(swift_name="compressedLength")]
     fn compressed_len(&self) -> usize;
+
+    #[swift_bridge(swift_name="setPausedAudio")]
+    fn set_paused_audio(&mut self, value: bool);
   }
 }
 
@@ -98,6 +101,10 @@ impl GBAEmulator {
       consumer,
       audio_buffer: Vec::new()
     }
+  }
+
+  fn set_paused_audio(&mut self, value: bool) {
+    self.cpu.apu.audio_paused = value;
   }
 
   pub fn load_save(&mut self, data: &[u8]) {

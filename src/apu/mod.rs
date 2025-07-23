@@ -32,7 +32,8 @@ pub struct APU {
   phase: f32,
   in_frequency: f32,
   out_frequency: f32,
-  last_sample: [f32; 2]
+  last_sample: [f32; 2],
+  pub audio_paused: bool
 }
 
 impl APU {
@@ -52,7 +53,8 @@ impl APU {
       out_frequency: 44100 as f32,
       last_sample: [0.0; 2],
       phase: 0.0,
-      producer: Some(producer)
+      producer: Some(producer),
+      audio_paused: false
     }
   }
 
@@ -71,6 +73,9 @@ impl APU {
 
   pub fn sample_audio(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
+    if self.audio_paused {
+      return;
+    }
 
     let mut left_sample: i16 = 0;
     let mut right_sample: i16 = 0;

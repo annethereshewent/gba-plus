@@ -18,7 +18,7 @@ impl AudioCallback for GbaAudioCallback {
   fn callback(&mut self, buf: &mut [Self::Channel]) {
     for b in buf.iter_mut() {
       *b = if let Some(sample) = self.consumer.try_pop() {
-        sample *  0.0005
+        sample
       } else {
         0.0
       };

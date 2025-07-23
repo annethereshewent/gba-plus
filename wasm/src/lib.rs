@@ -191,10 +191,10 @@ impl WasmEmulator {
         break;
       }
       if is_left {
-        left_buffer[left_index] = sample * 0.0005;
+        left_buffer[left_index] = sample;
         left_index += 1;
       } else {
-        right_buffer[right_index] = sample * 0.0005;
+        right_buffer[right_index] = sample;
         right_index += 1;
       }
 

@@ -71,6 +71,14 @@ impl APU {
     scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
   }
 
+  fn normalize_to_f32(sample: i16) -> f32 {
+    if sample >= 0 {
+      return sample as f32 / i16::MAX as f32;
+    }
+
+    -sample as f32 / i16::MIN as f32
+  }
+
   pub fn sample_audio(&mut self, scheduler: &mut Scheduler) {
     scheduler.schedule(EventType::SampleAudio, self.cycles_per_sample as usize);
     if self.audio_paused {
@@ -93,7 +101,7 @@ impl APU {
       self.update_sample(self.fifo_b.value as i16, &mut right_sample, SoundControlDma::DMA_SOUND_B_VOLUME);
     }
 
-    let mut sample = [left_sample as i32 as f32, right_sample as i32 as f32];
+    let mut sample = [Self::normalize_to_f32(left_sample), Self::normalize_to_f32(right_sample)];
     self.resample(&mut sample);
   }
 

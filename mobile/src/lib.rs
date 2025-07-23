@@ -217,7 +217,7 @@ impl GBAEmulator {
     self.audio_buffer = Vec::new();
 
     for sample in self.consumer.pop_iter() {
-      self.audio_buffer.push(sample * 0.0005);
+      self.audio_buffer.push(sample);
     }
 
     self.audio_buffer.as_ptr()

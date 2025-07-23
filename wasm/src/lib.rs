@@ -82,7 +82,11 @@ impl WasmEmulator {
   pub fn load_save_state(&mut self, data: &[u8]) {
     self.cpu.load_save_state(&data);
 
-    self.consumer.clear();
+    let ringbuffer = HeapRb::<f32>::new(NUM_SAMPLES);
+    let (producer, consumer) = ringbuffer.split();
+
+    self.consumer = consumer;
+    self.cpu.apu.producer = Some(producer);
 
     // repopulate arm and thumb luts
     self.cpu.populate_arm_lut();

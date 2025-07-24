@@ -53,7 +53,7 @@ impl CPU {
   }
 
   pub fn panic(&mut self, instr: u16) -> Option<MemoryAccess> {
-    panic!("unsupported instruction: {:b}", instr);
+    panic!("unsupported instruction: 0x{:x}, pc = 0x{:x}", instr, self.pc);
   }
 
   fn move_shifted_register(&mut self, instr: u16) -> Option<MemoryAccess> {

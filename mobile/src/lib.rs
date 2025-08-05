@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
-use gba_emulator::{apu::NUM_SAMPLES, cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}};
+use gba_emulator::{cartridge::BackupMedia, cpu::{registers::key_input_register::KeyInputRegister, CPU}};
 use ringbuf::{storage::Heap, traits::{Consumer, Split}, wrap::caching::Caching, HeapRb, SharedRb};
 
 extern crate gba_emulator;
 
+const NUM_SAMPLES: usize = 8192 * 2;
+
 const BUTTON_B: usize = 0;
 const BUTTON_A: usize = 1;
-const BUTTON_Y: usize = 2;
-const BUTTON_X: usize = 3;
+// const BUTTON_Y: usize = 2;
+// const BUTTON_X: usize = 3;
 const SELECT: usize = 4;
 const START: usize = 6;
 const BUTTON_L: usize = 9;
@@ -202,7 +204,6 @@ impl GBAEmulator {
     self.cpu.load_save_state(&buf);
 
     let ringbuffer = HeapRb::<f32>::new(NUM_SAMPLES);
-
     let (producer, consumer) = ringbuffer.split();
 
     self.consumer = consumer;
